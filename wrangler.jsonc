@@ -1,0 +1,23 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "chemvault-files",
+  "compatibility_date": "2026-06-11",
+  "pages_build_output_dir": "dist",
+  "vars": {
+    "PRIVATE_OWNER_EMAIL": "owner@chemvault.science",
+    "ENVIRONMENT": "local"
+  },
+  "r2_buckets": [
+    {
+      "binding": "FILES_BUCKET",
+      "bucket_name": "chemvault-files"
+    }
+  ],
+  "d1_databases": [
+    {
+      "binding": "FILES_DB",
+      "database_name": "chemvault-files",
+      "database_id": "00000000-0000-0000-0000-000000000000"
+    }
+  ]
+}

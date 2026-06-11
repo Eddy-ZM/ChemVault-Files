@@ -9,9 +9,21 @@
     "dev": "astro dev",
     "build": "astro build",
     "preview": "astro preview",
-    "astro": "astro"
+    "astro": "astro",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "check": "astro check && npm test",
+    "pages:dev": "npm run build && wrangler pages dev dist --compatibility-date=2026-06-11",
+    "types:cf": "wrangler types"
   },
   "dependencies": {
     "astro": "^6.4.2"
+  },
+  "devDependencies": {
+    "@astrojs/check": "^0.9.9",
+    "@cloudflare/workers-types": "^4.20260611.1",
+    "typescript": "^6.0.3",
+    "vitest": "^3.2.6",
+    "wrangler": "^4.100.0"
   }
 }
