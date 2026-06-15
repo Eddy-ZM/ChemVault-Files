@@ -136,7 +136,7 @@ const files = [
   <section class="upload-panel panel" aria-labelledby="upload-queue-title" data-cv-upload-zone>
     <div class="panel-toolbar">
       <div>
-        <h2 id="upload-queue-title">Upload Queue (2)</h2>
+        <h2 id="upload-queue-title" data-cv-upload-title>Upload Queue (2)</h2>
         <button class="toolbar-caret" type="button" aria-label="Collapse upload queue">
           <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
             <path d="m8 10 4 4 4-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
@@ -155,7 +155,7 @@ const files = [
     </div>
 
     <label class="upload-dropzone" data-cv-file-dropzone>
-      <input class="sr-only" type="file" multiple />
+      <input class="sr-only" type="file" multiple data-cv-file-input />
       <span class="upload-dropzone__icon">
         <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
           <path d="M12 3v11m0-11 4 4M12 3 8 7M5 14v4.5A2.5 2.5 0 0 0 7.5 21h9a2.5 2.5 0 0 0 2.5-2.5V14" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" />
@@ -168,7 +168,7 @@ const files = [
       <span class="upload-dropzone__action">Choose files</span>
     </label>
 
-    <ul class="upload-list" aria-label="Current uploads">
+    <ul class="upload-list" aria-label="Current uploads" data-cv-upload-list>
       {uploads.map((upload) => (
         <li class="upload-row" data-cv-upload-row>
           <span class="file-type-icon" data-ext={upload.extension}>{upload.extension}</span>
@@ -202,8 +202,8 @@ const files = [
   <section class="file-panel panel" aria-labelledby="files-title" data-cv-file-panel>
     <div class="file-panel__header">
       <div>
-        <h2 id="files-title">Files (212)</h2>
-        <div class="active-filters" aria-label="Active filters">
+        <h2 id="files-title" data-cv-files-title>Files (212)</h2>
+        <div class="active-filters" aria-label="Active filters" data-cv-active-filters>
           <button class="filter-chip" type="button" data-cv-active-filter="Spectra">
             Spectra
             <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
@@ -257,7 +257,7 @@ const files = [
             <th scope="col" class="icon-cell"><span class="sr-only">Actions</span></th>
           </tr>
         </thead>
-        <tbody>
+        <tbody data-cv-file-table-body>
           {files.map((file) => (
             <tr class:list={[{ "is-selected": file.selected, "is-failed": file.failed }]} data-cv-file-row data-file-name={file.name}>
               <td class="select-cell">
@@ -308,7 +308,7 @@ const files = [
     </div>
 
     <footer class="table-footer">
-      <span>1 selected</span>
+      <span data-cv-selection-summary>1 selected</span>
       <div class="pagination" aria-label="Pagination">
         <span>Show</span>
         <button class="plain-select" type="button">50
@@ -316,7 +316,7 @@ const files = [
             <path d="m8 10 4 4 4-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
           </svg>
         </button>
-        <span>1-50 of 212</span>
+        <span data-cv-page-summary>1-50 of 212</span>
         <button class="ghost-icon" type="button" aria-label="Previous page">
           <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
             <path d="m15 18-6-6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />

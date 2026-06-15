@@ -23,7 +23,7 @@ const metadata = [
 
 <aside class="inspector panel" aria-label="Selected file inspector" data-cv-inspector>
   <header class="inspector__header">
-    <span class="file-type-icon" data-ext="JCAMP">JCAMP</span>
+    <span class="file-type-icon" data-ext="JCAMP" data-cv-selected-file-icon>JCAMP</span>
     <div>
       <h2 data-cv-selected-file-name>Compound_14_1H.jdx</h2>
     </div>
@@ -41,7 +41,7 @@ const metadata = [
   </nav>
 
   <div class="inspector__body">
-    <dl class="metadata-list">
+    <dl class="metadata-list" data-cv-metadata-list>
       {metadata.slice(0, 6).map(([label, value]) => (
         <div>
           <dt>{label}</dt>
