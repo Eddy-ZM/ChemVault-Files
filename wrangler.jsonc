@@ -6,7 +6,7 @@
   "pages_build_output_dir": "dist",
   "vars": {
     "PRIVATE_OWNER_EMAIL": "owner@chemvault.science",
-    "ENVIRONMENT": "local"
+    "ENVIRONMENT": "production"
   },
   "r2_buckets": [
     {
