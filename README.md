@@ -48,19 +48,15 @@ The app will use local simulated D1 and R2 bindings through Wrangler. If binding
 
 ## Cloudflare Resources
 
-Create the production R2 bucket:
+Enable R2 in the Cloudflare dashboard before creating the production R2 bucket. Cloudflare returns `10042: Please enable R2 through the Cloudflare Dashboard` until the account has R2 enabled.
+
+After R2 is enabled, create the production R2 bucket:
 
 ```sh
 npx wrangler r2 bucket create chemvault-files
 ```
 
-Create the production D1 database:
-
-```sh
-npx wrangler d1 create chemvault-files
-```
-
-After D1 is created, replace the sample `database_id` in `wrangler.jsonc` with the real ID from Cloudflare, then apply migrations remotely:
+The production D1 database ID is configured in `wrangler.jsonc`. Apply migrations remotely before the first deploy:
 
 ```sh
 npx wrangler d1 migrations apply chemvault-files --remote
