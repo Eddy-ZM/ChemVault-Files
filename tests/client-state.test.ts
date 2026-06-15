@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { filterFiles, formatBytes, reduceUploadQueue } from "../src/lib/chemvault-files/client-state";
+import { filterFiles, formatBytes, reduceUploadQueue, sortFiles, summarizeFiles } from "../src/lib/chemvault-files/client-state";
 import type { FileRecord } from "../src/lib/chemvault-files/types";
 
 const file: FileRecord = {
@@ -22,6 +22,29 @@ const file: FileRecord = {
   tags: [{ id: "tag_nmr", name: "NMR", slug: "nmr", color: "#0071e3", createdAt: "2026-06-11T00:00:00.000Z" }],
 };
 
+const failedFile: FileRecord = {
+  ...file,
+  id: "file_2",
+  displayName: "failed_upload_package.zip",
+  originalName: "failed_upload_package.zip",
+  mimeType: "application/zip",
+  sizeBytes: 3886942618,
+  status: "failed",
+  updatedAt: "2026-06-12T00:00:00.000Z",
+  tags: [{ id: "tag_raw", name: "Raw Data", slug: "raw-data", color: null, createdAt: "2026-06-11T00:00:00.000Z" }],
+};
+
+const csvFile: FileRecord = {
+  ...file,
+  id: "file_3",
+  displayName: "kinetics_run_042_processed.csv",
+  originalName: "kinetics_run_042_processed.csv",
+  mimeType: "text/csv",
+  sizeBytes: 47919923,
+  updatedAt: "2026-06-10T00:00:00.000Z",
+  tags: [{ id: "tag_kinetics", name: "Kinetics", slug: "kinetics", color: null, createdAt: "2026-06-11T00:00:00.000Z" }],
+};
+
 describe("client state", () => {
   it("formats bytes for file rows", () => {
     expect(formatBytes(13214592)).toBe("12.6 MB");
@@ -31,6 +54,27 @@ describe("client state", () => {
   it("filters by search and tag", () => {
     expect(filterFiles([file], { search: "compound", tagSlug: "nmr", projectId: "project_spectra", folderId: null })).toHaveLength(1);
     expect(filterFiles([file], { search: "kinetics", tagSlug: "nmr", projectId: "project_spectra", folderId: null })).toHaveLength(0);
+  });
+
+  it("filters by quick file status", () => {
+    expect(filterFiles([file, failedFile, csvFile], { search: "", tagSlug: null, projectId: null, folderId: null, quickFilter: "failed" })).toEqual([failedFile]);
+    expect(filterFiles([file, failedFile, csvFile], { search: "", tagSlug: null, projectId: null, folderId: null, quickFilter: "large" })).toEqual([failedFile]);
+  });
+
+  it("sorts files by table columns", () => {
+    expect(sortFiles([file, failedFile, csvFile], { key: "size", direction: "desc" }).map((entry) => entry.id)).toEqual(["file_2", "file_3", "file_1"]);
+    expect(sortFiles([file, failedFile, csvFile], { key: "name", direction: "asc" }).map((entry) => entry.id)).toEqual(["file_1", "file_2", "file_3"]);
+  });
+
+  it("summarizes library storage and health", () => {
+    expect(summarizeFiles([file, failedFile, csvFile])).toMatchObject({
+      totalBytes: 3948077133,
+      readyCount: 2,
+      failedCount: 1,
+      largeFileCount: 1,
+      largestFile: failedFile,
+      latestFile: failedFile,
+    });
   });
 
   it("updates upload queue progress", () => {

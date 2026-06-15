@@ -2,7 +2,11 @@ import {
   filterFiles,
   formatBytes,
   reduceUploadQueue,
+  sortFiles,
+  summarizeFiles,
   type FileFilters,
+  type FileQuickFilter,
+  type FileSort,
   type UploadQueueItem,
 } from "../lib/chemvault-files/client-state";
 import type { FileRecord, FolderRecord, LibraryResponse, ProjectRecord, TagRecord } from "../lib/chemvault-files/types";
@@ -99,12 +103,16 @@ let filters: FileFilters = {
   projectId: null,
   folderId: null,
   tagSlug: null,
+  quickFilter: null,
 };
 let selectedFileId: string | null = "file_seed_2";
+let selectedFileIds = new Set<string>(["file_seed_2"]);
 let uploadQueue: UploadQueueItem[] = [];
 let configurationMissing = false;
 let previewMode = true;
 let healthEnvironment = "local";
+let fileSort: FileSort = { key: "modified", direction: "desc" };
+let viewMode: "list" | "grid" = "list";
 
 export function bootChemVaultFiles(): void {
   const shell = document.querySelector<HTMLElement>("[data-cv-shell]");
@@ -174,6 +182,17 @@ function bindEvents(): void {
     renderInspector();
   });
 
+  document.addEventListener("keydown", (event) => {
+    const target = event.target as HTMLElement | null;
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+      event.preventDefault();
+      document.querySelector<HTMLInputElement>("[data-cv-search-input]")?.focus();
+    }
+    if (event.key === "Escape" && !target?.closest("[data-cv-search-input]")) {
+      closeAuthModal();
+    }
+  });
+
   const fileInput = document.querySelector<HTMLInputElement>("[data-cv-file-input]");
   document.querySelector<HTMLButtonElement>("[data-cv-upload-button]")?.addEventListener("click", () => fileInput?.click());
   fileInput?.addEventListener("change", () => {
@@ -218,17 +237,100 @@ function bindEvents(): void {
   document.querySelector<HTMLElement>("[data-cv-active-filters]")?.addEventListener("click", (event) => {
     const target = (event.target as HTMLElement).closest<HTMLElement>("[data-cv-clear-filters]");
     if (!target) return;
-    filters = { search: filters.search, projectId: null, folderId: null, tagSlug: null };
+    filters = { search: filters.search, projectId: null, folderId: null, tagSlug: null, quickFilter: null };
     renderAll();
   });
 
   document.querySelector<HTMLElement>("[data-cv-file-table-body]")?.addEventListener("click", (event) => {
     const row = (event.target as HTMLElement).closest<HTMLTableRowElement>("[data-cv-file-id]");
     if (!row) return;
+    const checkbox = (event.target as HTMLElement).closest<HTMLInputElement>("input[type='checkbox']");
+    if (checkbox) {
+      toggleSelectedFile(row.dataset.cvFileId || null, checkbox.checked);
+      renderFiles();
+      renderInspector();
+      return;
+    }
     selectedFileId = row.dataset.cvFileId || null;
+    selectedFileIds = selectedFileId ? new Set([selectedFileId]) : new Set();
     renderFiles();
     renderInspector();
   });
+
+  document.querySelector<HTMLElement>("[data-cv-card-grid]")?.addEventListener("click", (event) => {
+    const card = (event.target as HTMLElement).closest<HTMLElement>("[data-cv-file-id]");
+    if (!card) return;
+    const checkbox = (event.target as HTMLElement).closest<HTMLInputElement>("input[type='checkbox']");
+    if (checkbox) {
+      toggleSelectedFile(card.dataset.cvFileId || null, checkbox.checked);
+    } else {
+      selectedFileId = card.dataset.cvFileId || null;
+      selectedFileIds = selectedFileId ? new Set([selectedFileId]) : new Set();
+    }
+    renderFiles();
+    renderInspector();
+  });
+
+  document.querySelector<HTMLInputElement>("[data-cv-select-all]")?.addEventListener("change", (event) => {
+    const checked = (event.currentTarget as HTMLInputElement).checked;
+    const visibleFileIds = getVisibleFiles().map((entry) => entry.id);
+    selectedFileIds = checked ? new Set(visibleFileIds) : new Set();
+    selectedFileId = checked ? visibleFileIds[0] ?? null : null;
+    renderFiles();
+    renderInspector();
+  });
+
+  document.querySelector<HTMLElement>("[data-cv-file-panel]")?.addEventListener("click", (event) => {
+    const sortButton = (event.target as HTMLElement).closest<HTMLElement>("[data-cv-sort]");
+    if (sortButton) {
+      const key = sortButton.dataset.cvSort as FileSort["key"];
+      fileSort = {
+        key,
+        direction: fileSort.key === key && fileSort.direction === "asc" ? "desc" : "asc",
+      };
+      renderFiles();
+      return;
+    }
+
+    const quickFilter = (event.target as HTMLElement).closest<HTMLElement>("[data-cv-quick-filter]");
+    if (quickFilter) {
+      const next = quickFilter.dataset.cvQuickFilter || null;
+      filters = {
+        ...filters,
+        quickFilter: next === filters.quickFilter ? null : (next as FileQuickFilter | null),
+      };
+      renderAll();
+      return;
+    }
+
+    const viewButton = (event.target as HTMLElement).closest<HTMLElement>("[data-cv-view-mode]");
+    if (viewButton) {
+      viewMode = viewButton.dataset.cvViewMode === "grid" ? "grid" : "list";
+      renderFiles();
+      return;
+    }
+  });
+
+  document.querySelector<HTMLElement>("[data-cv-bulk-bar]")?.addEventListener("click", (event) => {
+    const target = event.target as HTMLElement;
+    if (target.closest("[data-cv-bulk-clear]")) {
+      selectedFileIds = new Set();
+      selectedFileId = null;
+      renderFiles();
+      renderInspector();
+      return;
+    }
+    if (target.closest("[data-cv-bulk-download]")) {
+      downloadSelectionManifest();
+      return;
+    }
+    if (target.closest("[data-cv-bulk-tag]")) {
+      applyLocalReviewTag();
+    }
+  });
+
+  document.querySelector<HTMLElement>("[data-cv-account-button]")?.addEventListener("click", openAuthModal);
+  document.querySelectorAll<HTMLElement>("[data-cv-auth-close]").forEach((element) => element.addEventListener("click", closeAuthModal));
 
   document.querySelector<HTMLButtonElement>("[data-cv-download-button]")?.addEventListener("click", () => {
     if (!selectedFileId) return;
@@ -273,6 +375,7 @@ async function loadRemoteState(): Promise<void> {
   }
 
   selectedFileId = pickSelectedFileId();
+  selectedFileIds = selectedFileId ? new Set([selectedFileId]) : new Set();
   renderAll();
 }
 
@@ -298,6 +401,7 @@ function readErrorMessage(payload: unknown): string | null {
 
 function renderAll(): void {
   renderSidebar();
+  renderInsights();
   renderQueue();
   renderFiles();
   renderInspector();
@@ -326,6 +430,49 @@ function renderHealth(health?: HealthResponse): void {
       `
     )
     .join("");
+}
+
+function renderInsights(): void {
+  const container = document.querySelector<HTMLElement>("[data-cv-insights]");
+  const activeFiles = library.files.filter((entry) => entry.status !== "deleted");
+  const summary = summarizeFiles(activeFiles);
+  renderStorageMeter(summary.totalBytes);
+  if (!container) return;
+
+  const reviewLabel = summary.failedCount === 1 ? "failed upload" : "failed uploads";
+  const latestLabel = summary.latestFile ? summary.latestFile.displayName : "No file activity";
+  const largestLabel = summary.largestFile ? summary.largestFile.displayName : "No stored objects";
+
+  container.innerHTML = [
+    insightCard("Indexed Storage", formatBytes(summary.totalBytes), `${activeFiles.length} files tracked`),
+    insightCard("Ready Files", String(summary.readyCount), "R2 objects ready"),
+    insightCard("Needs Review", String(summary.failedCount), reviewLabel, summary.failedCount > 0),
+    insightCard("Largest Object", summary.largestFile ? formatBytes(summary.largestFile.sizeBytes) : "0 B", largestLabel),
+    insightCard("Latest Change", summary.latestFile ? formatDate(summary.latestFile.updatedAt) : "No changes", latestLabel),
+  ].join("");
+}
+
+function renderStorageMeter(totalBytes: number): void {
+  const quotaBytes = 4 * 1024 ** 4;
+  const rawPercent = (totalBytes / quotaBytes) * 100;
+  const meterPercent = totalBytes > 0 ? Math.max(2, Math.min(100, rawPercent)) : 0;
+  const percentText = totalBytes > 0 && rawPercent < 1 ? "<1%" : `${Math.min(100, Math.round(rawPercent))}%`;
+  const caption = document.querySelector<HTMLElement>("[data-cv-storage-caption]");
+  const meter = document.querySelector<HTMLElement>("[data-cv-storage-meter]");
+  const percentLabel = document.querySelector<HTMLElement>("[data-cv-storage-percent]");
+  if (caption) caption.textContent = `${formatBytes(totalBytes)} of 4 TB indexed`;
+  if (meter) meter.style.width = `${meterPercent}%`;
+  if (percentLabel) percentLabel.textContent = percentText;
+}
+
+function insightCard(label: string, value: string, detail: string, warning = false): string {
+  return `
+    <article class="insight-card${warning ? " insight-card--warning" : ""}">
+      <span>${escapeHtml(label)}</span>
+      <strong>${escapeHtml(value)}</strong>
+      <small>${escapeHtml(detail)}</small>
+    </article>
+  `;
 }
 
 function renderSidebar(): void {
@@ -424,26 +571,55 @@ function renderFiles(): void {
   const filesTitle = document.querySelector<HTMLElement>("[data-cv-files-title]");
   const activeFilters = document.querySelector<HTMLElement>("[data-cv-active-filters]");
   const body = document.querySelector<HTMLElement>("[data-cv-file-table-body]");
+  const cardGrid = document.querySelector<HTMLElement>("[data-cv-card-grid]");
+  const listRegion = document.querySelector<HTMLElement>("[data-cv-list-region]");
+  const filePanel = document.querySelector<HTMLElement>("[data-cv-file-panel]");
   const selectionSummary = document.querySelector<HTMLElement>("[data-cv-selection-summary]");
   const pageSummary = document.querySelector<HTMLElement>("[data-cv-page-summary]");
-  const filteredFiles = filterFiles(library.files.filter((entry) => entry.status !== "deleted"), filters);
+  const bulkBar = document.querySelector<HTMLElement>("[data-cv-bulk-bar]");
+  const bulkSummary = document.querySelector<HTMLElement>("[data-cv-bulk-summary]");
+  const selectAll = document.querySelector<HTMLInputElement>("[data-cv-select-all]");
+  const filteredFiles = getVisibleFiles();
+  const visibleIds = new Set(filteredFiles.map((entry) => entry.id));
+
+  selectedFileIds = new Set(Array.from(selectedFileIds).filter((id) => visibleIds.has(id)));
 
   if (selectedFileId && !filteredFiles.some((entry) => entry.id === selectedFileId)) {
-    selectedFileId = filteredFiles[0]?.id ?? null;
+    selectedFileId = selectedFileIds.values().next().value ?? filteredFiles[0]?.id ?? null;
   }
   if (!selectedFileId) {
-    selectedFileId = filteredFiles[0]?.id ?? null;
+    selectedFileId = selectedFileIds.values().next().value ?? filteredFiles[0]?.id ?? null;
   }
 
   if (filesTitle) filesTitle.textContent = `Files (${filteredFiles.length})`;
-  if (selectionSummary) selectionSummary.textContent = selectedFileId ? "1 selected" : "No file selected";
+  if (selectionSummary) selectionSummary.textContent = selectedFileIds.size ? `${selectedFileIds.size} selected` : "No files checked";
   if (pageSummary) pageSummary.textContent = filteredFiles.length ? `1-${Math.min(50, filteredFiles.length)} of ${filteredFiles.length}` : "0 files";
   if (activeFilters) activeFilters.innerHTML = renderActiveFilters();
-  if (!body) return;
+  if (bulkBar) bulkBar.hidden = selectedFileIds.size === 0;
+  if (bulkSummary) bulkSummary.textContent = selectedFileIds.size === 1 ? "1 file selected" : `${selectedFileIds.size} files selected`;
+  if (selectAll) {
+    selectAll.checked = filteredFiles.length > 0 && filteredFiles.every((entry) => selectedFileIds.has(entry.id));
+    selectAll.indeterminate = selectedFileIds.size > 0 && !selectAll.checked;
+  }
+  updateSortButtons();
+  updateQuickFilterButtons();
+  updateViewModeButtons();
 
-  body.innerHTML = filteredFiles.length
-    ? filteredFiles.map((fileRecord) => renderFileRow(fileRecord)).join("")
-    : `<tr><td colspan="8"><div class="empty-state">No files match the current filters.</div></td></tr>`;
+  if (filePanel) filePanel.classList.toggle("is-grid-view", viewMode === "grid");
+  if (listRegion) listRegion.hidden = viewMode !== "list";
+  if (cardGrid) cardGrid.hidden = viewMode !== "grid";
+
+  if (body) {
+    body.innerHTML = filteredFiles.length
+      ? filteredFiles.map((fileRecord) => renderFileRow(fileRecord)).join("")
+      : `<tr><td colspan="8"><div class="empty-state">No files match the current filters.</div></td></tr>`;
+  }
+
+  if (cardGrid) {
+    cardGrid.innerHTML = filteredFiles.length
+      ? filteredFiles.map((fileRecord) => renderFileCard(fileRecord)).join("")
+      : `<div class="empty-state">No files match the current filters.</div>`;
+  }
 }
 
 function renderActiveFilters(): string {
@@ -455,6 +631,7 @@ function renderActiveFilters(): string {
   if (projectRecord) chips.push(filterChip(projectRecord.name));
   if (folderRecord) chips.push(filterChip(folderRecord.name));
   if (tagRecord) chips.push(filterChip(tagRecord.name));
+  if (filters.quickFilter) chips.push(filterChip(quickFilterLabel(filters.quickFilter)));
   if (configurationMissing || previewMode) chips.push(filterChip("Preview data"));
 
   return `${chips.join("")}${chips.length ? `<button class="link-button" type="button" data-cv-clear-filters>Clear filters</button>` : ""}`;
@@ -471,7 +648,7 @@ function filterChip(label: string): string {
 
 function renderFileRow(fileRecord: FileRecord): string {
   const ext = extensionForFile(fileRecord);
-  const isSelected = fileRecord.id === selectedFileId;
+  const isSelected = selectedFileIds.has(fileRecord.id);
   const isFailed = fileRecord.status === "failed";
   return `
     <tr class="${isSelected ? "is-selected" : ""}${isFailed ? " is-failed" : ""}" data-cv-file-row data-cv-file-id="${escapeAttr(fileRecord.id)}" tabindex="0" aria-selected="${isSelected ? "true" : "false"}">
@@ -495,6 +672,30 @@ function renderFileRow(fileRecord: FileRecord): string {
       }</td>
       <td class="icon-cell">${isFailed ? `<button class="link-button" type="button">Retry</button>` : ""}<button class="ghost-icon" type="button" aria-label="Open actions">${moreIcon()}</button></td>
     </tr>
+  `;
+}
+
+function renderFileCard(fileRecord: FileRecord): string {
+  const ext = extensionForFile(fileRecord);
+  const isSelected = selectedFileIds.has(fileRecord.id);
+  const isFailed = fileRecord.status === "failed";
+  const projectRecord = library.projects.find((entry) => entry.id === fileRecord.projectId);
+  return `
+    <article class="file-card${isSelected ? " is-selected" : ""}${isFailed ? " is-failed" : ""}" data-cv-file-id="${escapeAttr(fileRecord.id)}" tabindex="0" aria-selected="${isSelected ? "true" : "false"}">
+      <header>
+        <label class="checkbox"><input type="checkbox" ${isSelected ? "checked" : ""} /><span></span><span class="sr-only">Select ${escapeHtml(fileRecord.displayName)}</span></label>
+        <span class="file-type-icon" data-ext="${escapeAttr(ext)}">${escapeHtml(ext)}</span>
+        <button class="ghost-icon" type="button" aria-label="Open actions">${moreIcon()}</button>
+      </header>
+      <h3>${escapeHtml(fileRecord.displayName)}</h3>
+      <p>${escapeHtml(projectRecord?.name ?? "Unfiled")} · ${escapeHtml(formatDate(fileRecord.updatedAt))}</p>
+      <div class="file-card__meta">
+        <span>${escapeHtml(typeLabel(fileRecord))}</span>
+        <strong>${formatBytes(fileRecord.sizeBytes)}</strong>
+      </div>
+      <div class="chip-list">${fileRecord.tags.map((entry) => `<span class="mini-chip">${escapeHtml(entry.name)}</span>`).join("") || "<span class=\"mini-chip\">No tags</span>"}</div>
+      ${isFailed ? `<span class="failed-state">${warningIcon()} Needs review</span>` : ""}
+    </article>
   `;
 }
 
@@ -674,6 +875,8 @@ async function reloadLibrary(): Promise<void> {
     configurationMissing = true;
     previewMode = true;
   }
+  selectedFileId = pickSelectedFileId();
+  selectedFileIds = selectedFileId ? new Set([selectedFileId]) : new Set();
   renderAll();
 }
 
@@ -712,6 +915,112 @@ function mergeTags(primary: TagRecord[], fallback: TagRecord[]): TagRecord[] {
     if (!bySlug.has(tagRecord.slug)) bySlug.set(tagRecord.slug, tagRecord);
   }
   return Array.from(bySlug.values());
+}
+
+function getVisibleFiles(): FileRecord[] {
+  return sortFiles(filterFiles(library.files.filter((entry) => entry.status !== "deleted"), filters), fileSort);
+}
+
+function toggleSelectedFile(fileId: string | null, selected: boolean): void {
+  if (!fileId) return;
+  const next = new Set(selectedFileIds);
+  if (selected) {
+    next.add(fileId);
+    selectedFileId = fileId;
+  } else {
+    next.delete(fileId);
+    if (selectedFileId === fileId) selectedFileId = next.values().next().value ?? null;
+  }
+  selectedFileIds = next;
+}
+
+function updateSortButtons(): void {
+  document.querySelectorAll<HTMLElement>("[data-cv-sort]").forEach((button) => {
+    const isActive = button.dataset.cvSort === fileSort.key;
+    button.classList.toggle("is-active", isActive);
+    button.setAttribute("aria-sort", isActive ? fileSort.direction : "none");
+    button.dataset.cvSortDirection = isActive ? fileSort.direction : "";
+  });
+}
+
+function updateQuickFilterButtons(): void {
+  document.querySelectorAll<HTMLElement>("[data-cv-quick-filter]").forEach((button) => {
+    const value = button.dataset.cvQuickFilter || null;
+    const isActive = value === (filters.quickFilter ?? null);
+    button.classList.toggle("is-active", isActive);
+    button.setAttribute("aria-pressed", isActive ? "true" : "false");
+  });
+}
+
+function updateViewModeButtons(): void {
+  document.querySelectorAll<HTMLElement>("[data-cv-view-mode]").forEach((button) => {
+    const isActive = button.dataset.cvViewMode === viewMode;
+    button.classList.toggle("segmented-control__button--active", isActive);
+    button.setAttribute("aria-pressed", isActive ? "true" : "false");
+  });
+}
+
+function quickFilterLabel(filter: FileQuickFilter): string {
+  if (filter === "ready") return "Ready";
+  if (filter === "failed") return "Needs review";
+  return "Large objects";
+}
+
+function downloadSelectionManifest(): void {
+  const selectedFiles = library.files.filter((entry) => selectedFileIds.has(entry.id));
+  if (selectedFiles.length === 0) return;
+  if (selectedFiles.length === 1) {
+    window.location.href = `/api/files/${encodeURIComponent(selectedFiles[0].id)}/download`;
+    return;
+  }
+
+  const manifest = {
+    exportedAt: new Date().toISOString(),
+    source: "ChemVault Files selection",
+    files: selectedFiles.map((entry) => ({
+      id: entry.id,
+      name: entry.displayName,
+      sizeBytes: entry.sizeBytes,
+      type: typeLabel(entry),
+      r2Key: entry.r2Key,
+      tags: entry.tags.map((tagRecord) => tagRecord.name),
+    })),
+  };
+  const blob = new Blob([JSON.stringify(manifest, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "chemvault-selection-manifest.json";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+function applyLocalReviewTag(): void {
+  if (selectedFileIds.size === 0) return;
+  const reviewTag = tag("tag_review", "Review", "review", "#ff9f0a");
+  library = {
+    ...library,
+    tags: mergeTags(library.tags, [reviewTag]),
+    files: library.files.map((fileRecord) => {
+      if (!selectedFileIds.has(fileRecord.id) || fileRecord.tags.some((entry) => entry.slug === reviewTag.slug)) return fileRecord;
+      return { ...fileRecord, tags: [...fileRecord.tags, reviewTag] };
+    }),
+  };
+  renderAll();
+}
+
+function openAuthModal(): void {
+  const modal = document.querySelector<HTMLElement>("[data-cv-auth-modal]");
+  if (!modal) return;
+  modal.hidden = false;
+  modal.querySelector<HTMLInputElement>("input")?.focus();
+}
+
+function closeAuthModal(): void {
+  const modal = document.querySelector<HTMLElement>("[data-cv-auth-modal]");
+  if (modal) modal.hidden = true;
 }
 
 function formatDate(value: string): string {

@@ -133,6 +133,29 @@ const files = [
     </div>
   </section>
 
+  <section class="insight-strip" aria-label="File library summary" data-cv-insights>
+    <article class="insight-card">
+      <span>Indexed Storage</span>
+      <strong>1.32 TB</strong>
+      <small>10 preview files</small>
+    </article>
+    <article class="insight-card">
+      <span>Ready Files</span>
+      <strong>9</strong>
+      <small>R2 objects ready</small>
+    </article>
+    <article class="insight-card insight-card--warning">
+      <span>Needs Review</span>
+      <strong>1</strong>
+      <small>failed upload</small>
+    </article>
+    <article class="insight-card">
+      <span>Largest Object</span>
+      <strong>3.6 GB</strong>
+      <small>failed_upload_package.zip</small>
+    </article>
+  </section>
+
   <section class="upload-panel panel" aria-labelledby="upload-queue-title" data-cv-upload-zone>
     <div class="panel-toolbar">
       <div>
@@ -214,45 +237,71 @@ const files = [
         </div>
       </div>
       <div class="file-tools" aria-label="File table tools">
-        <button class="button button--secondary" type="button">
+        <button class="button button--secondary" type="button" data-cv-quick-filter="failed">
           <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
             <path d="M4 5h16l-6 7v5l-4 2v-7L4 5Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
           </svg>
-          Filter
+          Failed
         </button>
-        <button class="button button--secondary" type="button">
+        <button class="button button--secondary" type="button" data-cv-quick-filter="large">
           <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M4 5h16v14H4V5Zm5 0v14m6-14v14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
+            <path d="M4 18h16M7 18V8m5 10V5m5 13v-7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
           </svg>
-          Columns
+          Large
         </button>
         <div class="segmented-control" aria-label="View mode">
-          <button class="segmented-control__button segmented-control__button--active" type="button" aria-label="List view">
+          <button class="segmented-control__button segmented-control__button--active" type="button" aria-label="List view" data-cv-view-mode="list" aria-pressed="true">
             <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
               <path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
             </svg>
           </button>
-          <button class="segmented-control__button" type="button" aria-label="More table options">
+          <button class="segmented-control__button" type="button" aria-label="Grid view" data-cv-view-mode="grid" aria-pressed="false">
             <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M12 6.5h.01M12 12h.01M12 17.5h.01" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" />
+              <path d="M5 5h6v6H5V5Zm8 0h6v6h-6V5ZM5 13h6v6H5v-6Zm8 0h6v6h-6v-6Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
             </svg>
           </button>
         </div>
       </div>
     </div>
 
-    <div class="file-table-wrap">
+    <div class="smart-filter-row" aria-label="Smart filters" data-cv-smart-filters>
+      <button class="smart-chip is-active" type="button" data-cv-quick-filter="">All files</button>
+      <button class="smart-chip" type="button" data-cv-quick-filter="ready">Ready</button>
+      <button class="smart-chip" type="button" data-cv-quick-filter="failed">Needs review</button>
+      <button class="smart-chip" type="button" data-cv-quick-filter="large">Large objects</button>
+    </div>
+
+    <div class="bulk-action-bar" data-cv-bulk-bar hidden>
+      <span data-cv-bulk-summary>1 selected</span>
+      <div>
+        <button class="button button--secondary" type="button" data-cv-bulk-download>
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 3v11m0 0 4-4m-4 4-4-4M5 15v4h14v-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+          Download
+        </button>
+        <button class="button button--secondary" type="button" data-cv-bulk-tag>
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M4 7.5V12l7.5 7.5 7-7L11 5H6.5A2.5 2.5 0 0 0 4 7.5Zm4 1.5h.01" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+          Tag
+        </button>
+        <button class="button button--danger" type="button" data-cv-bulk-clear>Clear selection</button>
+      </div>
+    </div>
+
+    <div class="file-table-wrap" data-cv-list-region>
       <table class="file-table" data-cv-file-table>
         <thead>
           <tr>
             <th scope="col" class="select-cell">
-              <label class="checkbox"><input type="checkbox" /><span></span><span class="sr-only">Select all files</span></label>
+              <label class="checkbox"><input type="checkbox" data-cv-select-all /><span></span><span class="sr-only">Select all files</span></label>
             </th>
-            <th scope="col">Name <span class="sort-icon" aria-hidden="true"></span></th>
+            <th scope="col"><button class="table-sort" type="button" data-cv-sort="name">Name <span class="sort-icon" aria-hidden="true"></span></button></th>
             <th scope="col">Tags</th>
-            <th scope="col">Type</th>
-            <th scope="col">Size</th>
-            <th scope="col">Modified <span class="sort-icon" aria-hidden="true"></span></th>
+            <th scope="col"><button class="table-sort" type="button" data-cv-sort="type">Type</button></th>
+            <th scope="col"><button class="table-sort" type="button" data-cv-sort="size">Size <span class="sort-icon" aria-hidden="true"></span></button></th>
+            <th scope="col"><button class="table-sort" type="button" data-cv-sort="modified">Modified <span class="sort-icon" aria-hidden="true"></span></button></th>
             <th scope="col" class="icon-cell"><span class="sr-only">Starred</span></th>
             <th scope="col" class="icon-cell"><span class="sr-only">Actions</span></th>
           </tr>
@@ -306,6 +355,8 @@ const files = [
         </tbody>
       </table>
     </div>
+
+    <div class="file-card-grid" data-cv-card-grid hidden></div>
 
     <footer class="table-footer">
       <span data-cv-selection-summary>1 selected</span>

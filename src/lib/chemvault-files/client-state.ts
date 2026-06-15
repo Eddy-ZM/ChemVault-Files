@@ -5,9 +5,28 @@ export interface FileFilters {
   projectId: string | null;
   folderId: string | null;
   tagSlug: string | null;
+  quickFilter?: FileQuickFilter | null;
 }
 
 export type UploadQueueStatus = "queued" | "uploading" | "complete" | "failed";
+export type FileQuickFilter = "ready" | "failed" | "large";
+export type FileSortKey = "name" | "type" | "size" | "modified";
+export type SortDirection = "asc" | "desc";
+
+export interface FileSort {
+  key: FileSortKey;
+  direction: SortDirection;
+}
+
+export interface FileSummary {
+  totalBytes: number;
+  readyCount: number;
+  failedCount: number;
+  uploadingCount: number;
+  largeFileCount: number;
+  largestFile: FileRecord | null;
+  latestFile: FileRecord | null;
+}
 
 export interface UploadQueueItem {
   id: string;
@@ -52,6 +71,9 @@ export function filterFiles(files: FileRecord[], filters: FileFilters): FileReco
     if (filters.projectId && file.projectId !== filters.projectId) return false;
     if (filters.folderId && file.folderId !== filters.folderId) return false;
     if (filters.tagSlug && !file.tags.some((tag) => tag.slug === filters.tagSlug)) return false;
+    if (filters.quickFilter === "ready" && file.status !== "ready") return false;
+    if (filters.quickFilter === "failed" && file.status !== "failed") return false;
+    if (filters.quickFilter === "large" && file.sizeBytes < 1024 ** 3) return false;
 
     if (!search) return true;
     const searchable = [
@@ -65,6 +87,52 @@ export function filterFiles(files: FileRecord[], filters: FileFilters): FileReco
       .toLowerCase();
     return searchable.includes(search);
   });
+}
+
+export function sortFiles(files: FileRecord[], sort: FileSort): FileRecord[] {
+  const direction = sort.direction === "asc" ? 1 : -1;
+  return [...files].sort((left, right) => {
+    const value = compareSortValue(left, right, sort.key);
+    if (value !== 0) return value * direction;
+    return left.displayName.localeCompare(right.displayName, undefined, { sensitivity: "base" });
+  });
+}
+
+export function summarizeFiles(files: FileRecord[]): FileSummary {
+  return files.reduce<FileSummary>(
+    (summary, file) => {
+      summary.totalBytes += file.sizeBytes;
+      if (file.status === "ready") summary.readyCount += 1;
+      if (file.status === "failed") summary.failedCount += 1;
+      if (file.status === "uploading" || file.status === "pending") summary.uploadingCount += 1;
+      if (file.sizeBytes >= 1024 ** 3) summary.largeFileCount += 1;
+      if (!summary.largestFile || file.sizeBytes > summary.largestFile.sizeBytes) summary.largestFile = file;
+      if (!summary.latestFile || new Date(file.updatedAt).getTime() > new Date(summary.latestFile.updatedAt).getTime()) summary.latestFile = file;
+      return summary;
+    },
+    {
+      totalBytes: 0,
+      readyCount: 0,
+      failedCount: 0,
+      uploadingCount: 0,
+      largeFileCount: 0,
+      largestFile: null,
+      latestFile: null,
+    }
+  );
+}
+
+function compareSortValue(left: FileRecord, right: FileRecord, key: FileSortKey): number {
+  switch (key) {
+    case "name":
+      return left.displayName.localeCompare(right.displayName, undefined, { sensitivity: "base" });
+    case "type":
+      return (left.mimeType ?? "").localeCompare(right.mimeType ?? "", undefined, { sensitivity: "base" });
+    case "size":
+      return left.sizeBytes - right.sizeBytes;
+    case "modified":
+      return new Date(left.updatedAt).getTime() - new Date(right.updatedAt).getTime();
+  }
 }
 
 export function reduceUploadQueue(queue: UploadQueueItem[], action: UploadQueueAction): UploadQueueItem[] {
