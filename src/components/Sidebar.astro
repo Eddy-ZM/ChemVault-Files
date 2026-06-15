@@ -1,0 +1,170 @@
+---
+const projectLinks = [
+  { label: "Dossiers", count: "18" },
+  { label: "Methods", count: "34" },
+  { label: "Spectra", count: "212" },
+  { label: "Datasets", count: "97" },
+  { label: "Manuscripts", count: "9" },
+];
+
+const libraries = [
+  { label: "Fragment Library", count: "156" },
+  { label: "Reaction Screening", count: "314" },
+  { label: "Analytical Methods", count: "88" },
+  { label: "Mechanistic Studies", count: "231" },
+  { label: "Archived Projects", count: "642" },
+];
+
+const tags = [
+  ["NMR", "230"],
+  ["HPLC", "98"],
+  ["IR", "47"],
+  ["Chiral", "63"],
+  ["DFT", "112"],
+  ["Kinetics", "37"],
+  ["PK/PD", "51"],
+  ["Raw Data", "205"],
+];
+---
+
+<aside class="sidebar panel" aria-label="File navigation" data-cv-sidebar>
+  <nav class="sidebar__section sidebar__section--top" aria-labelledby="projects-label">
+    <div class="section-heading">
+      <h2 id="projects-label">Projects</h2>
+      <button class="ghost-icon" type="button" aria-label="Create project">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+        </svg>
+      </button>
+    </div>
+
+    <ul class="nav-list">
+      <li>
+        <a class="nav-row" href="#" data-cv-nav="all-files" aria-current="page">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M5 6.5A2.5 2.5 0 0 1 7.5 4H10l2 2h4.5A2.5 2.5 0 0 1 19 8.5v9A2.5 2.5 0 0 1 16.5 20h-9A2.5 2.5 0 0 1 5 17.5v-11Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
+            <path d="M8 12h8M8 15h5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+          </svg>
+          <span>All Files</span>
+          <strong>2,843</strong>
+        </a>
+      </li>
+      <li>
+        <a class="nav-row" href="#" data-cv-nav="recent">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 7v5l3.2 2M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+          </svg>
+          <span>Recent</span>
+          <strong>143</strong>
+        </a>
+      </li>
+      <li>
+        <a class="nav-row" href="#" data-cv-nav="starred">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="m12 3.8 2.5 5.1 5.6.8-4.1 4 1 5.6-5-2.6-5 2.6 1-5.6-4.1-4 5.6-.8L12 3.8Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
+          </svg>
+          <span>Starred</span>
+          <strong>27</strong>
+        </a>
+      </li>
+      <li>
+        <a class="nav-row" href="#" data-cv-nav="trash">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M5 7h14M9 7V5h6v2m-8 0 1 13h8l1-13M10 11v5m4-5v5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+          <span>Trash</span>
+          <strong>12</strong>
+        </a>
+      </li>
+    </ul>
+  </nav>
+
+  <nav class="sidebar__section" aria-labelledby="folders-label">
+    <div class="section-heading">
+      <h2 id="folders-label">Projects &amp; Folders</h2>
+      <button class="ghost-icon" type="button" aria-label="Create folder">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+        </svg>
+      </button>
+    </div>
+
+    <ul class="folder-tree">
+      <li>
+        <a class="folder-row folder-row--active" href="#" data-cv-project="2024-q2-catalysis-program">
+          <svg class="icon folder-row__chevron" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="m8 10 4 4 4-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M3.8 7.5A2.5 2.5 0 0 1 6.3 5H10l2 2h5.7a2.5 2.5 0 0 1 2.5 2.5v7A2.5 2.5 0 0 1 17.7 19H6.3a2.5 2.5 0 0 1-2.5-2.5v-9Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
+          </svg>
+          <span>2024-Q2 Catalysis Program</span>
+          <button class="row-more" type="button" aria-label="Project options">
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 6.5h.01M12 12h.01M12 17.5h.01" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" />
+            </svg>
+          </button>
+        </a>
+        <ul>
+          {projectLinks.map((item) => (
+            <li>
+              <a class="folder-row folder-row--child" href="#" data-cv-folder={item.label.toLowerCase()}>
+                <svg class="icon folder-row__chevron" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="m10 8 4 4-4 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M4 7.5A2.5 2.5 0 0 1 6.5 5H10l2 2h5.5A2.5 2.5 0 0 1 20 9.5v7A2.5 2.5 0 0 1 17.5 19h-11A2.5 2.5 0 0 1 4 16.5v-9Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" />
+                </svg>
+                <span>{item.label}</span>
+                <strong>{item.count}</strong>
+              </a>
+            </li>
+          ))}
+        </ul>
+      </li>
+      {libraries.map((item) => (
+        <li>
+          <a class="folder-row" href="#" data-cv-project={item.label.toLowerCase().replaceAll(" ", "-")}>
+            <svg class="icon folder-row__chevron" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="m10 8 4 4-4 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 7.5A2.5 2.5 0 0 1 6.5 5H10l2 2h5.5A2.5 2.5 0 0 1 20 9.5v7A2.5 2.5 0 0 1 17.5 19h-11A2.5 2.5 0 0 1 4 16.5v-9Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" />
+            </svg>
+            <span>{item.label}</span>
+            <strong>{item.count}</strong>
+          </a>
+        </li>
+      ))}
+    </ul>
+  </nav>
+
+  <section class="sidebar__section sidebar__section--tags" aria-labelledby="tags-label">
+    <div class="section-heading">
+      <h2 id="tags-label">Tags</h2>
+      <button class="ghost-icon" type="button" aria-label="Edit tags">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="m4 20 4.5-1 10-10a2.1 2.1 0 0 0-3-3l-10 10L4 20Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+      </button>
+    </div>
+    <div class="tag-cloud" data-cv-tags>
+      {tags.map(([label, count]) => (
+        <button class="tag-pill" type="button" data-cv-tag={label}>
+          <span>{label}</span>
+          <strong>{count}</strong>
+        </button>
+      ))}
+    </div>
+    <button class="link-button" type="button" data-cv-new-tag>+ New tag</button>
+  </section>
+
+  <section class="storage-meter" aria-labelledby="storage-label">
+    <div class="storage-meter__label">
+      <h2 id="storage-label">Storage</h2>
+      <span>1.32 TB of 4 TB used</span>
+    </div>
+    <div class="meter" aria-hidden="true"><span style="width: 33%"></span></div>
+    <p>33%</p>
+  </section>
+</aside>

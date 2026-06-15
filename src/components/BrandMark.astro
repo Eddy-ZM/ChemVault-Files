@@ -1,0 +1,20 @@
+---
+const { compact = false } = Astro.props;
+---
+
+<a class:list={["brand-mark", { "brand-mark--compact": compact }]} href="/" aria-label="ChemVault Files home">
+  <svg class="brand-mark__symbol" viewBox="0 0 48 48" role="img" aria-label="ChemVault">
+    <path d="M24 6 8.4 15v18L24 42l15.6-9V15L24 6Z" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round" />
+    <path d="M24 6v9.5M8.4 15l8.2 4.8M39.6 15l-8.2 4.8M8.4 33l8.2-4.8M39.6 33l-8.2-4.8M24 42v-9.5" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" />
+    <circle cx="24" cy="6" r="4" fill="currentColor" />
+    <circle cx="8.4" cy="15" r="4" fill="currentColor" />
+    <circle cx="39.6" cy="15" r="4" fill="currentColor" />
+    <circle cx="8.4" cy="33" r="4" fill="currentColor" />
+    <circle cx="39.6" cy="33" r="4" fill="currentColor" />
+    <circle cx="24" cy="42" r="4" fill="currentColor" />
+  </svg>
+  <span class="brand-mark__text">
+    <span class="brand-mark__name">ChemVault</span>
+    <span class="brand-mark__product">Files</span>
+  </span>
+</a>
