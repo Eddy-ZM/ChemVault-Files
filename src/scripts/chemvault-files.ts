@@ -40,10 +40,18 @@ const seedFolders = [
 
 const seedTags = [
   tag("tag_nmr", "NMR", "nmr", "#0071e3"),
+  tag("tag_hplc", "HPLC", "hplc", null),
+  tag("tag_ir", "IR", "ir", null),
+  tag("tag_chiral", "Chiral", "chiral", null),
+  tag("tag_dft", "DFT", "dft", null),
+  tag("tag_kinetics", "Kinetics", "kinetics", null),
+  tag("tag_pk_pd", "PK/PD", "pk-pd", null),
   tag("tag_raw_data", "Raw Data", "raw-data", "#1d7f42"),
   tag("tag_pdf", "PDF", "pdf", "#d70015"),
-  tag("tag_kinetics", "Kinetics", "kinetics", null),
-  tag("tag_ir", "IR", "ir", null),
+  tag("tag_screen", "Screen", "screen", null),
+  tag("tag_si", "SI", "si", null),
+  tag("tag_1h", "1H", "1h", null),
+  tag("tag_13c", "13C", "13c", null),
 ];
 
 const seedLibrary: LibraryResponse = {
@@ -56,6 +64,11 @@ const seedLibrary: LibraryResponse = {
     file("file_seed_3", "project_spectra", "folder_spectra", "Compound_14_13C.jdx", "chemical/x-jcamp-dx", 19188940, ["NMR"]),
     file("file_seed_4", "project_manuscripts", null, "NMR_Analysis_Report_Compound_14.pdf", "application/pdf", 1887436, ["PDF"]),
     file("file_seed_5", "project_datasets", "folder_datasets", "kinetics_run_042_processed.csv", "text/csv", 47919923, ["Kinetics", "Raw Data"]),
+    file("file_seed_6", "project_datasets", "folder_datasets", "dataset_reaction_screen_042.h5", "application/x-hdf5", 2480343613, ["Raw Data", "Screen"]),
+    file("file_seed_7", "project_datasets", "folder_datasets", "failed_upload_package.zip", "application/zip", 3886942618, ["Raw Data"], "failed"),
+    file("file_seed_8", "project_manuscripts", null, "Supplementary_Information.pdf", "application/pdf", 2516582, ["SI", "PDF"]),
+    file("file_seed_9", "project_spectra", "folder_spectra", "Compound_13_1H.jdx", "chemical/x-jcamp-dx", 11744051, ["NMR", "1H"]),
+    file("file_seed_10", "project_spectra", "folder_spectra", "FTIR_Compound_14.dat", "application/octet-stream", 7025459, ["IR"]),
   ],
 };
 
@@ -90,6 +103,8 @@ let filters: FileFilters = {
 let selectedFileId: string | null = "file_seed_2";
 let uploadQueue: UploadQueueItem[] = [];
 let configurationMissing = false;
+let previewMode = true;
+let healthEnvironment = "local";
 
 export function bootChemVaultFiles(): void {
   const shell = document.querySelector<HTMLElement>("[data-cv-shell]");
@@ -122,7 +137,8 @@ function file(
   displayName: string,
   mimeType: string | null,
   sizeBytes: number,
-  tagNames: string[]
+  tagNames: string[],
+  status: FileRecord["status"] = "ready"
 ): FileRecord {
   const timestamp = "2026-05-21T10:41:00.000Z";
   const tags = tagNames.map((name) => {
@@ -138,7 +154,7 @@ function file(
     r2Key: `seed/${id}/${displayName}`,
     mimeType,
     sizeBytes,
-    status: "ready",
+    status,
     checksum: null,
     uploadSessionId: null,
     actorEmail: "owner@chemvault.science",
@@ -155,6 +171,7 @@ function bindEvents(): void {
   document.querySelector<HTMLInputElement>("[data-cv-search-input]")?.addEventListener("input", (event) => {
     filters = { ...filters, search: (event.currentTarget as HTMLInputElement).value };
     renderFiles();
+    renderInspector();
   });
 
   const fileInput = document.querySelector<HTMLInputElement>("[data-cv-file-input]");
@@ -228,18 +245,29 @@ async function loadRemoteState(): Promise<void> {
   try {
     const health = await fetchJson<HealthResponse>("/api/health");
     configurationMissing = health.status !== "ready";
+    healthEnvironment = health.environment || "local";
     renderHealth(health);
   } catch {
     configurationMissing = true;
+    previewMode = true;
     renderHealth();
   }
 
   try {
-    library = await fetchJson<LibraryResponse>("/api/library");
+    const remoteLibrary = await fetchJson<LibraryResponse>("/api/library");
     configurationMissing = false;
-    uploadQueue = [];
+    previewMode = healthEnvironment === "local" && remoteLibrary.files.length === 0;
+    library = previewMode
+      ? {
+          ...remoteLibrary,
+          tags: mergeTags(remoteLibrary.tags, seedLibrary.tags),
+          files: seedLibrary.files,
+        }
+      : remoteLibrary;
+    uploadQueue = previewMode ? seedUploadQueue : [];
   } catch {
     configurationMissing = true;
+    previewMode = true;
     library = seedLibrary;
     uploadQueue = seedUploadQueue;
   }
@@ -427,7 +455,7 @@ function renderActiveFilters(): string {
   if (projectRecord) chips.push(filterChip(projectRecord.name));
   if (folderRecord) chips.push(filterChip(folderRecord.name));
   if (tagRecord) chips.push(filterChip(tagRecord.name));
-  if (configurationMissing) chips.push(filterChip("Preview data"));
+  if (configurationMissing || previewMode) chips.push(filterChip("Preview data"));
 
   return `${chips.join("")}${chips.length ? `<button class="link-button" type="button" data-cv-clear-filters>Clear filters</button>` : ""}`;
 }
@@ -444,8 +472,9 @@ function filterChip(label: string): string {
 function renderFileRow(fileRecord: FileRecord): string {
   const ext = extensionForFile(fileRecord);
   const isSelected = fileRecord.id === selectedFileId;
+  const isFailed = fileRecord.status === "failed";
   return `
-    <tr class="${isSelected ? "is-selected" : ""}" data-cv-file-row data-cv-file-id="${escapeAttr(fileRecord.id)}" tabindex="0" aria-selected="${isSelected ? "true" : "false"}">
+    <tr class="${isSelected ? "is-selected" : ""}${isFailed ? " is-failed" : ""}" data-cv-file-row data-cv-file-id="${escapeAttr(fileRecord.id)}" tabindex="0" aria-selected="${isSelected ? "true" : "false"}">
       <td class="select-cell">
         <label class="checkbox"><input type="checkbox" ${isSelected ? "checked" : ""} /><span></span><span class="sr-only">Select ${escapeHtml(fileRecord.displayName)}</span></label>
       </td>
@@ -459,8 +488,12 @@ function renderFileRow(fileRecord: FileRecord): string {
       <td>${escapeHtml(typeLabel(fileRecord))}</td>
       <td>${formatBytes(fileRecord.sizeBytes)}</td>
       <td class="date-cell">${escapeHtml(formatDate(fileRecord.updatedAt))}</td>
-      <td class="icon-cell"><button class="star-button" type="button" aria-label="Star file">${starIcon()}</button></td>
-      <td class="icon-cell"><button class="ghost-icon" type="button" aria-label="Open actions">${moreIcon()}</button></td>
+      <td class="icon-cell">${
+        isFailed
+          ? `<span class="failed-state">${warningIcon()} Failed</span>`
+          : `<button class="star-button" type="button" aria-label="Star file">${starIcon()}</button>`
+      }</td>
+      <td class="icon-cell">${isFailed ? `<button class="link-button" type="button">Retry</button>` : ""}<button class="ghost-icon" type="button" aria-label="Open actions">${moreIcon()}</button></td>
     </tr>
   `;
 }
@@ -499,6 +532,7 @@ function renderInspector(): void {
 function renderMetadata(fileRecord: FileRecord): string {
   const projectRecord = library.projects.find((entry) => entry.id === fileRecord.projectId);
   const folderRecord = fileRecord.folderId ? library.folders.find((entry) => entry.id === fileRecord.folderId) : null;
+  const isNmrPreview = previewMode && fileRecord.displayName === "Compound_14_1H.jdx";
   const rows: Array<[string, string]> = [
     ["Type", typeLabel(fileRecord)],
     ["Size", `${formatBytes(fileRecord.sizeBytes)} (${fileRecord.sizeBytes.toLocaleString()} bytes)`],
@@ -506,9 +540,25 @@ function renderMetadata(fileRecord: FileRecord): string {
     ["Modified", formatDate(fileRecord.updatedAt)],
     ["Created", formatDate(fileRecord.createdAt)],
     ["Owner", fileRecord.actorEmail || "owner@chemvault.science"],
-    ["Description", configurationMissing ? "Preview data. Connect D1 and R2 to inspect live file metadata." : "ChemVault managed file metadata."],
-    ["Format", extensionForFile(fileRecord)],
-    ["Checksum (MD5)", fileRecord.checksum || "Not recorded"],
+    ["Description", isNmrPreview ? "1H NMR spectrum of Compound 14 in CDCl3 at 400 MHz." : configurationMissing || previewMode ? "Preview data. Upload a file to replace this local seed row." : "ChemVault managed file metadata."],
+    ...(isNmrPreview
+      ? ([
+          ["Sample ID", "C14-2024-05-21"],
+          ["Instrument", "Bruker Avance III 400"],
+          ["Solvent", "CDCl3"],
+          ["Temperature", "298 K"],
+          ["Spectrometer Frequency", "400.13 MHz"],
+          ["Scans", "16"],
+          ["Relaxation Delay", "2.0 s"],
+          ["Spectral Width", "8012.8 Hz"],
+          ["Data Points", "65536"],
+          ["Format", "JCAMP-DX 5.00"],
+          ["Checksum (MD5)", "8f2d6b7c3e4a9f6b5d7e2a1c9b0d8e7f"],
+        ] satisfies Array<[string, string]>)
+      : ([
+          ["Format", extensionForFile(fileRecord)],
+          ["Checksum (MD5)", fileRecord.checksum || "Not recorded"],
+        ] satisfies Array<[string, string]>)),
   ];
 
   const tagRow = `
@@ -610,10 +660,19 @@ function uploadFileBytes(url: string, fileToUpload: File, onProgress: (loadedByt
 
 async function reloadLibrary(): Promise<void> {
   try {
-    library = await fetchJson<LibraryResponse>("/api/library");
+    const remoteLibrary = await fetchJson<LibraryResponse>("/api/library");
     configurationMissing = false;
+    previewMode = healthEnvironment === "local" && remoteLibrary.files.length === 0;
+    library = previewMode
+      ? {
+          ...remoteLibrary,
+          tags: mergeTags(remoteLibrary.tags, seedLibrary.tags),
+          files: seedLibrary.files,
+        }
+      : remoteLibrary;
   } catch {
     configurationMissing = true;
+    previewMode = true;
   }
   renderAll();
 }
@@ -645,6 +704,14 @@ function pickSelectedFileId(): string | null {
     return selectedFileId;
   }
   return library.files.find((entry) => entry.status !== "deleted")?.id ?? null;
+}
+
+function mergeTags(primary: TagRecord[], fallback: TagRecord[]): TagRecord[] {
+  const bySlug = new Map(primary.map((entry) => [entry.slug, entry]));
+  for (const tagRecord of fallback) {
+    if (!bySlug.has(tagRecord.slug)) bySlug.set(tagRecord.slug, tagRecord);
+  }
+  return Array.from(bySlug.values());
 }
 
 function formatDate(value: string): string {
