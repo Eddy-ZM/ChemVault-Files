@@ -1,4 +1,4 @@
-import type { FileRecord } from "./types";
+import type { FileRecord, LibraryResponse, TagRecord } from "./types";
 
 export interface FileFilters {
   search: string;
@@ -44,6 +44,48 @@ export type UploadQueueAction =
   | { type: "complete"; id: string; message?: string }
   | { type: "fail"; id: string; message: string }
   | { type: "clear-complete" };
+
+interface LibraryDisplayInput {
+  remoteLibrary: LibraryResponse;
+  seedLibrary: LibraryResponse;
+  environment: string;
+  hostname?: string;
+}
+
+interface LibraryDisplayState {
+  library: LibraryResponse;
+  previewMode: boolean;
+}
+
+export function createInitialLibrary(seedLibrary: LibraryResponse): LibraryResponse {
+  return {
+    projects: seedLibrary.projects,
+    folders: seedLibrary.folders,
+    tags: [],
+    files: [],
+  };
+}
+
+export function resolveLibraryDisplay({ remoteLibrary, seedLibrary, environment, hostname }: LibraryDisplayInput): LibraryDisplayState {
+  const previewMode = environment === "local" && isLocalPreviewHost(hostname) && remoteLibrary.files.length === 0;
+  if (!previewMode) {
+    return { library: remoteLibrary, previewMode: false };
+  }
+
+  return {
+    previewMode: true,
+    library: {
+      ...remoteLibrary,
+      tags: mergeTags(remoteLibrary.tags, seedLibrary.tags),
+      files: seedLibrary.files,
+    },
+  };
+}
+
+function isLocalPreviewHost(hostname: string | undefined): boolean {
+  if (hostname === undefined) return true;
+  return hostname === "" || hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1";
+}
 
 export function formatBytes(bytes: number): string {
   if (!Number.isFinite(bytes) || bytes <= 0) {
@@ -172,4 +214,12 @@ export function reduceUploadQueue(queue: UploadQueueItem[], action: UploadQueueA
     case "clear-complete":
       return queue.filter((item) => item.status !== "complete");
   }
+}
+
+export function mergeTags(primary: TagRecord[], fallback: TagRecord[]): TagRecord[] {
+  const bySlug = new Map(primary.map((entry) => [entry.slug, entry]));
+  for (const tagRecord of fallback) {
+    if (!bySlug.has(tagRecord.slug)) bySlug.set(tagRecord.slug, tagRecord);
+  }
+  return Array.from(bySlug.values());
 }

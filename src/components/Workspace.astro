@@ -1,115 +1,3 @@
----
-const uploads = [
-  {
-    name: "2024-05-21_NMR_Compound_14.zip",
-    size: "1.24 GB",
-    state: "uploading",
-    progress: "68%",
-    time: "2m 18s left",
-    extension: "ZIP",
-  },
-  {
-    name: "kinetics_run_042_processed.csv",
-    size: "45.7 MB",
-    state: "completed",
-    progress: "Completed",
-    time: "45.7 MB",
-    extension: "CSV",
-  },
-];
-
-const files = [
-  {
-    name: "2024-05-21_NMR_Compound_14.zip",
-    tags: ["NMR", "Raw Data", "+2"],
-    type: "ZIP",
-    size: "1.24 GB",
-    modified: "May 21, 2024 10:42 AM",
-    ext: "ZIP",
-  },
-  {
-    name: "Compound_14_1H.jdx",
-    tags: ["NMR", "1H", "+1"],
-    type: "JCAMP-DX",
-    size: "12.6 MB",
-    modified: "May 21, 2024 10:41 AM",
-    ext: "JCAMP",
-    selected: true,
-    starred: true,
-  },
-  {
-    name: "Compound_14_13C.jdx",
-    tags: ["NMR", "13C"],
-    type: "JCAMP-DX",
-    size: "18.3 MB",
-    modified: "May 21, 2024 10:40 AM",
-    ext: "JCAMP",
-  },
-  {
-    name: "NMR_Analysis_Report_Compound_14.pdf",
-    tags: ["NMR"],
-    type: "PDF",
-    size: "1.8 MB",
-    modified: "May 21, 2024 10:39 AM",
-    ext: "PDF",
-    accent: "red",
-  },
-  {
-    name: "kinetics_run_042_processed.csv",
-    tags: ["Kinetics", "Raw Data"],
-    type: "CSV",
-    size: "45.7 MB",
-    modified: "May 20, 2024 4:22 PM",
-    ext: "CSV",
-    accent: "green",
-  },
-  {
-    name: "dataset_reaction_screen_042.h5",
-    tags: ["Raw Data", "Screen"],
-    type: "HDF5",
-    size: "2.31 GB",
-    modified: "May 20, 2024 3:15 PM",
-    ext: "HDF5",
-    accent: "violet",
-  },
-  {
-    name: "failed_upload_package.zip",
-    tags: ["Raw Data"],
-    type: "ZIP",
-    size: "3.62 GB",
-    modified: "May 20, 2024 2:11 PM",
-    ext: "ZIP",
-    failed: true,
-  },
-  {
-    name: "Supplementary_Information.pdf",
-    tags: ["SI", "PDF"],
-    type: "PDF",
-    size: "2.4 MB",
-    modified: "May 19, 2024 11:08 AM",
-    ext: "PDF",
-    accent: "red",
-  },
-  {
-    name: "Compound_13_1H.jdx",
-    tags: ["NMR", "1H"],
-    type: "JCAMP-DX",
-    size: "11.2 MB",
-    modified: "May 19, 2024 10:36 AM",
-    ext: "JCAMP",
-  },
-  {
-    name: "FTIR_Compound_14.dat",
-    tags: ["IR"],
-    type: "DAT",
-    size: "6.7 MB",
-    modified: "May 18, 2024 3:47 PM",
-    ext: "DAT",
-    accent: "teal",
-  },
-];
----
-
 <section id="files-workspace" class="workspace" aria-label="Files workspace" data-cv-workspace>
   <section class="status-band panel" aria-label="System status" data-cv-status-band>
     <div class="status-item">
@@ -136,30 +24,30 @@ const files = [
   <section class="insight-strip" aria-label="File library summary" data-cv-insights>
     <article class="insight-card">
       <span>Indexed Storage</span>
-      <strong>1.32 TB</strong>
-      <small>10 preview files</small>
+      <strong>Loading</strong>
+      <small>Reading D1 index</small>
     </article>
     <article class="insight-card">
       <span>Ready Files</span>
-      <strong>9</strong>
-      <small>R2 objects ready</small>
+      <strong>Loading</strong>
+      <small>Checking R2 objects</small>
     </article>
-    <article class="insight-card insight-card--warning">
+    <article class="insight-card">
       <span>Needs Review</span>
-      <strong>1</strong>
-      <small>failed upload</small>
+      <strong>Loading</strong>
+      <small>Checking uploads</small>
     </article>
     <article class="insight-card">
       <span>Largest Object</span>
-      <strong>3.6 GB</strong>
-      <small>failed_upload_package.zip</small>
+      <strong>Loading</strong>
+      <small>Reading metadata</small>
     </article>
   </section>
 
   <section class="upload-panel panel" aria-labelledby="upload-queue-title" data-cv-upload-zone>
     <div class="panel-toolbar">
       <div>
-        <h2 id="upload-queue-title" data-cv-upload-title>Upload Queue (2)</h2>
+        <h2 id="upload-queue-title" data-cv-upload-title>Upload Queue</h2>
         <button class="toolbar-caret" type="button" aria-label="Collapse upload queue">
           <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
             <path d="m8 10 4 4 4-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
@@ -192,49 +80,15 @@ const files = [
     </label>
 
     <ul class="upload-list" aria-label="Current uploads" data-cv-upload-list>
-      {uploads.map((upload) => (
-        <li class="upload-row" data-cv-upload-row>
-          <span class="file-type-icon" data-ext={upload.extension}>{upload.extension}</span>
-          <span class="upload-row__name">{upload.name}</span>
-          <span class="upload-row__size">{upload.size}</span>
-          {upload.state === "uploading" ? (
-            <span class="progress" aria-label={`Upload progress ${upload.progress}`} role="progressbar" aria-valuenow="68" aria-valuemin="0" aria-valuemax="100">
-              <span style="width: 68%"></span>
-            </span>
-          ) : (
-            <span class="upload-complete">
-              <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
-                <path d="m7 12 3.2 3.2L17.5 8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-                <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.8" />
-              </svg>
-              Completed
-            </span>
-          )}
-          <span class="upload-row__progress">{upload.state === "uploading" ? upload.progress : ""}</span>
-          <span class="upload-row__time">{upload.time}</span>
-          <button class="ghost-icon" type="button" aria-label={`Remove ${upload.name} from queue`}>
-            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
-              <path d="m6 6 12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
-            </svg>
-          </button>
-        </li>
-      ))}
+      <li class="upload-row upload-row--empty">Ready for direct R2 upload. Drop files above to start.</li>
     </ul>
   </section>
 
   <section class="file-panel panel" aria-labelledby="files-title" data-cv-file-panel>
     <div class="file-panel__header">
       <div>
-        <h2 id="files-title" data-cv-files-title>Files (212)</h2>
-        <div class="active-filters" aria-label="Active filters" data-cv-active-filters>
-          <button class="filter-chip" type="button" data-cv-active-filter="Spectra">
-            Spectra
-            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
-              <path d="m6 6 12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
-            </svg>
-          </button>
-          <button class="link-button" type="button">Clear filters</button>
-        </div>
+        <h2 id="files-title" data-cv-files-title>Files</h2>
+        <div class="active-filters" aria-label="Active filters" data-cv-active-filters></div>
       </div>
       <div class="file-tools" aria-label="File table tools">
         <button class="button button--secondary" type="button" data-cv-quick-filter="failed">
@@ -307,51 +161,7 @@ const files = [
           </tr>
         </thead>
         <tbody data-cv-file-table-body>
-          {files.map((file) => (
-            <tr class:list={[{ "is-selected": file.selected, "is-failed": file.failed }]} data-cv-file-row data-file-name={file.name}>
-              <td class="select-cell">
-                <label class="checkbox"><input type="checkbox" checked={file.selected} /><span></span><span class="sr-only">Select {file.name}</span></label>
-              </td>
-              <td>
-                <a href="#" class="file-name">
-                  <span class:list={["file-type-icon", file.accent && `file-type-icon--${file.accent}`]} data-ext={file.ext}>{file.ext}</span>
-                  <span>{file.name}</span>
-                </a>
-              </td>
-              <td>
-                <span class="chip-list">
-                  {file.tags.map((tag) => <span class="mini-chip">{tag}</span>)}
-                </span>
-              </td>
-              <td>{file.type}</td>
-              <td>{file.size}</td>
-              <td class="date-cell">{file.modified}</td>
-              <td class="icon-cell">
-                {file.failed ? (
-                  <span class="failed-state">
-                    <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
-                      <path d="m12 4 9 16H3l9-16Zm0 5v5m0 3v.1" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
-                    </svg>
-                    Failed
-                  </span>
-                ) : (
-                  <button class:list={["star-button", { "is-active": file.starred }]} type="button" aria-label={file.starred ? "Remove star" : "Star file"}>
-                    <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
-                      <path d="m12 3.8 2.5 5.1 5.6.8-4.1 4 1 5.6-5-2.6-5 2.6 1-5.6-4.1-4 5.6-.8L12 3.8Z" fill={file.starred ? "currentColor" : "none"} stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
-                    </svg>
-                  </button>
-                )}
-              </td>
-              <td class="icon-cell">
-                {file.failed ? <button class="link-button" type="button">Retry</button> : null}
-                <button class="ghost-icon" type="button" aria-label={`Open actions for ${file.name}`}>
-                  <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M12 6.5h.01M12 12h.01M12 17.5h.01" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" />
-                  </svg>
-                </button>
-              </td>
-            </tr>
-          ))}
+          <tr><td colspan="8"><div class="empty-state">Loading file index...</div></td></tr>
         </tbody>
       </table>
     </div>
@@ -359,7 +169,7 @@ const files = [
     <div class="file-card-grid" data-cv-card-grid hidden></div>
 
     <footer class="table-footer">
-      <span data-cv-selection-summary>1 selected</span>
+      <span data-cv-selection-summary>No files checked</span>
       <div class="pagination" aria-label="Pagination">
         <span>Show</span>
         <button class="plain-select" type="button">50
@@ -367,7 +177,7 @@ const files = [
             <path d="m8 10 4 4 4-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
           </svg>
         </button>
-        <span data-cv-page-summary>1-50 of 212</span>
+        <span data-cv-page-summary>Loading</span>
         <button class="ghost-icon" type="button" aria-label="Previous page">
           <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
             <path d="m15 18-6-6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />

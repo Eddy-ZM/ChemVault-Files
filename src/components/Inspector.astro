@@ -1,31 +1,8 @@
----
-const metadata = [
-  ["Type", "JCAMP-DX"],
-  ["Size", "12.6 MB (13,214,592 bytes)"],
-  ["Location", "2024-Q2 Catalysis Program / Spectra"],
-  ["Modified", "May 21, 2024 10:41 AM"],
-  ["Created", "May 21, 2024 10:41 AM"],
-  ["Owner", "you (chemvault.owner@lab.io)"],
-  ["Description", "1H NMR spectrum of Compound 14 in CDCl3 at 400 MHz."],
-  ["Sample ID", "C14-2024-05-21"],
-  ["Instrument", "Bruker Avance III 400"],
-  ["Solvent", "CDCl3"],
-  ["Temperature", "298 K"],
-  ["Spectrometer Frequency", "400.13 MHz"],
-  ["Scans", "16"],
-  ["Relaxation Delay", "2.0 s"],
-  ["Spectral Width", "8012.8 Hz"],
-  ["Data Points", "65536"],
-  ["Format", "JCAMP-DX 5.00"],
-  ["Checksum (MD5)", "8f2d6b7c3e4a9f6b5d7e2a1c9b0d8e7f"],
-];
----
-
 <aside class="inspector panel" aria-label="Selected file inspector" data-cv-inspector>
   <header class="inspector__header">
-    <span class="file-type-icon" data-ext="JCAMP" data-cv-selected-file-icon>JCAMP</span>
+    <span class="file-type-icon" data-ext="FILE" data-cv-selected-file-icon>FILE</span>
     <div>
-      <h2 data-cv-selected-file-name>Compound_14_1H.jdx</h2>
+      <h2 data-cv-selected-file-name>Loading files</h2>
     </div>
     <button class="ghost-icon inspector__close" type="button" aria-label="Close inspector">
       <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
@@ -42,43 +19,12 @@ const metadata = [
 
   <div class="inspector__body">
     <dl class="metadata-list" data-cv-metadata-list>
-      {metadata.slice(0, 6).map(([label, value]) => (
-        <div>
-          <dt>{label}</dt>
-          <dd class:list={[label === "Location" && "metadata-location"]}>
-            {label === "Location" ? (
-              <>
-                <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M4 7.5A2.5 2.5 0 0 1 6.5 5H10l2 2h5.5A2.5 2.5 0 0 1 20 9.5v7A2.5 2.5 0 0 1 17.5 19h-11A2.5 2.5 0 0 1 4 16.5v-9Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" />
-                </svg>
-                <span>{value}</span>
-              </>
-            ) : value}
-          </dd>
-        </div>
-      ))}
-      <div>
-        <dt>Tags</dt>
-        <dd>
-          <span class="chip-list">
-            <span class="mini-chip">NMR</span>
-            <span class="mini-chip">1H</span>
-            <span class="mini-chip">CDCl3</span>
-          </span>
-          <button class="link-button" type="button" data-cv-inspector-new-tag>+ New tag</button>
-        </dd>
-      </div>
-      {metadata.slice(6).map(([label, value]) => (
-        <div>
-          <dt>{label}</dt>
-          <dd>{value}</dd>
-        </div>
-      ))}
+      <div><dt>Status</dt><dd>Reading library metadata.</dd></div>
     </dl>
   </div>
 
   <footer class="inspector__actions">
-    <button class="button button--primary button--wide" type="button" data-cv-download-button>
+    <button class="button button--primary button--wide" type="button" data-cv-download-button disabled>
       <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
         <path d="M12 3v11m0 0 4-4m-4 4-4-4M5 15v4h14v-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
       </svg>
@@ -87,7 +33,7 @@ const metadata = [
         <path d="m8 10 4 4 4-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
       </svg>
     </button>
-    <button class="button button--danger button--wide" type="button" data-cv-delete-button>
+    <button class="button button--danger button--wide" type="button" data-cv-delete-button disabled>
       <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
         <path d="M5 7h14M9 7V5h6v2m-8 0 1 13h8l1-13M10 11v5m4-5v5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
       </svg>

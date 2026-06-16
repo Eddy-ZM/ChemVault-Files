@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { filterFiles, formatBytes, reduceUploadQueue, sortFiles, summarizeFiles } from "../src/lib/chemvault-files/client-state";
-import type { FileRecord } from "../src/lib/chemvault-files/types";
+import * as clientState from "../src/lib/chemvault-files/client-state";
+import type { FileRecord, LibraryResponse } from "../src/lib/chemvault-files/types";
 
 const file: FileRecord = {
   id: "file_1",
@@ -74,6 +75,78 @@ describe("client state", () => {
       largeFileCount: 1,
       largestFile: failedFile,
       latestFile: failedFile,
+    });
+  });
+
+  it("keeps production startup and empty remote libraries free of seed files", () => {
+    const previewLibrary: LibraryResponse = {
+      projects: [
+        {
+          id: "project_dossiers",
+          name: "Dossiers",
+          slug: "dossiers",
+          description: null,
+          sortOrder: 10,
+          createdAt: "2026-06-11T00:00:00.000Z",
+          updatedAt: "2026-06-11T00:00:00.000Z",
+        },
+      ],
+      folders: [],
+      tags: file.tags,
+      files: [file, failedFile],
+    };
+    const remoteEmptyLibrary: LibraryResponse = { ...previewLibrary, files: [] };
+    const helpers = clientState as typeof clientState & {
+      createInitialLibrary?: (seedLibrary: LibraryResponse) => LibraryResponse;
+      resolveLibraryDisplay?: (input: {
+        remoteLibrary: LibraryResponse;
+        seedLibrary: LibraryResponse;
+        environment: string;
+        hostname?: string;
+      }) => { library: LibraryResponse; previewMode: boolean };
+    };
+
+    expect(helpers.createInitialLibrary).toBeTypeOf("function");
+    expect(helpers.resolveLibraryDisplay).toBeTypeOf("function");
+    if (!helpers.createInitialLibrary || !helpers.resolveLibraryDisplay) return;
+
+    expect(helpers.createInitialLibrary(previewLibrary)).toMatchObject({
+      projects: previewLibrary.projects,
+      folders: previewLibrary.folders,
+      tags: [],
+      files: [],
+    });
+
+    const productionDisplay = helpers.resolveLibraryDisplay({
+      remoteLibrary: remoteEmptyLibrary,
+      seedLibrary: previewLibrary,
+      environment: "production",
+    });
+    expect(productionDisplay).toMatchObject({
+      previewMode: false,
+      library: { files: [] },
+    });
+
+    const productionHostDisplay = helpers.resolveLibraryDisplay({
+      remoteLibrary: remoteEmptyLibrary,
+      seedLibrary: previewLibrary,
+      environment: "local",
+      hostname: "file.chemvault.science",
+    });
+    expect(productionHostDisplay).toMatchObject({
+      previewMode: false,
+      library: { files: [] },
+    });
+
+    const localDisplay = helpers.resolveLibraryDisplay({
+      remoteLibrary: remoteEmptyLibrary,
+      seedLibrary: previewLibrary,
+      environment: "local",
+      hostname: "localhost",
+    });
+    expect(localDisplay).toMatchObject({
+      previewMode: true,
+      library: { files: previewLibrary.files },
     });
   });
 

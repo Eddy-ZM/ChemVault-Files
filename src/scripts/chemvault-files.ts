@@ -1,7 +1,10 @@
 import {
+  createInitialLibrary,
   filterFiles,
   formatBytes,
+  mergeTags,
   reduceUploadQueue,
+  resolveLibraryDisplay,
   sortFiles,
   summarizeFiles,
   type FileFilters,
@@ -97,7 +100,7 @@ const seedUploadQueue: UploadQueueItem[] = [
   },
 ];
 
-let library: LibraryResponse = seedLibrary;
+let library: LibraryResponse = createInitialLibrary(seedLibrary);
 let filters: FileFilters = {
   search: "",
   projectId: null,
@@ -105,11 +108,12 @@ let filters: FileFilters = {
   tagSlug: null,
   quickFilter: null,
 };
-let selectedFileId: string | null = "file_seed_2";
-let selectedFileIds = new Set<string>(["file_seed_2"]);
+let selectedFileId: string | null = null;
+let selectedFileIds = new Set<string>();
 let uploadQueue: UploadQueueItem[] = [];
 let configurationMissing = false;
-let previewMode = true;
+let previewMode = false;
+let libraryLoading = true;
 let healthEnvironment = "local";
 let fileSort: FileSort = { key: "modified", direction: "desc" };
 let viewMode: "list" | "grid" = "list";
@@ -357,23 +361,22 @@ async function loadRemoteState(): Promise<void> {
 
   try {
     const remoteLibrary = await fetchJson<LibraryResponse>("/api/library");
+    const displayState = resolveLibraryDisplay({
+      remoteLibrary,
+      seedLibrary,
+      environment: healthEnvironment,
+      hostname: window.location.hostname,
+    });
     configurationMissing = false;
-    previewMode = healthEnvironment === "local" && remoteLibrary.files.length === 0;
-    library = previewMode
-      ? {
-          ...remoteLibrary,
-          tags: mergeTags(remoteLibrary.tags, seedLibrary.tags),
-          files: seedLibrary.files,
-        }
-      : remoteLibrary;
+    previewMode = displayState.previewMode;
+    library = displayState.library;
     uploadQueue = previewMode ? seedUploadQueue : [];
   } catch {
     configurationMissing = true;
-    previewMode = true;
-    library = seedLibrary;
-    uploadQueue = seedUploadQueue;
+    applyUnavailableLibraryFallback(false);
   }
 
+  libraryLoading = false;
   selectedFileId = pickSelectedFileId();
   selectedFileIds = selectedFileId ? new Set([selectedFileId]) : new Set();
   renderAll();
@@ -434,6 +437,20 @@ function renderHealth(health?: HealthResponse): void {
 
 function renderInsights(): void {
   const container = document.querySelector<HTMLElement>("[data-cv-insights]");
+  if (libraryLoading) {
+    renderStorageMeter(0);
+    if (container) {
+      container.innerHTML = [
+        insightCard("Indexed Storage", "Loading", "Reading D1 index"),
+        insightCard("Ready Files", "Loading", "Checking R2 objects"),
+        insightCard("Needs Review", "Loading", "Checking uploads"),
+        insightCard("Largest Object", "Loading", "Reading metadata"),
+        insightCard("Latest Change", "Loading", "Reading activity"),
+      ].join("");
+    }
+    return;
+  }
+
   const activeFiles = library.files.filter((entry) => entry.status !== "deleted");
   const summary = summarizeFiles(activeFiles);
   renderStorageMeter(summary.totalBytes);
@@ -591,9 +608,9 @@ function renderFiles(): void {
     selectedFileId = selectedFileIds.values().next().value ?? filteredFiles[0]?.id ?? null;
   }
 
-  if (filesTitle) filesTitle.textContent = `Files (${filteredFiles.length})`;
+  if (filesTitle) filesTitle.textContent = libraryLoading ? "Files" : `Files (${filteredFiles.length})`;
   if (selectionSummary) selectionSummary.textContent = selectedFileIds.size ? `${selectedFileIds.size} selected` : "No files checked";
-  if (pageSummary) pageSummary.textContent = filteredFiles.length ? `1-${Math.min(50, filteredFiles.length)} of ${filteredFiles.length}` : "0 files";
+  if (pageSummary) pageSummary.textContent = libraryLoading ? "Loading" : filteredFiles.length ? `1-${Math.min(50, filteredFiles.length)} of ${filteredFiles.length}` : "0 files";
   if (activeFilters) activeFilters.innerHTML = renderActiveFilters();
   if (bulkBar) bulkBar.hidden = selectedFileIds.size === 0;
   if (bulkSummary) bulkSummary.textContent = selectedFileIds.size === 1 ? "1 file selected" : `${selectedFileIds.size} files selected`;
@@ -610,13 +627,17 @@ function renderFiles(): void {
   if (cardGrid) cardGrid.hidden = viewMode !== "grid";
 
   if (body) {
-    body.innerHTML = filteredFiles.length
+    body.innerHTML = libraryLoading
+      ? `<tr><td colspan="8"><div class="empty-state">Loading file index...</div></td></tr>`
+      : filteredFiles.length
       ? filteredFiles.map((fileRecord) => renderFileRow(fileRecord)).join("")
       : `<tr><td colspan="8"><div class="empty-state">No files match the current filters.</div></td></tr>`;
   }
 
   if (cardGrid) {
-    cardGrid.innerHTML = filteredFiles.length
+    cardGrid.innerHTML = libraryLoading
+      ? `<div class="empty-state">Loading file index...</div>`
+      : filteredFiles.length
       ? filteredFiles.map((fileRecord) => renderFileCard(fileRecord)).join("")
       : `<div class="empty-state">No files match the current filters.</div>`;
   }
@@ -632,7 +653,8 @@ function renderActiveFilters(): string {
   if (folderRecord) chips.push(filterChip(folderRecord.name));
   if (tagRecord) chips.push(filterChip(tagRecord.name));
   if (filters.quickFilter) chips.push(filterChip(quickFilterLabel(filters.quickFilter)));
-  if (configurationMissing || previewMode) chips.push(filterChip("Preview data"));
+  if (previewMode) chips.push(filterChip("Preview data"));
+  if (configurationMissing && !previewMode) chips.push(filterChip("Configuration missing"));
 
   return `${chips.join("")}${chips.length ? `<button class="link-button" type="button" data-cv-clear-filters>Clear filters</button>` : ""}`;
 }
@@ -706,6 +728,18 @@ function renderInspector(): void {
   const metadata = document.querySelector<HTMLElement>("[data-cv-metadata-list]");
   const downloadButton = document.querySelector<HTMLButtonElement>("[data-cv-download-button]");
   const deleteButton = document.querySelector<HTMLButtonElement>("[data-cv-delete-button]");
+
+  if (libraryLoading) {
+    if (name) name.textContent = "Loading files";
+    if (icon) {
+      icon.textContent = "FILE";
+      icon.dataset.ext = "FILE";
+    }
+    if (metadata) metadata.innerHTML = `<div><dt>Status</dt><dd>Reading library metadata.</dd></div>`;
+    if (downloadButton) downloadButton.disabled = true;
+    if (deleteButton) deleteButton.disabled = true;
+    return;
+  }
 
   if (!selectedFile) {
     if (name) name.textContent = "No file selected";
@@ -862,19 +896,20 @@ function uploadFileBytes(url: string, fileToUpload: File, onProgress: (loadedByt
 async function reloadLibrary(): Promise<void> {
   try {
     const remoteLibrary = await fetchJson<LibraryResponse>("/api/library");
+    const displayState = resolveLibraryDisplay({
+      remoteLibrary,
+      seedLibrary,
+      environment: healthEnvironment,
+      hostname: window.location.hostname,
+    });
     configurationMissing = false;
-    previewMode = healthEnvironment === "local" && remoteLibrary.files.length === 0;
-    library = previewMode
-      ? {
-          ...remoteLibrary,
-          tags: mergeTags(remoteLibrary.tags, seedLibrary.tags),
-          files: seedLibrary.files,
-        }
-      : remoteLibrary;
+    previewMode = displayState.previewMode;
+    library = displayState.library;
   } catch {
     configurationMissing = true;
-    previewMode = true;
+    applyUnavailableLibraryFallback(true);
   }
+  libraryLoading = false;
   selectedFileId = pickSelectedFileId();
   selectedFileIds = selectedFileId ? new Set([selectedFileId]) : new Set();
   renderAll();
@@ -909,12 +944,23 @@ function pickSelectedFileId(): string | null {
   return library.files.find((entry) => entry.status !== "deleted")?.id ?? null;
 }
 
-function mergeTags(primary: TagRecord[], fallback: TagRecord[]): TagRecord[] {
-  const bySlug = new Map(primary.map((entry) => [entry.slug, entry]));
-  for (const tagRecord of fallback) {
-    if (!bySlug.has(tagRecord.slug)) bySlug.set(tagRecord.slug, tagRecord);
+function applyUnavailableLibraryFallback(preserveCurrentLibrary: boolean): void {
+  const displayState = resolveLibraryDisplay({
+    remoteLibrary: createInitialLibrary(seedLibrary),
+    seedLibrary,
+    environment: healthEnvironment,
+    hostname: window.location.hostname,
+  });
+  previewMode = displayState.previewMode;
+  if (previewMode) {
+    library = displayState.library;
+    uploadQueue = seedUploadQueue;
+    return;
   }
-  return Array.from(bySlug.values());
+  if (!preserveCurrentLibrary) {
+    library = displayState.library;
+    uploadQueue = [];
+  }
 }
 
 function getVisibleFiles(): FileRecord[] {
