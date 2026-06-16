@@ -376,6 +376,16 @@ input:focus-visible {
   font-weight: 640;
 }
 
+.account-chip__email {
+  max-width: 190px;
+  overflow: hidden;
+  color: #4f5a68;
+  font-size: 13px;
+  font-weight: 620;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .account-chip__chevron {
   width: 16px;
   height: 16px;

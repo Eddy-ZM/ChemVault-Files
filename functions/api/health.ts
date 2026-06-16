@@ -1,8 +1,8 @@
 import type { Env } from "../_lib/env";
-import { hasRequiredBindings } from "../_lib/env";
+import { getActorEmail, hasRequiredBindings } from "../_lib/env";
 import { okJson } from "../_lib/http";
 
-export const onRequestGet: PagesFunction<Env> = async ({ env }) => {
+export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   const bindings = hasRequiredBindings(env);
   return okJson({
     status: bindings.d1 && bindings.r2 ? "ready" : "configuration-missing",
@@ -10,5 +10,6 @@ export const onRequestGet: PagesFunction<Env> = async ({ env }) => {
     d1: bindings.d1 ? "online" : "missing",
     r2: bindings.r2 ? "online" : "missing",
     environment: env.ENVIRONMENT || "local",
+    actorEmail: getActorEmail(request, env),
   });
 };

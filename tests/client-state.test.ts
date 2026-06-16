@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { filterFiles, formatBytes, reduceUploadQueue, sortFiles, summarizeFiles } from "../src/lib/chemvault-files/client-state";
+import { filterFiles, formatBytes, normalizeActorEmail, reduceUploadQueue, sortFiles, summarizeFiles } from "../src/lib/chemvault-files/client-state";
 import * as clientState from "../src/lib/chemvault-files/client-state";
 import type { FileRecord, LibraryResponse } from "../src/lib/chemvault-files/types";
 
@@ -50,6 +50,12 @@ describe("client state", () => {
   it("formats bytes for file rows", () => {
     expect(formatBytes(13214592)).toBe("12.6 MB");
     expect(formatBytes(1288490188)).toBe("1.2 GB");
+  });
+
+  it("normalizes actor emails from the current access identity", () => {
+    expect(normalizeActorEmail(" Scientist@ChemVault.Science ")).toBe("scientist@chemvault.science");
+    expect(normalizeActorEmail("not-an-email")).toBe("owner@chemvault.science");
+    expect(normalizeActorEmail(null)).toBe("owner@chemvault.science");
   });
 
   it("filters by search and tag", () => {

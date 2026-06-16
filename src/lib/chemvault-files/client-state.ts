@@ -106,6 +106,12 @@ export function formatBytes(bytes: number): string {
   return `${value.toFixed(1)} ${units[unitIndex]}`;
 }
 
+export function normalizeActorEmail(value: unknown, fallback = "owner@chemvault.science"): string {
+  if (typeof value !== "string") return fallback;
+  const email = value.trim().toLowerCase();
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : fallback;
+}
+
 export function filterFiles(files: FileRecord[], filters: FileFilters): FileRecord[] {
   const search = filters.search.trim().toLowerCase();
 

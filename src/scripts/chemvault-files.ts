@@ -3,6 +3,7 @@ import {
   filterFiles,
   formatBytes,
   mergeTags,
+  normalizeActorEmail,
   reduceUploadQueue,
   resolveLibraryDisplay,
   sortFiles,
@@ -20,6 +21,7 @@ interface HealthResponse {
   d1: "online" | "missing";
   r2: "online" | "missing";
   environment: string;
+  actorEmail?: string | null;
 }
 
 interface InitUploadResponse {
@@ -115,6 +117,7 @@ let configurationMissing = false;
 let previewMode = false;
 let libraryLoading = true;
 let healthEnvironment = "local";
+let currentActorEmail = "owner@chemvault.science";
 let fileSort: FileSort = { key: "modified", direction: "desc" };
 let viewMode: "list" | "grid" = "list";
 
@@ -124,6 +127,7 @@ export function bootChemVaultFiles(): void {
 
   shell.dataset.cvBooted = "true";
   bindEvents();
+  renderAccountIdentity();
   renderAll();
   void loadRemoteState();
 }
@@ -352,6 +356,8 @@ async function loadRemoteState(): Promise<void> {
     const health = await fetchJson<HealthResponse>("/api/health");
     configurationMissing = health.status !== "ready";
     healthEnvironment = health.environment || "local";
+    currentActorEmail = normalizeActorEmail(health.actorEmail);
+    renderAccountIdentity();
     renderHealth(health);
   } catch {
     configurationMissing = true;
@@ -369,7 +375,7 @@ async function loadRemoteState(): Promise<void> {
     });
     configurationMissing = false;
     previewMode = displayState.previewMode;
-    library = displayState.library;
+    library = previewMode ? applyPreviewActorEmail(displayState.library) : displayState.library;
     uploadQueue = previewMode ? seedUploadQueue : [];
   } catch {
     configurationMissing = true;
@@ -380,6 +386,19 @@ async function loadRemoteState(): Promise<void> {
   selectedFileId = pickSelectedFileId();
   selectedFileIds = selectedFileId ? new Set([selectedFileId]) : new Set();
   renderAll();
+}
+
+function applyPreviewActorEmail(source: LibraryResponse): LibraryResponse {
+  return {
+    ...source,
+    files: source.files.map((fileRecord) => ({
+      ...fileRecord,
+      actorEmail:
+        normalizeActorEmail(fileRecord.actorEmail) === "owner@chemvault.science"
+          ? currentActorEmail
+          : fileRecord.actorEmail,
+    })),
+  };
 }
 
 async function fetchJson<T>(input: string, init?: RequestInit): Promise<T> {
@@ -403,11 +422,27 @@ function readErrorMessage(payload: unknown): string | null {
 }
 
 function renderAll(): void {
+  renderAccountIdentity();
   renderSidebar();
   renderInsights();
   renderQueue();
   renderFiles();
   renderInspector();
+}
+
+function renderAccountIdentity(): void {
+  const email = normalizeActorEmail(currentActorEmail);
+  const initials = initialsForEmail(email);
+  document.querySelectorAll<HTMLElement>("[data-cv-account-avatar], [data-cv-auth-avatar]").forEach((element) => {
+    element.textContent = initials;
+  });
+  document.querySelectorAll<HTMLElement>("[data-cv-account-email]").forEach((element) => {
+    element.textContent = email;
+    element.title = email;
+  });
+  document.querySelectorAll<HTMLInputElement>("[data-cv-auth-email]").forEach((element) => {
+    element.value = email;
+  });
 }
 
 function renderHealth(health?: HealthResponse): void {
@@ -1060,8 +1095,9 @@ function applyLocalReviewTag(): void {
 function openAuthModal(): void {
   const modal = document.querySelector<HTMLElement>("[data-cv-auth-modal]");
   if (!modal) return;
+  renderAccountIdentity();
   modal.hidden = false;
-  modal.querySelector<HTMLInputElement>("input")?.focus();
+  modal.querySelector<HTMLInputElement>("[data-cv-auth-email]")?.focus();
 }
 
 function closeAuthModal(): void {
@@ -1096,6 +1132,13 @@ function extensionForFile(fileRecord: FileRecord): string {
 function extensionForName(name: string): string {
   const extension = name.includes(".") ? name.split(".").pop() || "FILE" : "FILE";
   return extension.slice(0, 5).toUpperCase();
+}
+
+function initialsForEmail(email: string): string {
+  const localPart = email.split("@")[0] || "cv";
+  const parts = localPart.split(/[._-]+/).filter(Boolean);
+  const initials = parts.length > 1 ? `${parts[0][0] ?? ""}${parts[1][0] ?? ""}` : localPart.slice(0, 2);
+  return initials.toUpperCase() || "CV";
 }
 
 function slugify(value: string): string {
