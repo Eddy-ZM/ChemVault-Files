@@ -62,6 +62,12 @@ The production D1 database ID is configured in `wrangler.jsonc`. Apply migration
 npx wrangler d1 migrations apply chemvault-files --remote
 ```
 
+Cloudflare Pages does not accept `account_id` inside `wrangler.jsonc`. If local Wrangler commands cannot infer the account, provide it as an environment variable instead:
+
+```sh
+CLOUDFLARE_ACCOUNT_ID=20f69e8d2aebbadbff2b6ffa36efee50 npx wrangler d1 migrations apply chemvault-files --remote
+```
+
 ## Private Access
 
 Protect `files.chemvault.science` with Cloudflare Access before exposing production traffic. Allow only the owner email for now.

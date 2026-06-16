@@ -1,7 +1,6 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "chemvault-files",
-  "account_id": "20f69e8d2aebbadbff2b6ffa36efee50",
   "compatibility_date": "2026-06-11",
   "pages_build_output_dir": "dist",
   "vars": {
