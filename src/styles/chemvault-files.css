@@ -165,9 +165,33 @@ input:focus-visible {
 }
 
 .brand-mark__symbol {
+  position: relative;
+  display: block;
   width: 38px;
   height: 38px;
   flex: 0 0 auto;
+  overflow: hidden;
+}
+
+.brand-mark__logo {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.brand-mark__logo--dark {
+  display: none;
+}
+
+:where([data-theme="dark"], .theme-dark) .brand-mark__logo--light {
+  display: none;
+}
+
+:where([data-theme="dark"], .theme-dark) .brand-mark__logo--dark {
+  display: block;
 }
 
 .brand-mark__text {
