@@ -169,8 +169,13 @@ export function createActivityDraft(input: {
 }
 
 export async function recordFileActivity(db: D1Database, draft: FileActivityDraft): Promise<void> {
-  await db
-    .prepare("INSERT INTO file_activity (id, file_id, actor_email, event_type, metadata_json, created_at) VALUES (?, ?, ?, ?, ?, ?)")
-    .bind(draft.id, draft.fileId, draft.actorEmail, draft.eventType, draft.metadataJson, draft.createdAt)
-    .run();
+  try {
+    await db
+      .prepare("INSERT INTO file_activity (id, file_id, actor_email, event_type, metadata_json, created_at) VALUES (?, ?, ?, ?, ?, ?)")
+      .bind(draft.id, draft.fileId, draft.actorEmail, draft.eventType, draft.metadataJson, draft.createdAt)
+      .run();
+  } catch (error) {
+    if (error instanceof Error && error.message.includes("no such table: file_activity")) return;
+    throw error;
+  }
 }

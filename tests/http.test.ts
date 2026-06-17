@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { getActorEmail } from "../functions/_lib/env";
 import { errorJson, okJson, parseJsonBody } from "../functions/_lib/http";
 import { onRequestGet as healthGet } from "../functions/api/health";
 
@@ -45,5 +46,16 @@ describe("HTTP helpers", () => {
     await expect(response.json()).resolves.toMatchObject({
       actorEmail: "Scientist@ChemVault.Science",
     });
+  });
+
+  it("falls back to the Cloudflare Access JWT email when the email header is unavailable", () => {
+    const payload = btoa(JSON.stringify({ email: "edward@chemvault.science" })).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+    const request = new Request("https://file.chemvault.science/api/health", {
+      headers: {
+        cookie: `CF_Authorization=header.${payload}.signature`,
+      },
+    });
+
+    expect(getActorEmail(request, { PRIVATE_OWNER_EMAIL: "owner@chemvault.science" })).toBe("edward@chemvault.science");
   });
 });

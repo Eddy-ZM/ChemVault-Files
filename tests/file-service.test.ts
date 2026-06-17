@@ -8,6 +8,7 @@ import {
   createFileInitDraft,
   createShareToken,
   isShareInactive,
+  recordFileActivity,
 } from "../functions/_lib/file-service";
 import { resolvePreviewKind } from "../src/lib/chemvault-files/preview";
 
@@ -129,5 +130,28 @@ describe("file service", () => {
       metadataJson: "{\"allowDownload\":false,\"token\":\"sh_123\"}",
       createdAt: "2026-06-17T08:00:00.000Z",
     });
+  });
+
+  it("does not fail the file action when the optional activity table is not migrated yet", async () => {
+    const db = {
+      prepare: () => ({
+        bind: () => ({
+          run: async () => {
+            throw new Error("D1_ERROR: no such table: file_activity: SQLITE_ERROR");
+          },
+        }),
+      }),
+    } as unknown as D1Database;
+
+    await expect(
+      recordFileActivity(
+        db,
+        createActivityDraft({
+          fileId: "file_1",
+          eventType: "preview",
+          idFactory: () => "activity_1",
+        })
+      )
+    ).resolves.toBeUndefined();
   });
 });
