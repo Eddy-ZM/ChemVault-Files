@@ -1,6 +1,8 @@
 export type FileStatus = "pending" | "uploading" | "ready" | "failed" | "deleted";
 export type UploadMode = "direct" | "presigned" | "multipart";
 export type UploadSessionStatus = "created" | "uploading" | "complete" | "aborted" | "failed";
+export type PreviewKind = "pdf" | "image" | "csv" | "text" | "unsupported";
+export type FileActivityEventType = "preview" | "download" | "share_created" | "share_accessed" | "share_download";
 
 export interface ProjectRecord {
   id: string;
@@ -65,4 +67,48 @@ export interface FileInitPayload {
   projectId: string;
   folderId: string | null;
   tags: string[];
+}
+
+export interface FileShareRecord {
+  token: string;
+  fileId: string;
+  createdByEmail: string | null;
+  allowDownload: boolean;
+  expiresAt: string;
+  createdAt: string;
+  revokedAt: string | null;
+  accessCount: number;
+  lastAccessedAt: string | null;
+}
+
+export interface FileActivityRecord {
+  id: string;
+  fileId: string;
+  actorEmail: string | null;
+  eventType: FileActivityEventType;
+  metadata: Record<string, unknown> | null;
+  createdAt: string;
+}
+
+export interface ShareCreateResponse {
+  share: FileShareRecord;
+  shareUrl: string;
+}
+
+export interface SharePublicResponse {
+  file: {
+    id: string;
+    displayName: string;
+    mimeType: string | null;
+    sizeBytes: number;
+    previewKind: PreviewKind;
+  };
+  share: {
+    token: string;
+    allowDownload: boolean;
+    expiresAt: string;
+    createdAt: string;
+  };
+  previewUrl: string;
+  downloadUrl: string | null;
 }

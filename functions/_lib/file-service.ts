@@ -1,5 +1,6 @@
 import { buildR2Key } from "../../src/lib/chemvault-files/r2-key";
 import type {
+  FileActivityEventType,
   FileInitPayload,
   FileRecord,
   UploadMode,
@@ -90,6 +91,15 @@ export function buildDownloadHeaders(input: { displayName: string; mimeType: str
   return headers;
 }
 
+export function buildInlinePreviewHeaders(input: { displayName: string; mimeType: string | null; sizeBytes: number }): Headers {
+  const headers = new Headers();
+  headers.set("content-type", input.mimeType || "application/octet-stream");
+  headers.set("content-length", String(input.sizeBytes));
+  headers.set("content-disposition", `inline; filename="${sanitizeVisibleName(input.displayName)}"`);
+  headers.set("x-content-type-options", "nosniff");
+  return headers;
+}
+
 export function coercePatchPayload(value: unknown): {
   displayName?: string;
   projectId?: string;
@@ -103,4 +113,64 @@ export function coercePatchPayload(value: unknown): {
   if (typeof input.folderId === "string") patch.folderId = input.folderId.trim() || null;
   if (Array.isArray(input.tags)) patch.tags = normalizeTags(input.tags);
   return patch;
+}
+
+export function coerceShareCreatePayload(value: unknown, now = new Date()): {
+  allowDownload: boolean;
+  expiresAt: string;
+  expiresInDays: number;
+} {
+  const input = value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+  const rawDays = typeof input.expiresInDays === "number" ? input.expiresInDays : 7;
+  const expiresInDays = [1, 7, 30].includes(rawDays) ? rawDays : 7;
+  const expiresAt = new Date(now.getTime() + expiresInDays * 24 * 60 * 60 * 1000).toISOString();
+  return {
+    allowDownload: input.allowDownload === true,
+    expiresAt,
+    expiresInDays,
+  };
+}
+
+export function createShareToken(idFactory: () => string = () => crypto.randomUUID()): string {
+  return `sh_${idFactory().replace(/[^a-zA-Z0-9]/g, "")}`;
+}
+
+export function isShareInactive(share: { expiresAt: string; revokedAt: string | null }, now = new Date()): boolean {
+  if (share.revokedAt) return true;
+  return new Date(share.expiresAt).getTime() <= now.getTime();
+}
+
+export interface FileActivityDraft {
+  id: string;
+  fileId: string;
+  actorEmail: string | null;
+  eventType: FileActivityEventType;
+  metadataJson: string | null;
+  createdAt: string;
+}
+
+export function createActivityDraft(input: {
+  fileId: string;
+  actorEmail?: string | null;
+  eventType: FileActivityEventType;
+  metadata?: Record<string, unknown> | null;
+  now?: Date;
+  idFactory?: () => string;
+}): FileActivityDraft {
+  const now = input.now ?? new Date();
+  return {
+    id: input.idFactory?.() ?? crypto.randomUUID(),
+    fileId: input.fileId,
+    actorEmail: input.actorEmail ?? null,
+    eventType: input.eventType,
+    metadataJson: input.metadata ? JSON.stringify(input.metadata) : null,
+    createdAt: now.toISOString(),
+  };
+}
+
+export async function recordFileActivity(db: D1Database, draft: FileActivityDraft): Promise<void> {
+  await db
+    .prepare("INSERT INTO file_activity (id, file_id, actor_email, event_type, metadata_json, created_at) VALUES (?, ?, ?, ?, ?, ?)")
+    .bind(draft.id, draft.fileId, draft.actorEmail, draft.eventType, draft.metadataJson, draft.createdAt)
+    .run();
 }

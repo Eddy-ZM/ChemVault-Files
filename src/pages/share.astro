@@ -1,0 +1,30 @@
+---
+import BrandMark from "../components/BrandMark.astro";
+import "../styles/chemvault-files.css";
+---
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="icon" type="image/png" href="/brand/chemvault-logo-light.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#f5f5f7" />
+    <title>ChemVault Files Share</title>
+    <meta name="description" content="Read-only ChemVault Files share preview." />
+  </head>
+  <body class="share-body">
+    <main class="share-page" data-cv-share-page>
+      <header class="share-topbar">
+        <BrandMark />
+        <span>Shared file</span>
+      </header>
+      <section class="share-view panel" data-cv-share-view>
+        <div class="activity-empty">Loading shared file...</div>
+      </section>
+    </main>
+    <script>
+      import { bootChemVaultShare } from "../scripts/chemvault-share";
+      bootChemVaultShare();
+    </script>
+  </body>
+</html>

@@ -12,12 +12,12 @@
   </header>
 
   <nav class="inspector-tabs" aria-label="Inspector tabs" data-cv-inspector-tabs>
-    <button class="inspector-tabs__tab is-active" type="button" aria-selected="true">Details</button>
-    <button class="inspector-tabs__tab" type="button">Preview</button>
-    <button class="inspector-tabs__tab" type="button">Activity</button>
+    <button class="inspector-tabs__tab is-active" type="button" aria-selected="true" data-cv-inspector-tab="details">Details</button>
+    <button class="inspector-tabs__tab" type="button" aria-selected="false" data-cv-inspector-tab="preview">Preview</button>
+    <button class="inspector-tabs__tab" type="button" aria-selected="false" data-cv-inspector-tab="activity">Activity</button>
   </nav>
 
-  <div class="inspector__body">
+  <div class="inspector__body" data-cv-inspector-body>
     <dl class="metadata-list" data-cv-metadata-list>
       <div><dt>Status</dt><dd>Reading library metadata.</dd></div>
     </dl>
@@ -32,6 +32,12 @@
       <svg class="icon button__chevron" viewBox="0 0 24 24" aria-hidden="true">
         <path d="m8 10 4 4 4-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
       </svg>
+    </button>
+    <button class="button button--secondary button--wide" type="button" data-cv-share-focus-button disabled>
+      <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M8.5 12.5 15.5 16M15.5 8 8.5 11.5M18 6.5a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0ZM8 12a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0Zm10 5.5a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+      </svg>
+      Share
     </button>
     <button class="button button--danger button--wide" type="button" data-cv-delete-button disabled>
       <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">

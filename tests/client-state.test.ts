@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { filterFiles, formatBytes, normalizeActorEmail, reduceUploadQueue, sortFiles, summarizeFiles } from "../src/lib/chemvault-files/client-state";
+import { filterFiles, formatBytes, formatShareUrl, normalizeActorEmail, previewKindForFile, reduceUploadQueue, sortFiles, summarizeFiles } from "../src/lib/chemvault-files/client-state";
 import * as clientState from "../src/lib/chemvault-files/client-state";
 import type { FileRecord, LibraryResponse } from "../src/lib/chemvault-files/types";
 
@@ -160,5 +160,16 @@ describe("client state", () => {
     const queue = reduceUploadQueue([], { type: "add", id: "local_1", name: "raw.zip", sizeBytes: 100 });
     const progressed = reduceUploadQueue(queue, { type: "progress", id: "local_1", loadedBytes: 60 });
     expect(progressed[0]).toMatchObject({ progress: 60, status: "uploading" });
+  });
+
+  it("classifies selected files for inspector previews", () => {
+    expect(previewKindForFile({ ...file, mimeType: "application/pdf", displayName: "report.pdf" })).toBe("pdf");
+    expect(previewKindForFile({ ...file, mimeType: "image/jpeg", displayName: "structure.jpg" })).toBe("image");
+    expect(previewKindForFile(csvFile)).toBe("csv");
+    expect(previewKindForFile(failedFile)).toBe("unsupported");
+  });
+
+  it("formats copied share links against the current origin", () => {
+    expect(formatShareUrl("https://files.chemvault.science/library", "sh_abc123")).toBe("https://files.chemvault.science/share?token=sh_abc123");
   });
 });

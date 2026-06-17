@@ -1,13 +1,23 @@
 import { describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 
-const sql = readFileSync("migrations/0001_chemvault_files.sql", "utf8");
+const sql = readdirSync("migrations")
+  .filter((fileName) => fileName.endsWith(".sql"))
+  .sort()
+  .map((fileName) => readFileSync(`migrations/${fileName}`, "utf8"))
+  .join("\n");
 
 describe("D1 schema", () => {
   it("defines the approved metadata tables", () => {
-    for (const tableName of ["projects", "folders", "files", "tags", "file_tags", "upload_sessions"]) {
+    for (const tableName of ["projects", "folders", "files", "tags", "file_tags", "upload_sessions", "file_shares", "file_activity"]) {
       expect(sql).toContain(`CREATE TABLE IF NOT EXISTS ${tableName}`);
     }
+  });
+
+  it("indexes share and activity lookups", () => {
+    expect(sql).toContain("CREATE INDEX IF NOT EXISTS idx_file_shares_file");
+    expect(sql).toContain("CREATE INDEX IF NOT EXISTS idx_file_shares_expires_at");
+    expect(sql).toContain("CREATE INDEX IF NOT EXISTS idx_file_activity_file_created");
   });
 
   it("seeds the initial ChemVault project sections", () => {

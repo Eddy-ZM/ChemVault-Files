@@ -2,8 +2,10 @@ import {
   createInitialLibrary,
   filterFiles,
   formatBytes,
+  formatShareUrl,
   mergeTags,
   normalizeActorEmail,
+  previewKindForFile,
   reduceUploadQueue,
   resolveLibraryDisplay,
   sortFiles,
@@ -13,7 +15,7 @@ import {
   type FileSort,
   type UploadQueueItem,
 } from "../lib/chemvault-files/client-state";
-import type { FileRecord, FolderRecord, LibraryResponse, ProjectRecord, TagRecord } from "../lib/chemvault-files/types";
+import type { FileActivityRecord, FileRecord, FolderRecord, LibraryResponse, ProjectRecord, ShareCreateResponse, TagRecord } from "../lib/chemvault-files/types";
 
 interface HealthResponse {
   status: "ready" | "configuration-missing";
@@ -32,6 +34,23 @@ interface InitUploadResponse {
     method: string;
     url: string;
   };
+}
+
+interface ActivityResponse {
+  activity: FileActivityRecord[];
+}
+
+interface InspectorAsyncState<T> {
+  loading: boolean;
+  data: T | null;
+  error: string | null;
+}
+
+interface ShareUiState {
+  loading: boolean;
+  link: string | null;
+  message: string | null;
+  error: string | null;
 }
 
 const seedProjects = [
@@ -120,6 +139,9 @@ let healthEnvironment = "local";
 let currentActorEmail = "owner@chemvault.science";
 let fileSort: FileSort = { key: "modified", direction: "desc" };
 let viewMode: "list" | "grid" = "list";
+let inspectorTab: "details" | "preview" | "activity" = "details";
+const activityByFileId = new Map<string, InspectorAsyncState<FileActivityRecord[]>>();
+const shareByFileId = new Map<string, ShareUiState>();
 
 export function bootChemVaultFiles(): void {
   const shell = document.querySelector<HTMLElement>("[data-cv-shell]");
@@ -335,6 +357,35 @@ function bindEvents(): void {
     if (target.closest("[data-cv-bulk-tag]")) {
       applyLocalReviewTag();
     }
+  });
+
+  document.querySelector<HTMLElement>("[data-cv-inspector]")?.addEventListener("click", (event) => {
+    const target = event.target as HTMLElement;
+    const tabButton = target.closest<HTMLElement>("[data-cv-inspector-tab]");
+    if (tabButton) {
+      inspectorTab = (tabButton.dataset.cvInspectorTab as typeof inspectorTab) || "details";
+      renderInspector();
+      if (inspectorTab === "activity") void loadActivityForSelected();
+      return;
+    }
+
+    if (target.closest("[data-cv-share-focus-button]")) {
+      inspectorTab = "details";
+      renderInspector();
+      (document.querySelector("[data-cv-share-expiry]") as HTMLSelectElement | null)?.focus();
+      return;
+    }
+
+    if (target.closest("[data-cv-copy-share]")) {
+      void copySelectedShareLink();
+    }
+  });
+
+  document.querySelector<HTMLElement>("[data-cv-inspector]")?.addEventListener("submit", (event) => {
+    const form = (event.target as HTMLElement).closest<HTMLFormElement>("[data-cv-share-form]");
+    if (!form) return;
+    event.preventDefault();
+    void createShareForSelected(form);
   });
 
   document.querySelector<HTMLElement>("[data-cv-account-button]")?.addEventListener("click", openAuthModal);
@@ -760,9 +811,11 @@ function renderInspector(): void {
   const selectedFile = library.files.find((entry) => entry.id === selectedFileId) ?? null;
   const name = document.querySelector<HTMLElement>("[data-cv-selected-file-name]");
   const icon = document.querySelector<HTMLElement>("[data-cv-selected-file-icon]");
-  const metadata = document.querySelector<HTMLElement>("[data-cv-metadata-list]");
+  const body = document.querySelector<HTMLElement>("[data-cv-inspector-body]");
   const downloadButton = document.querySelector<HTMLButtonElement>("[data-cv-download-button]");
+  const shareFocusButton = document.querySelector<HTMLButtonElement>("[data-cv-share-focus-button]");
   const deleteButton = document.querySelector<HTMLButtonElement>("[data-cv-delete-button]");
+  updateInspectorTabs();
 
   if (libraryLoading) {
     if (name) name.textContent = "Loading files";
@@ -770,8 +823,9 @@ function renderInspector(): void {
       icon.textContent = "FILE";
       icon.dataset.ext = "FILE";
     }
-    if (metadata) metadata.innerHTML = `<div><dt>Status</dt><dd>Reading library metadata.</dd></div>`;
+    if (body) body.innerHTML = `<dl class="metadata-list"><div><dt>Status</dt><dd>Reading library metadata.</dd></div></dl>`;
     if (downloadButton) downloadButton.disabled = true;
+    if (shareFocusButton) shareFocusButton.disabled = true;
     if (deleteButton) deleteButton.disabled = true;
     return;
   }
@@ -782,8 +836,9 @@ function renderInspector(): void {
       icon.textContent = "FILE";
       icon.dataset.ext = "FILE";
     }
-    if (metadata) metadata.innerHTML = `<div><dt>Status</dt><dd>Select a file to inspect metadata.</dd></div>`;
+    if (body) body.innerHTML = `<dl class="metadata-list"><div><dt>Status</dt><dd>Select a file to inspect metadata.</dd></div></dl>`;
     if (downloadButton) downloadButton.disabled = true;
+    if (shareFocusButton) shareFocusButton.disabled = true;
     if (deleteButton) deleteButton.disabled = true;
     return;
   }
@@ -795,8 +850,30 @@ function renderInspector(): void {
     icon.dataset.ext = ext;
   }
   if (downloadButton) downloadButton.disabled = false;
+  if (shareFocusButton) shareFocusButton.disabled = false;
   if (deleteButton) deleteButton.disabled = false;
-  if (metadata) metadata.innerHTML = renderMetadata(selectedFile);
+  if (body) body.innerHTML = renderInspectorBody(selectedFile);
+  if (inspectorTab === "activity" && !activityByFileId.has(selectedFile.id)) {
+    void loadActivityForSelected();
+  }
+}
+
+function updateInspectorTabs(): void {
+  document.querySelectorAll<HTMLElement>("[data-cv-inspector-tab]").forEach((button) => {
+    const isActive = button.dataset.cvInspectorTab === inspectorTab;
+    button.classList.toggle("is-active", isActive);
+    button.setAttribute("aria-selected", isActive ? "true" : "false");
+  });
+}
+
+function renderInspectorBody(fileRecord: FileRecord): string {
+  if (inspectorTab === "preview") return renderPreviewPanel(fileRecord);
+  if (inspectorTab === "activity") return renderActivityPanel(fileRecord);
+  return `${renderDetailsPanel(fileRecord)}${renderSharePanel(fileRecord)}`;
+}
+
+function renderDetailsPanel(fileRecord: FileRecord): string {
+  return `<dl class="metadata-list" data-cv-metadata-list>${renderMetadata(fileRecord)}</dl>`;
 }
 
 function renderMetadata(fileRecord: FileRecord): string {
@@ -858,6 +935,162 @@ function metadataRow(label: string, value: string, location: boolean): string {
       </dd>
     </div>
   `;
+}
+
+function renderPreviewPanel(fileRecord: FileRecord): string {
+  if (fileRecord.status !== "ready") {
+    return `<div class="preview-empty">${warningIcon()}<strong>Preview unavailable</strong><span>${escapeHtml(fileRecord.status)} file</span></div>`;
+  }
+
+  const kind = previewKindForFile(fileRecord);
+  if (kind === "unsupported") {
+    return `
+      <div class="preview-empty">
+        ${fileIcon()}
+        <strong>No inline preview</strong>
+        <span>${escapeHtml(typeLabel(fileRecord))} · ${escapeHtml(formatBytes(fileRecord.sizeBytes))}</span>
+      </div>
+    `;
+  }
+
+  if (previewMode) return renderSeedPreview(fileRecord, kind);
+
+  const previewUrl = `/api/files/${encodeURIComponent(fileRecord.id)}/preview`;
+  if (kind === "image") {
+    return `
+      <figure class="preview-pane">
+        <img class="preview-image" src="${escapeAttr(previewUrl)}" alt="${escapeAttr(fileRecord.displayName)}" />
+        <figcaption>${escapeHtml(typeLabel(fileRecord))} · ${escapeHtml(formatBytes(fileRecord.sizeBytes))}</figcaption>
+      </figure>
+    `;
+  }
+
+  return `
+    <section class="preview-pane">
+      <iframe class="preview-frame${kind === "csv" || kind === "text" ? " preview-frame--text" : ""}" src="${escapeAttr(previewUrl)}" title="${escapeAttr(fileRecord.displayName)} preview"></iframe>
+    </section>
+  `;
+}
+
+function renderSeedPreview(fileRecord: FileRecord, kind: ReturnType<typeof previewKindForFile>): string {
+  if (kind === "csv") {
+    return `
+      <section class="preview-pane">
+        <table class="preview-table">
+          <thead><tr><th>time_min</th><th>conversion</th><th>temperature_c</th></tr></thead>
+          <tbody>
+            <tr><td>0</td><td>0.00</td><td>25.0</td></tr>
+            <tr><td>15</td><td>0.34</td><td>25.1</td></tr>
+            <tr><td>30</td><td>0.61</td><td>25.0</td></tr>
+            <tr><td>60</td><td>0.88</td><td>25.2</td></tr>
+          </tbody>
+        </table>
+      </section>
+    `;
+  }
+
+  if (kind === "text") {
+    return `
+      <section class="preview-pane">
+        <pre class="preview-text">##TITLE=Compound 14 1H NMR
+##JCAMP-DX=5.00
+##DATA TYPE=NMR SPECTRUM
+##.OBSERVE FREQUENCY=400.13
+##$SOLVENT=CDCl3
+##PEAK TABLE=(XY..XY)
+7.26, 1.00
+6.91, 2.04
+3.82, 3.01</pre>
+      </section>
+    `;
+  }
+
+  return `
+    <div class="preview-empty preview-empty--ready">
+      ${fileIcon()}
+      <strong>${escapeHtml(fileRecord.displayName)}</strong>
+      <span>${escapeHtml(typeLabel(fileRecord))} · ${escapeHtml(formatBytes(fileRecord.sizeBytes))}</span>
+    </div>
+  `;
+}
+
+function renderSharePanel(fileRecord: FileRecord): string {
+  const state = shareByFileId.get(fileRecord.id) ?? { loading: false, link: null, message: null, error: null };
+  return `
+    <section class="share-panel" aria-label="File sharing">
+      <header>
+        <h3>Share</h3>
+        <span>Read-only link</span>
+      </header>
+      <form class="share-form" data-cv-share-form>
+        <label>
+          <span>Expires</span>
+          <select name="expiresInDays" data-cv-share-expiry>
+            <option value="1">1 day</option>
+            <option value="7" selected>7 days</option>
+            <option value="30">30 days</option>
+          </select>
+        </label>
+        <label class="share-toggle">
+          <input type="checkbox" name="allowDownload" />
+          <span>Allow download</span>
+        </label>
+        <button class="button button--primary" type="submit" ${state.loading ? "disabled" : ""}>${state.loading ? "Creating" : "Create link"}</button>
+      </form>
+      ${
+        state.link
+          ? `<div class="share-link-row"><input type="text" value="${escapeAttr(state.link)}" readonly data-cv-share-link /><button class="button button--secondary" type="button" data-cv-copy-share>Copy</button></div>`
+          : ""
+      }
+      ${state.error ? `<p class="form-status form-status--error">${escapeHtml(state.error)}</p>` : ""}
+      ${state.message ? `<p class="form-status">${escapeHtml(state.message)}</p>` : ""}
+    </section>
+  `;
+}
+
+function renderActivityPanel(fileRecord: FileRecord): string {
+  const state = activityByFileId.get(fileRecord.id);
+  if (!state || state.loading) {
+    return `<div class="activity-empty">Loading activity...</div>`;
+  }
+  if (state.error) {
+    return `<div class="activity-empty activity-empty--error">${escapeHtml(state.error)}</div>`;
+  }
+  const items = state.data ?? [];
+  if (items.length === 0) {
+    return `<div class="activity-empty">No activity recorded.</div>`;
+  }
+  return `<ol class="activity-list">${items.map(renderActivityItem).join("")}</ol>`;
+}
+
+function renderActivityItem(activity: FileActivityRecord): string {
+  const actor = activity.actorEmail || "Shared link";
+  const metadata = activity.metadata;
+  const token = typeof metadata?.token === "string" ? ` · ${metadata.token.slice(0, 10)}` : "";
+  return `
+    <li class="activity-item">
+      <span class="activity-dot"></span>
+      <div>
+        <strong>${escapeHtml(activityEventLabel(activity.eventType))}${escapeHtml(token)}</strong>
+        <span>${escapeHtml(actor)} · ${escapeHtml(formatDate(activity.createdAt))}</span>
+      </div>
+    </li>
+  `;
+}
+
+function activityEventLabel(eventType: FileActivityRecord["eventType"]): string {
+  switch (eventType) {
+    case "preview":
+      return "Previewed";
+    case "download":
+      return "Downloaded";
+    case "share_created":
+      return "Share link created";
+    case "share_accessed":
+      return "Share link opened";
+    case "share_download":
+      return "Share download";
+  }
 }
 
 async function handleFiles(fileList: FileList | null): Promise<void> {
@@ -970,6 +1203,108 @@ async function deleteSelectedFile(): Promise<void> {
     }
     renderQueue();
   }
+}
+
+async function loadActivityForSelected(): Promise<void> {
+  const fileId = selectedFileId;
+  if (!fileId) return;
+  if (previewMode) {
+    const selectedFile = library.files.find((entry) => entry.id === fileId);
+    activityByFileId.set(fileId, {
+      loading: false,
+      error: null,
+      data: [
+        {
+          id: `seed_activity_${fileId}_1`,
+          fileId,
+          actorEmail: selectedFile?.actorEmail ?? currentActorEmail,
+          eventType: "preview",
+          metadata: { mode: "seed" },
+          createdAt: new Date("2026-06-17T08:00:00.000Z").toISOString(),
+        },
+        {
+          id: `seed_activity_${fileId}_2`,
+          fileId,
+          actorEmail: currentActorEmail,
+          eventType: "share_created",
+          metadata: { mode: "seed" },
+          createdAt: new Date("2026-06-16T13:30:00.000Z").toISOString(),
+        },
+      ],
+    });
+    renderInspector();
+    return;
+  }
+
+  const existing = activityByFileId.get(fileId);
+  if (existing?.loading || existing?.data) return;
+
+  activityByFileId.set(fileId, { loading: true, data: null, error: null });
+  renderInspector();
+  try {
+    const response = await fetchJson<ActivityResponse>(`/api/files/${encodeURIComponent(fileId)}/activity`);
+    activityByFileId.set(fileId, { loading: false, data: response.activity, error: null });
+  } catch (error) {
+    activityByFileId.set(fileId, { loading: false, data: null, error: errorMessage(error) });
+  }
+  if (selectedFileId === fileId && inspectorTab === "activity") renderInspector();
+}
+
+async function createShareForSelected(form: HTMLFormElement): Promise<void> {
+  const fileId = selectedFileId;
+  if (!fileId) return;
+  const formData = new FormData(form);
+  const expiresInDays = Number(formData.get("expiresInDays") || 7);
+  const allowDownload = formData.get("allowDownload") === "on";
+  shareByFileId.set(fileId, { loading: true, link: shareByFileId.get(fileId)?.link ?? null, message: null, error: null });
+  renderInspector();
+
+  if (previewMode) {
+    const link = formatShareUrl(window.location.href, `preview_${fileId}`);
+    shareByFileId.set(fileId, {
+      loading: false,
+      link,
+      message: allowDownload ? "Preview share link includes download permission." : "Preview share link is read-only.",
+      error: null,
+    });
+    activityByFileId.delete(fileId);
+    renderInspector();
+    return;
+  }
+
+  try {
+    const response = await fetchJson<ShareCreateResponse>(`/api/files/${encodeURIComponent(fileId)}/share`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ expiresInDays, allowDownload }),
+    });
+    shareByFileId.set(fileId, {
+      loading: false,
+      link: response.shareUrl,
+      message: response.share.allowDownload ? "Link ready with download access." : "Read-only link ready.",
+      error: null,
+    });
+    activityByFileId.delete(fileId);
+  } catch (error) {
+    shareByFileId.set(fileId, { loading: false, link: null, message: null, error: errorMessage(error) });
+  }
+  renderInspector();
+  if (inspectorTab === "activity") void loadActivityForSelected();
+}
+
+async function copySelectedShareLink(): Promise<void> {
+  const fileId = selectedFileId;
+  if (!fileId) return;
+  const state = shareByFileId.get(fileId);
+  if (!state?.link) return;
+  try {
+    await navigator.clipboard.writeText(state.link);
+    shareByFileId.set(fileId, { ...state, message: "Copied.", error: null });
+  } catch {
+    document.querySelector<HTMLInputElement>("[data-cv-share-link]")?.select();
+    shareByFileId.set(fileId, { ...state, message: "Link selected.", error: null });
+  }
+  renderInspector();
 }
 
 function pickSelectedFileId(): string | null {
@@ -1185,6 +1520,10 @@ function checkIcon(): string {
 
 function warningIcon(): string {
   return `<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m12 4 9 16H3l9-16Zm0 5v5m0 3v.1" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg>`;
+}
+
+function fileIcon(): string {
+  return `<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3.5h6l4 4V20a1.5 1.5 0 0 1-1.5 1.5h-8A1.5 1.5 0 0 1 6 20V5A1.5 1.5 0 0 1 7.5 3.5Zm6 0V8h4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" /></svg>`;
 }
 
 function starIcon(): string {

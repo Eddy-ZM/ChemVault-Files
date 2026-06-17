@@ -1,5 +1,7 @@
 import type {
+  FileActivityRecord,
   FileRecord,
+  FileShareRecord,
   FolderRecord,
   LibraryResponse,
   ProjectRecord,
@@ -104,4 +106,39 @@ export function mapFile(row: Record<string, unknown>): Omit<FileRecord, "tags"> 
     updatedAt: String(row.updated_at),
     deletedAt: row.deleted_at === null ? null : String(row.deleted_at),
   };
+}
+
+export function mapShare(row: Record<string, unknown>): FileShareRecord {
+  return {
+    token: String(row.token),
+    fileId: String(row.file_id),
+    createdByEmail: row.created_by_email === null ? null : String(row.created_by_email),
+    allowDownload: Number(row.allow_download) === 1,
+    expiresAt: String(row.expires_at),
+    createdAt: String(row.created_at),
+    revokedAt: row.revoked_at === null ? null : String(row.revoked_at),
+    accessCount: Number(row.access_count),
+    lastAccessedAt: row.last_accessed_at === null ? null : String(row.last_accessed_at),
+  };
+}
+
+export function mapActivity(row: Record<string, unknown>): FileActivityRecord {
+  return {
+    id: String(row.id),
+    fileId: String(row.file_id),
+    actorEmail: row.actor_email === null ? null : String(row.actor_email),
+    eventType: String(row.event_type) as FileActivityRecord["eventType"],
+    metadata: parseActivityMetadata(row.metadata_json),
+    createdAt: String(row.created_at),
+  };
+}
+
+function parseActivityMetadata(value: unknown): Record<string, unknown> | null {
+  if (typeof value !== "string" || !value.trim()) return null;
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? (parsed as Record<string, unknown>) : null;
+  } catch {
+    return null;
+  }
 }

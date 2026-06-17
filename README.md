@@ -4,6 +4,8 @@ Private ChemVault-style file-management workbench for research dossiers, spectra
 
 The app is built with Astro, Cloudflare Pages Functions, D1 metadata, and R2 object storage. It is designed for owner-only use now, with a reserved login/account surface for a future identity handoff to `mail.chemvault.science`.
 
+The file inspector supports metadata, inline previews for safe file types, read-only share links, optional shared-download access, and a per-file activity timeline.
+
 ## Local Development
 
 Install dependencies:
@@ -74,6 +76,14 @@ Protect `files.chemvault.science` with Cloudflare Access before exposing product
 
 The top-right account chip and owner email plumbing are intentionally reserved so the app can later connect directly to `mail.chemvault.science`.
 
+## Preview And Sharing
+
+Authenticated users can preview PDF, image, CSV, text, and JCAMP-style files through `/api/files/:id/preview`. Unsupported files stay download-only.
+
+Share links are created from the inspector. They are read-only by default, expire after 1, 7, or 30 days, and only allow downloads when the creator enables the download option. Public share URLs use `/share?token=...`; the page reads metadata from `/api/shares/:token` and streams preview/download content through token-checked API routes.
+
+Preview, download, share creation, share access, and shared downloads are written to the `file_activity` table.
+
 ## Deployment
 
 1. Configure the Pages project to build with `npm run build`.
@@ -82,6 +92,7 @@ The top-right account chip and owner email plumbing are intentionally reserved s
 4. Bind `FILES_DB` to the `chemvault-files` D1 database.
 5. Set `PRIVATE_OWNER_EMAIL` to the owner email.
 6. Apply D1 migrations before first upload.
+7. Keep Cloudflare Access enabled for the main app; public share API routes still validate opaque share tokens before reading R2 objects.
 
 ## Scripts
 

@@ -1,9 +1,15 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildInlinePreviewHeaders,
   buildDownloadHeaders,
   coercePatchPayload,
+  coerceShareCreatePayload,
+  createActivityDraft,
   createFileInitDraft,
+  createShareToken,
+  isShareInactive,
 } from "../functions/_lib/file-service";
+import { resolvePreviewKind } from "../src/lib/chemvault-files/preview";
 
 describe("file service", () => {
   it("creates a direct upload draft with server generated ids and keys", () => {
@@ -42,6 +48,27 @@ describe("file service", () => {
     expect(headers.get("content-disposition")).toContain('filename="Compound 14 1H.jdx"');
   });
 
+  it("builds safe inline preview headers", () => {
+    const headers = buildInlinePreviewHeaders({
+      displayName: "Compound 14 report.pdf",
+      mimeType: "application/pdf",
+      sizeBytes: 4096,
+    });
+
+    expect(headers.get("content-type")).toBe("application/pdf");
+    expect(headers.get("content-length")).toBe("4096");
+    expect(headers.get("content-disposition")).toContain('inline; filename="Compound 14 report.pdf"');
+    expect(headers.get("x-content-type-options")).toBe("nosniff");
+  });
+
+  it("detects previewable file types without treating archives as inline content", () => {
+    expect(resolvePreviewKind({ displayName: "report.pdf", mimeType: "application/pdf" })).toBe("pdf");
+    expect(resolvePreviewKind({ displayName: "image.png", mimeType: "image/png" })).toBe("image");
+    expect(resolvePreviewKind({ displayName: "kinetics.csv", mimeType: "text/csv" })).toBe("csv");
+    expect(resolvePreviewKind({ displayName: "Compound_14_1H.jdx", mimeType: "chemical/x-jcamp-dx" })).toBe("text");
+    expect(resolvePreviewKind({ displayName: "raw.zip", mimeType: "application/zip" })).toBe("unsupported");
+  });
+
   it("coerces patch payloads for rename, move, and tags", () => {
     expect(coercePatchPayload({
       displayName: "../Report.pdf",
@@ -53,6 +80,54 @@ describe("file service", () => {
       projectId: "project_manuscripts",
       folderId: null,
       tags: ["PDF", "SI"],
+    });
+  });
+
+  it("coerces share creation payloads with bounded expirations", () => {
+    const now = new Date("2026-06-17T08:00:00.000Z");
+
+    expect(coerceShareCreatePayload({ expiresInDays: 30, allowDownload: true }, now)).toEqual({
+      allowDownload: true,
+      expiresAt: "2026-07-17T08:00:00.000Z",
+      expiresInDays: 30,
+    });
+
+    expect(coerceShareCreatePayload({ expiresInDays: 365, allowDownload: false }, now)).toEqual({
+      allowDownload: false,
+      expiresAt: "2026-06-24T08:00:00.000Z",
+      expiresInDays: 7,
+    });
+  });
+
+  it("creates opaque share tokens", () => {
+    expect(createShareToken(() => "123e4567-e89b-12d3-a456-426614174000")).toBe("sh_123e4567e89b12d3a456426614174000");
+  });
+
+  it("treats expired or revoked shares as inactive", () => {
+    const now = new Date("2026-06-17T08:00:00.000Z");
+
+    expect(isShareInactive({ expiresAt: "2026-06-17T07:59:59.000Z", revokedAt: null }, now)).toBe(true);
+    expect(isShareInactive({ expiresAt: "2026-06-18T08:00:00.000Z", revokedAt: "2026-06-17T08:00:00.000Z" }, now)).toBe(true);
+    expect(isShareInactive({ expiresAt: "2026-06-18T08:00:00.000Z", revokedAt: null }, now)).toBe(false);
+  });
+
+  it("creates activity drafts with stable metadata JSON", () => {
+    const draft = createActivityDraft({
+      fileId: "file_1",
+      actorEmail: "scientist@chemvault.science",
+      eventType: "share_created",
+      metadata: { allowDownload: false, token: "sh_123" },
+      now: new Date("2026-06-17T08:00:00.000Z"),
+      idFactory: () => "activity_1",
+    });
+
+    expect(draft).toEqual({
+      id: "activity_1",
+      fileId: "file_1",
+      actorEmail: "scientist@chemvault.science",
+      eventType: "share_created",
+      metadataJson: "{\"allowDownload\":false,\"token\":\"sh_123\"}",
+      createdAt: "2026-06-17T08:00:00.000Z",
     });
   });
 });

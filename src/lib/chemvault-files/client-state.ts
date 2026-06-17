@@ -1,4 +1,5 @@
 import type { FileRecord, LibraryResponse, TagRecord } from "./types";
+import { resolvePreviewKind } from "./preview";
 
 export interface FileFilters {
   search: string;
@@ -110,6 +111,15 @@ export function normalizeActorEmail(value: unknown, fallback = "owner@chemvault.
   if (typeof value !== "string") return fallback;
   const email = value.trim().toLowerCase();
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : fallback;
+}
+
+export function previewKindForFile(file: Pick<FileRecord, "displayName" | "mimeType">) {
+  return resolvePreviewKind(file);
+}
+
+export function formatShareUrl(currentUrl: string, token: string): string {
+  const url = new URL(currentUrl);
+  return `${url.origin}/share?token=${encodeURIComponent(token)}`;
 }
 
 export function filterFiles(files: FileRecord[], filters: FileFilters): FileRecord[] {
