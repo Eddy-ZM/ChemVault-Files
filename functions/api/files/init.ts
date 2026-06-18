@@ -2,12 +2,15 @@ import type { Env } from "../../_lib/env";
 import { getActorEmail } from "../../_lib/env";
 import { requireDb } from "../../_lib/db";
 import { createFileInitDraft } from "../../_lib/file-service";
+import { canWriteFiles, permissionDeniedJson, resolveActorAccess } from "../../_lib/permissions";
 import { okJson, parseJsonBody, routeError } from "../../_lib/http";
 import { normalizeSlug, normalizeTags } from "../../../src/lib/chemvault-files/validation";
 
 export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   try {
     const db = requireDb(env.FILES_DB);
+    const access = await resolveActorAccess(request, env, db);
+    if (!canWriteFiles(access)) return permissionDeniedJson(access, "write");
     const body = await parseJsonBody(request);
     const input = body as Record<string, unknown>;
     const projectId = typeof input.projectId === "string" ? input.projectId : "";

@@ -3,6 +3,8 @@ export type UploadMode = "direct" | "presigned" | "multipart";
 export type UploadSessionStatus = "created" | "uploading" | "complete" | "aborted" | "failed";
 export type PreviewKind = "pdf" | "image" | "csv" | "text" | "unsupported";
 export type FileActivityEventType = "preview" | "download" | "share_created" | "share_accessed" | "share_download";
+export type FilePermissionLevel = "none" | "read" | "write";
+export type FileRoleScope = "owner" | "domain" | "external";
 
 export interface ProjectRecord {
   id: string;
@@ -115,4 +117,24 @@ export interface SharePublicResponse {
 
 export interface FileShareListResponse {
   shares: FileShareRecord[];
+}
+
+export interface FileRolePolicy {
+  id: string;
+  name: string;
+  description: string | null;
+  scope: FileRoleScope;
+  domain: string | null;
+  permission: FilePermissionLevel;
+  isDefault: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ActorAccess {
+  actorEmail: string;
+  roleId: string;
+  roleName: string;
+  permission: FilePermissionLevel;
+  canManageRoles: boolean;
 }

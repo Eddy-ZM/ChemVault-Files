@@ -1,11 +1,14 @@
 import type { Env } from "../../../../_lib/env";
 import { mapShare, requireDb } from "../../../../_lib/db";
 import { coerceShareCreatePayload } from "../../../../_lib/file-service";
+import { canWriteFiles, permissionDeniedJson, resolveActorAccess } from "../../../../_lib/permissions";
 import { errorJson, okJson, parseJsonBody, routeError } from "../../../../_lib/http";
 
 export const onRequestPatch: PagesFunction<Env> = async ({ request, env, params }) => {
   try {
     const db = requireDb(env.FILES_DB);
+    const access = await resolveActorAccess(request, env, db);
+    if (!canWriteFiles(access)) return permissionDeniedJson(access, "write");
     const fileId = String(params.id || "");
     const token = String(params.token || "");
     const existing = await db
@@ -27,9 +30,11 @@ export const onRequestPatch: PagesFunction<Env> = async ({ request, env, params 
   }
 };
 
-export const onRequestDelete: PagesFunction<Env> = async ({ env, params }) => {
+export const onRequestDelete: PagesFunction<Env> = async ({ request, env, params }) => {
   try {
     const db = requireDb(env.FILES_DB);
+    const access = await resolveActorAccess(request, env, db);
+    if (!canWriteFiles(access)) return permissionDeniedJson(access, "write");
     const fileId = String(params.id || "");
     const token = String(params.token || "");
     const existing = await db

@@ -412,7 +412,7 @@ input:focus-visible {
 .sidebar {
   min-height: 0;
   display: grid;
-  grid-template-rows: auto auto 1fr auto;
+  grid-template-rows: auto auto minmax(0, 1fr) auto auto;
   overflow: hidden;
 }
 
@@ -458,6 +458,13 @@ input:focus-visible {
   border-radius: var(--radius);
   color: #2d3340;
   font-size: 14px;
+}
+
+.nav-row--button {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  text-align: left;
 }
 
 .nav-row strong,
@@ -513,6 +520,13 @@ input:focus-visible {
 
 .sidebar__section--tags {
   align-self: stretch;
+  min-height: 0;
+  overflow: auto;
+}
+
+.sidebar__section--admin {
+  padding-top: 14px;
+  padding-bottom: 14px;
 }
 
 .tag-cloud {
@@ -2005,11 +2019,17 @@ input:focus-visible {
   position: relative;
   z-index: 1;
   width: min(420px, 100%);
+  max-height: calc(100vh - 40px);
+  overflow: auto;
   padding: 18px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--surface);
   box-shadow: var(--shadow);
+}
+
+.role-card {
+  width: min(520px, 100%);
 }
 
 .auth-card header {
@@ -2037,8 +2057,8 @@ input:focus-visible {
 
 .auth-form {
   display: grid;
-  gap: 12px;
-  margin-top: 18px;
+  gap: 10px;
+  margin-top: 16px;
 }
 
 .auth-form label {
@@ -2058,6 +2078,116 @@ input:focus-visible {
   background: #fbfcfd;
   color: var(--text);
   font-size: 14px;
+}
+
+.auth-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 108px;
+  gap: 10px;
+}
+
+.auth-actions .button {
+  min-width: 0;
+}
+
+.role-settings {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #fbfcfd;
+}
+
+.role-settings__form,
+.role-settings__rows {
+  display: grid;
+  gap: 8px;
+}
+
+.role-settings__form header {
+  margin: 0;
+}
+
+.role-settings__form header div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.role-settings__form header strong {
+  color: #202733;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.role-settings__form header span,
+.role-settings__empty {
+  color: #65707d;
+  font-size: 12px;
+}
+
+.role-permission-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 108px;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: var(--radius);
+  background: #fff;
+}
+
+.role-permission-row.is-active {
+  border-color: rgba(0, 113, 227, 0.28);
+  background: var(--blue-soft);
+}
+
+.role-permission-row span {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.role-permission-row strong,
+.role-permission-row small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.role-permission-row strong {
+  color: #26303d;
+  font-size: 13px;
+  font-weight: 680;
+}
+
+.role-permission-row small {
+  color: #687381;
+  font-size: 11.5px;
+}
+
+.role-permission-row select {
+  width: 100%;
+  min-height: 32px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #fff;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.role-permission-row select:disabled {
+  color: #687381;
+  background: #f4f5f7;
+}
+
+@media (max-width: 520px) {
+  .auth-actions {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 1320px) {

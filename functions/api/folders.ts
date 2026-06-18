@@ -1,11 +1,14 @@
 import type { Env } from "../_lib/env";
 import { mapFolder, requireDb } from "../_lib/db";
+import { canWriteFiles, permissionDeniedJson, resolveActorAccess } from "../_lib/permissions";
 import { okJson, parseJsonBody, routeError } from "../_lib/http";
 import { assertNonEmptyName, normalizeSlug } from "../../src/lib/chemvault-files/validation";
 
 export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   try {
     const db = requireDb(env.FILES_DB);
+    const access = await resolveActorAccess(request, env, db);
+    if (!canWriteFiles(access)) return permissionDeniedJson(access, "write");
     const body = (await parseJsonBody(request)) as Record<string, unknown>;
     const projectId = typeof body.projectId === "string" ? body.projectId.trim() : "";
     const parentId = typeof body.parentId === "string" && body.parentId.trim() ? body.parentId.trim() : null;

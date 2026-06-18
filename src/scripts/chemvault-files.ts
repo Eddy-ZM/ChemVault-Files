@@ -20,8 +20,11 @@ import {
   type UploadQueueItem,
 } from "../lib/chemvault-files/client-state";
 import type {
+  ActorAccess,
   FileActivityRecord,
   FileRecord,
+  FilePermissionLevel,
+  FileRolePolicy,
   FileShareListResponse,
   FileShareRecord,
   FolderRecord,
@@ -38,6 +41,7 @@ interface HealthResponse {
   r2: "online" | "missing";
   environment: string;
   actorEmail?: string | null;
+  actorAccess?: ActorAccess | null;
 }
 
 interface InitUploadResponse {
@@ -68,6 +72,18 @@ interface ShareUiState {
   shares: FileShareRecord[] | null;
   listLoading: boolean;
   listError: string | null;
+}
+
+interface RolesResponse {
+  roles: FileRolePolicy[];
+  actorAccess: ActorAccess;
+}
+
+interface RoleSettingsState {
+  loading: boolean;
+  saving: boolean;
+  error: string | null;
+  message: string | null;
 }
 
 const seedProjects = [
@@ -117,6 +133,13 @@ const seedLibrary: LibraryResponse = {
   ],
 };
 
+const emptyLibrary: LibraryResponse = {
+  projects: [],
+  folders: [],
+  tags: [],
+  files: [],
+};
+
 const seedUploadQueue: UploadQueueItem[] = [
   {
     id: "seed_upload_1",
@@ -154,6 +177,15 @@ let previewMode = false;
 let libraryLoading = true;
 let healthEnvironment = "local";
 let currentActorEmail = "owner@chemvault.science";
+let currentActorAccess: ActorAccess = {
+  actorEmail: currentActorEmail,
+  roleId: "role_super",
+  roleName: "Super",
+  permission: "write",
+  canManageRoles: true,
+};
+let rolePolicies: FileRolePolicy[] = [];
+let roleSettingsState: RoleSettingsState = { loading: false, saving: false, error: null, message: null };
 let fileSort: FileSort = { key: "modified", direction: "desc" };
 let viewMode: "list" | "grid" = "list";
 let inspectorTab: "details" | "preview" | "activity" = "details";
@@ -435,8 +467,17 @@ function bindEvents(): void {
     }
   });
 
+  document.querySelector<HTMLElement>("[data-cv-role-modal]")?.addEventListener("submit", (event) => {
+    const form = (event.target as HTMLElement).closest<HTMLFormElement>("[data-cv-role-form]");
+    if (!form) return;
+    event.preventDefault();
+    void saveRoleSettings(form);
+  });
+
   document.querySelector<HTMLElement>("[data-cv-account-button]")?.addEventListener("click", openAuthModal);
+  document.querySelector<HTMLElement>("[data-cv-role-button]")?.addEventListener("click", openRoleModal);
   document.querySelectorAll<HTMLElement>("[data-cv-auth-close]").forEach((element) => element.addEventListener("click", closeAuthModal));
+  document.querySelectorAll<HTMLElement>("[data-cv-role-close]").forEach((element) => element.addEventListener("click", closeRoleModal));
   document.querySelectorAll<HTMLElement>("[data-cv-upload-close]").forEach((element) => element.addEventListener("click", closeUploadModal));
 
   document.querySelector<HTMLButtonElement>("[data-cv-download-button]")?.addEventListener("click", () => {
@@ -456,12 +497,23 @@ async function loadRemoteState(): Promise<void> {
     configurationMissing = health.status !== "ready";
     healthEnvironment = health.environment || "local";
     currentActorEmail = normalizeActorEmail(health.actorEmail);
+    currentActorAccess = normalizeActorAccess(health.actorAccess, currentActorEmail);
     renderAccountIdentity();
     renderHealth(health);
   } catch {
     configurationMissing = true;
     previewMode = true;
     renderHealth();
+  }
+
+  if (!canReadCurrentAccess()) {
+    library = createInitialLibrary(emptyLibrary);
+    uploadQueue = [];
+    libraryLoading = false;
+    selectedFileId = null;
+    selectedFileIds = new Set();
+    renderAll();
+    return;
   }
 
   try {
@@ -545,6 +597,68 @@ function renderAccountIdentity(): void {
   document.querySelectorAll<HTMLAnchorElement>("[data-cv-logout-link]").forEach((element) => {
     element.href = accessLogoutUrl(window.location.href);
   });
+  document.querySelectorAll<HTMLElement>("[data-cv-role-nav-permission]").forEach((element) => {
+    element.textContent = permissionLabel(currentActorAccess.permission);
+  });
+  renderRoleSettings();
+  renderPermissionControls();
+}
+
+function renderPermissionControls(): void {
+  const canWrite = canWriteCurrentAccess();
+  const uploadButton = document.querySelector<HTMLButtonElement>("[data-cv-upload-button]");
+  if (uploadButton) {
+    uploadButton.disabled = !canWrite;
+    uploadButton.title = canWrite ? "" : "Current role is read-only or no-read.";
+  }
+}
+
+function renderRoleSettings(): void {
+  const container = document.querySelector<HTMLElement>("[data-cv-role-settings]");
+  if (!container) return;
+  if (roleSettingsState.loading) {
+    container.innerHTML = `<div class="role-settings__empty">Loading role permissions...</div>`;
+    return;
+  }
+  const roles = rolePolicies.length ? rolePolicies : fallbackRolePolicies();
+  const canManage = currentActorAccess.canManageRoles;
+  const rows = roles.map((role) => renderRolePermissionRow(role, canManage)).join("");
+  container.innerHTML = `
+    <form class="role-settings__form" data-cv-role-form>
+      <header>
+        <div>
+          <strong>Role permissions</strong>
+          <span>${escapeHtml(currentActorAccess.roleName)} · ${escapeHtml(permissionLabel(currentActorAccess.permission))}</span>
+        </div>
+      </header>
+      <div class="role-settings__rows">${rows}</div>
+      ${roleSettingsState.error ? `<p class="form-status form-status--error">${escapeHtml(roleSettingsState.error)}</p>` : ""}
+      ${roleSettingsState.message ? `<p class="form-status">${escapeHtml(roleSettingsState.message)}</p>` : ""}
+      <button class="button button--secondary button--wide" type="submit" ${canManage && !roleSettingsState.saving ? "" : "disabled"}>${roleSettingsState.saving ? "Saving" : "Save role permissions"}</button>
+    </form>
+  `;
+}
+
+function renderRolePermissionRow(role: FileRolePolicy, canManage: boolean): string {
+  const disabled = !canManage || role.scope === "owner";
+  const active = role.id === currentActorAccess.roleId;
+  return `
+    <label class="role-permission-row${active ? " is-active" : ""}">
+      <span>
+        <strong>${escapeHtml(role.name)}</strong>
+        <small>${escapeHtml(roleDescription(role))}</small>
+      </span>
+      <select name="permission:${escapeAttr(role.id)}" data-cv-role-permission data-cv-role-id="${escapeAttr(role.id)}" ${disabled ? "disabled" : ""}>
+        ${permissionOption("none", role.permission)}
+        ${permissionOption("read", role.permission)}
+        ${permissionOption("write", role.permission)}
+      </select>
+    </label>
+  `;
+}
+
+function permissionOption(value: FilePermissionLevel, selected: FilePermissionLevel): string {
+  return `<option value="${value}" ${value === selected ? "selected" : ""}>${escapeHtml(permissionLabel(value))}</option>`;
 }
 
 function renderHealth(health?: HealthResponse): void {
@@ -768,7 +882,7 @@ function renderFiles(): void {
       ? `<tr><td colspan="8"><div class="empty-state">Loading file index...</div></td></tr>`
       : filteredFiles.length
       ? filteredFiles.map((fileRecord) => renderFileRow(fileRecord)).join("")
-      : `<tr><td colspan="8"><div class="empty-state">No files match the current filters.</div></td></tr>`;
+      : `<tr><td colspan="8"><div class="empty-state">${escapeHtml(emptyFilesLabel())}</div></td></tr>`;
   }
 
   if (cardGrid) {
@@ -776,8 +890,12 @@ function renderFiles(): void {
       ? `<div class="empty-state">Loading file index...</div>`
       : filteredFiles.length
       ? filteredFiles.map((fileRecord) => renderFileCard(fileRecord)).join("")
-      : `<div class="empty-state">No files match the current filters.</div>`;
+      : `<div class="empty-state">${escapeHtml(emptyFilesLabel())}</div>`;
   }
+}
+
+function emptyFilesLabel(): string {
+  return canReadCurrentAccess() ? "No files match the current filters." : "Current role has no file read access.";
 }
 
 function renderActiveFilters(): string {
@@ -887,7 +1005,8 @@ function renderInspector(): void {
       icon.textContent = "FILE";
       icon.dataset.ext = "FILE";
     }
-    if (body) body.innerHTML = `<dl class="metadata-list"><div><dt>Status</dt><dd>Select a file to inspect metadata.</dd></div></dl>`;
+    const statusText = canReadCurrentAccess() ? "Select a file to inspect metadata." : "Current role is set to no-read.";
+    if (body) body.innerHTML = `<dl class="metadata-list"><div><dt>Status</dt><dd>${escapeHtml(statusText)}</dd></div></dl>`;
     if (downloadButton) downloadButton.disabled = true;
     if (shareFocusButton) shareFocusButton.disabled = true;
     if (deleteButton) deleteButton.disabled = true;
@@ -900,9 +1019,9 @@ function renderInspector(): void {
     icon.textContent = ext;
     icon.dataset.ext = ext;
   }
-  if (downloadButton) downloadButton.disabled = false;
-  if (shareFocusButton) shareFocusButton.disabled = false;
-  if (deleteButton) deleteButton.disabled = false;
+  if (downloadButton) downloadButton.disabled = !canReadCurrentAccess();
+  if (shareFocusButton) shareFocusButton.disabled = !canWriteCurrentAccess();
+  if (deleteButton) deleteButton.disabled = !canWriteCurrentAccess();
   if (body) body.innerHTML = renderInspectorBody(selectedFile);
   if (inspectorTab === "activity" && !activityByFileId.has(selectedFile.id)) {
     void loadActivityForSelected();
@@ -1071,11 +1190,12 @@ function renderSeedPreview(fileRecord: FileRecord, kind: ReturnType<typeof previ
 function renderSharePanel(fileRecord: FileRecord): string {
   const state = getShareState(fileRecord.id);
   const shares = state.shares ?? [];
+  const canWrite = canWriteCurrentAccess();
   return `
     <section class="share-panel" aria-label="File sharing">
       <header>
         <h3>Share</h3>
-        <span>${shares.length ? `${shares.length} managed` : "Read-only link"}</span>
+        <span>${canWrite ? (shares.length ? `${shares.length} managed` : "Read-only link") : "Read-only role"}</span>
       </header>
       <form class="share-form" data-cv-share-form>
         <label>
@@ -1087,11 +1207,12 @@ function renderSharePanel(fileRecord: FileRecord): string {
           </select>
         </label>
         <label class="share-toggle">
-          <input type="checkbox" name="allowDownload" />
+          <input type="checkbox" name="allowDownload" ${canWrite ? "" : "disabled"} />
           <span>Allow download</span>
         </label>
-        <button class="button button--primary" type="submit" ${state.loading ? "disabled" : ""}>${state.loading ? "Creating" : "Create link"}</button>
+        <button class="button button--primary" type="submit" ${state.loading || !canWrite ? "disabled" : ""}>${state.loading ? "Creating" : "Create link"}</button>
       </form>
+      ${canWrite ? "" : `<p class="form-status">Current role can read files but cannot create or edit share links.</p>`}
       ${
         state.link
           ? `<div class="share-link-row"><input type="text" value="${escapeAttr(state.link)}" readonly data-cv-share-link /><button class="button button--secondary" type="button" data-cv-copy-share>Copy</button></div>`
@@ -1120,6 +1241,7 @@ function renderManagedShares(fileId: string, state: ShareUiState): string {
 function renderManagedShareRow(fileId: string, share: FileShareRecord): string {
   const shareUrl = formatShareUrl(window.location.href, share.token);
   const expired = new Date(share.expiresAt).getTime() <= Date.now();
+  const canWrite = canWriteCurrentAccess();
   return `
     <form class="share-list__item" data-cv-share-update-form data-cv-file-id="${escapeAttr(fileId)}" data-cv-share-token="${escapeAttr(share.token)}">
       <div class="share-list__summary">
@@ -1128,14 +1250,14 @@ function renderManagedShareRow(fileId: string, share: FileShareRecord): string {
         <input type="text" value="${escapeAttr(shareUrl)}" readonly />
       </div>
       <div class="share-list__actions">
-        <select name="expiresInDays" aria-label="New expiration for ${escapeAttr(share.token)}">
+        <select name="expiresInDays" aria-label="New expiration for ${escapeAttr(share.token)}" ${canWrite ? "" : "disabled"}>
           <option value="1">1 day</option>
           <option value="7" selected>7 days</option>
           <option value="30">30 days</option>
         </select>
-        <button class="button button--secondary" type="submit">Update</button>
+        <button class="button button--secondary" type="submit" ${canWrite ? "" : "disabled"}>Update</button>
         <button class="button button--secondary" type="button" data-cv-copy-managed-share data-cv-share-token="${escapeAttr(share.token)}">Copy</button>
-        <button class="button button--danger" type="button" data-cv-delete-share data-cv-share-token="${escapeAttr(share.token)}">Delete</button>
+        <button class="button button--danger" type="button" data-cv-delete-share data-cv-share-token="${escapeAttr(share.token)}" ${canWrite ? "" : "disabled"}>Delete</button>
       </div>
     </form>
   `;
@@ -1187,6 +1309,14 @@ function activityEventLabel(eventType: FileActivityRecord["eventType"]): string 
 }
 
 async function handleFiles(fileList: FileList | null): Promise<void> {
+  if (!canWriteCurrentAccess()) {
+    openUploadModal();
+    const queueId = `local_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+    uploadQueue = reduceUploadQueue(uploadQueue, { type: "add", id: queueId, name: "Upload request", sizeBytes: 0 });
+    uploadQueue = reduceUploadQueue(uploadQueue, { type: "fail", id: queueId, message: "Current role does not allow uploads" });
+    renderQueue();
+    return;
+  }
   const files = Array.from(fileList ?? []);
   if (files.length === 0) return;
   openUploadModal();
@@ -1387,6 +1517,7 @@ async function reloadLibrary(): Promise<void> {
 
 async function deleteSelectedFile(): Promise<void> {
   if (!selectedFileId) return;
+  if (!canWriteCurrentAccess()) return;
   const fileId = selectedFileId;
   try {
     await fetchJson<{ status: string; fileId: string }>(`/api/files/${encodeURIComponent(fileId)}`, { method: "DELETE" });
@@ -1452,9 +1583,54 @@ async function loadActivityForSelected(): Promise<void> {
   if (selectedFileId === fileId && inspectorTab === "activity") renderInspector();
 }
 
+async function loadRoleSettings(): Promise<void> {
+  if (roleSettingsState.loading) return;
+  roleSettingsState = { ...roleSettingsState, loading: true, error: null };
+  renderRoleSettings();
+  try {
+    const response = await fetchJson<RolesResponse>("/api/roles");
+    rolePolicies = response.roles;
+    currentActorAccess = normalizeActorAccess(response.actorAccess, currentActorEmail);
+    roleSettingsState = { loading: false, saving: false, error: null, message: null };
+  } catch (error) {
+    const message = errorMessage(error);
+    roleSettingsState = { loading: false, saving: false, error: previewMode && message === "404 Not Found" ? null : message, message: null };
+  }
+  renderAccountIdentity();
+  renderInspector();
+}
+
+async function saveRoleSettings(form: HTMLFormElement): Promise<void> {
+  if (!currentActorAccess.canManageRoles) return;
+  const updates = Array.from(form.querySelectorAll("[data-cv-role-permission]")).map((element) => {
+    const select = element as unknown as HTMLSelectElement;
+    return {
+      id: select.dataset.cvRoleId || "",
+      permission: select.value as FilePermissionLevel,
+    };
+  });
+  roleSettingsState = { ...roleSettingsState, saving: true, error: null, message: null };
+  renderRoleSettings();
+  try {
+    const response = await fetchJson<RolesResponse>("/api/roles", {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ roles: updates }),
+    });
+    rolePolicies = response.roles;
+    currentActorAccess = normalizeActorAccess(response.actorAccess, currentActorEmail);
+    roleSettingsState = { loading: false, saving: false, error: null, message: "Role permissions saved." };
+  } catch (error) {
+    roleSettingsState = { loading: false, saving: false, error: errorMessage(error), message: null };
+  }
+  renderAccountIdentity();
+  renderInspector();
+}
+
 async function createShareForSelected(form: HTMLFormElement): Promise<void> {
   const fileId = selectedFileId;
   if (!fileId) return;
+  if (!canWriteCurrentAccess()) return;
   const formData = new FormData(form);
   const expiresInDays = Number(formData.get("expiresInDays") || 7);
   const allowDownload = formData.get("allowDownload") === "on";
@@ -1534,6 +1710,7 @@ async function updateManagedShare(form: HTMLFormElement): Promise<void> {
   const fileId = selectedFileId;
   const token = form.dataset.cvShareToken;
   if (!fileId || !token) return;
+  if (!canWriteCurrentAccess()) return;
   const expiresInDays = Number(new FormData(form).get("expiresInDays") || 7);
   const state = getShareState(fileId);
   shareByFileId.set(fileId, { ...state, message: "Updating share link...", error: null });
@@ -1567,6 +1744,7 @@ async function updateManagedShare(form: HTMLFormElement): Promise<void> {
 async function deleteManagedShare(token: string): Promise<void> {
   const fileId = selectedFileId;
   if (!fileId) return;
+  if (!canWriteCurrentAccess()) return;
   const state = getShareState(fileId);
   shareByFileId.set(fileId, { ...state, message: "Deleting share link...", error: null });
   renderInspector();
@@ -1655,6 +1833,88 @@ function applyUnavailableLibraryFallback(preserveCurrentLibrary: boolean): void 
     library = displayState.library;
     uploadQueue = [];
   }
+}
+
+function normalizeActorAccess(value: ActorAccess | null | undefined, actorEmail: string): ActorAccess {
+  if (!value) {
+    return {
+      actorEmail,
+      roleId: "role_super",
+      roleName: "Super",
+      permission: "write",
+      canManageRoles: true,
+    };
+  }
+  return {
+    actorEmail: normalizeActorEmail(value.actorEmail || actorEmail),
+    roleId: value.roleId || "role_external",
+    roleName: value.roleName || "Common_Out",
+    permission: normalizePermission(value.permission),
+    canManageRoles: value.canManageRoles === true,
+  };
+}
+
+function normalizePermission(value: unknown): FilePermissionLevel {
+  return value === "none" || value === "read" || value === "write" ? value : "read";
+}
+
+function canReadCurrentAccess(): boolean {
+  return currentActorAccess.permission === "read" || currentActorAccess.permission === "write";
+}
+
+function canWriteCurrentAccess(): boolean {
+  return currentActorAccess.permission === "write";
+}
+
+function permissionLabel(permission: FilePermissionLevel): string {
+  if (permission === "none") return "不可读";
+  if (permission === "read") return "只读";
+  return "读写";
+}
+
+function roleDescription(role: FileRolePolicy): string {
+  if (role.scope === "owner") return "Owner / Super";
+  if (role.scope === "domain") return `${role.domain || "domain"} Cloudflare Access`;
+  return "External Cloudflare Access";
+}
+
+function fallbackRolePolicies(): FileRolePolicy[] {
+  const now = "2026-06-18T00:00:00.000Z";
+  return [
+    {
+      id: "role_super",
+      name: "Super",
+      description: "Owner role with full file access.",
+      scope: "owner",
+      domain: null,
+      permission: "write",
+      isDefault: false,
+      createdAt: now,
+      updatedAt: now,
+    },
+    {
+      id: "role_internal",
+      name: "Common_In",
+      description: "Cloudflare Access users from the ChemVault domain.",
+      scope: "domain",
+      domain: "chemvault.science",
+      permission: "read",
+      isDefault: false,
+      createdAt: now,
+      updatedAt: now,
+    },
+    {
+      id: "role_external",
+      name: "Common_Out",
+      description: "External Cloudflare Access users.",
+      scope: "external",
+      domain: null,
+      permission: "read",
+      isDefault: true,
+      createdAt: now,
+      updatedAt: now,
+    },
+  ];
 }
 
 function getVisibleFiles(): FileRecord[] {
@@ -1761,6 +2021,20 @@ function openAuthModal(): void {
 
 function closeAuthModal(): void {
   const modal = document.querySelector<HTMLElement>("[data-cv-auth-modal]");
+  if (modal) modal.hidden = true;
+}
+
+function openRoleModal(): void {
+  const modal = document.querySelector<HTMLElement>("[data-cv-role-modal]");
+  if (!modal) return;
+  renderAccountIdentity();
+  void loadRoleSettings();
+  modal.hidden = false;
+  (modal.querySelector("[data-cv-role-permission]:not(:disabled)") as HTMLSelectElement | null)?.focus();
+}
+
+function closeRoleModal(): void {
+  const modal = document.querySelector<HTMLElement>("[data-cv-role-modal]");
   if (modal) modal.hidden = true;
 }
 

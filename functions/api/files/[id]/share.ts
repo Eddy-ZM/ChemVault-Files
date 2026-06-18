@@ -7,11 +7,14 @@ import {
   createShareToken,
   recordFileActivity,
 } from "../../../_lib/file-service";
+import { canReadFiles, canWriteFiles, permissionDeniedJson, resolveActorAccess } from "../../../_lib/permissions";
 import { errorJson, okJson, parseJsonBody, routeError } from "../../../_lib/http";
 
-export const onRequestGet: PagesFunction<Env> = async ({ env, params }) => {
+export const onRequestGet: PagesFunction<Env> = async ({ request, env, params }) => {
   try {
     const db = requireDb(env.FILES_DB);
+    const access = await resolveActorAccess(request, env, db);
+    if (!canReadFiles(access)) return permissionDeniedJson(access, "read");
     const fileId = String(params.id || "");
     const rows = await db
       .prepare("SELECT * FROM file_shares WHERE file_id = ? AND revoked_at IS NULL ORDER BY created_at DESC LIMIT 50")
@@ -28,6 +31,8 @@ export const onRequestGet: PagesFunction<Env> = async ({ env, params }) => {
 export const onRequestPost: PagesFunction<Env> = async ({ request, env, params }) => {
   try {
     const db = requireDb(env.FILES_DB);
+    const access = await resolveActorAccess(request, env, db);
+    if (!canWriteFiles(access)) return permissionDeniedJson(access, "write");
     const fileId = String(params.id || "");
     const row = await db.prepare("SELECT * FROM files WHERE id = ? AND status = 'ready' AND deleted_at IS NULL").bind(fileId).first();
     if (!row) return errorJson("File was not found", 404, "FILE_NOT_FOUND");

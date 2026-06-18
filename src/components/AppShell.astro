@@ -64,15 +64,36 @@ import Inspector from "./Inspector.astro";
       </header>
       <h2 id="auth-title">ChemVault Files</h2>
       <p>Signed in through Cloudflare Access. File actions are recorded with this email.</p>
-      <form class="auth-form">
+      <div class="auth-form">
         <label>
           <span>Email</span>
           <input data-cv-auth-email type="email" value="owner@chemvault.science" autocomplete="email" readonly />
         </label>
-        <button class="button button--primary button--wide" type="button" data-cv-auth-close>Continue as current user</button>
-        <a class="button button--secondary button--wide" href="/cdn-cgi/access/logout" data-cv-logout-link>Sign out</a>
-      </form>
+        <div class="auth-actions">
+          <button class="button button--primary button--wide" type="button" data-cv-auth-close>Continue as current user</button>
+          <a class="button button--secondary button--wide" href="/cdn-cgi/access/logout" data-cv-logout-link>Sign out</a>
+        </div>
+      </div>
       <small>Cloudflare Access supplies the login email. Uploaded files will use it as the owner.</small>
+    </div>
+  </section>
+
+  <section class="auth-modal role-modal" aria-label="ChemVault role permissions" data-cv-role-modal hidden>
+    <div class="auth-modal__scrim" data-cv-role-close></div>
+    <div class="auth-card role-card" role="dialog" aria-modal="true" aria-labelledby="role-title">
+      <header>
+        <span class="account-chip__avatar" data-cv-auth-avatar>CV</span>
+        <button class="ghost-icon" type="button" aria-label="Close role permissions" data-cv-role-close>
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="m6 6 12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+          </svg>
+        </button>
+      </header>
+      <h2 id="role-title">Role</h2>
+      <p>Set file access separately for Cloudflare Access email roles.</p>
+      <section class="role-settings" aria-label="File role permissions" data-cv-role-settings>
+        <div class="role-settings__empty">Loading role permissions...</div>
+      </section>
     </div>
   </section>
 
