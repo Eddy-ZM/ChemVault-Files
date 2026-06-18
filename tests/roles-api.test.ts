@@ -75,13 +75,23 @@ function request(email: string, init?: RequestInit): Request {
 }
 
 describe("roles API", () => {
-  it("returns roles and the current actor access", async () => {
+  it("returns only the current role to non-admin actors", async () => {
     const response = await getRoles(context({ permission: "read" }, request("scientist@chemvault.science")));
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({
-      roles: [{ id: "role_super" }, { id: "role_internal", permission: "read" }, { id: "role_external" }],
+      roles: [{ id: "role_internal", permission: "read" }],
       actorAccess: { roleId: "role_internal", permission: "read", canManageRoles: false },
+    });
+  });
+
+  it("returns every role to the owner administrator", async () => {
+    const response = await getRoles(context({ permission: "read" }, request("owner@chemvault.science")));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      roles: [{ id: "role_super" }, { id: "role_internal", permission: "read" }, { id: "role_external" }],
+      actorAccess: { roleId: "role_super", permission: "write", canManageRoles: true },
     });
   });
 

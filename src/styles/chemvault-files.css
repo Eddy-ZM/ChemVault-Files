@@ -395,7 +395,7 @@ input:focus-visible {
 .files-workbench {
   min-height: 0;
   display: grid;
-  grid-template-columns: 314px minmax(520px, 1fr) 360px;
+  grid-template-columns: 292px minmax(520px, 1fr) 360px;
   gap: 12px;
   padding: 10px;
   overflow: hidden;
@@ -417,12 +417,12 @@ input:focus-visible {
 }
 
 .sidebar__section {
-  padding: 18px 16px;
+  padding: 14px 14px;
   border-bottom: 1px solid var(--line);
 }
 
 .sidebar__section--top {
-  padding-top: 18px;
+  padding-top: 14px;
 }
 
 .section-heading {
@@ -525,8 +525,8 @@ input:focus-visible {
 }
 
 .sidebar__section--admin {
-  padding-top: 14px;
-  padding-bottom: 14px;
+  padding-top: 12px;
+  padding-bottom: 12px;
 }
 
 .tag-cloud {
@@ -735,11 +735,31 @@ input:focus-visible {
   padding: 12px 18px 0;
 }
 
-.upload-card {
-  width: min(720px, 100%);
-  max-height: min(760px, calc(100vh - 40px));
+.auth-card.upload-card {
+  width: min(980px, calc(100vw - 32px));
+  max-height: min(860px, calc(100vh - 32px));
   display: grid;
-  overflow: hidden;
+  overflow: auto;
+}
+
+@media (min-width: 860px) {
+  .auth-card.upload-card {
+    grid-template-columns: minmax(0, 0.9fr) minmax(360px, 1fr);
+    column-gap: 18px;
+    align-items: start;
+  }
+
+  .upload-card > header,
+  .upload-card > h2,
+  .upload-card > p,
+  .upload-card > .upload-list {
+    grid-column: 1 / -1;
+  }
+
+  .upload-access {
+    grid-column: 2;
+    grid-row: 4 / span 2;
+  }
 }
 
 .upload-card__icon {
@@ -1001,6 +1021,10 @@ input:focus-visible {
   border-top: 1px solid var(--line);
   color: #222835;
   font-size: 13px;
+}
+
+.upload-modal .upload-row:not(.upload-row--empty) {
+  min-width: 760px;
 }
 
 .upload-row.is-failed {

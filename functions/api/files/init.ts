@@ -2,9 +2,10 @@ import type { Env } from "../../_lib/env";
 import { getActorEmail } from "../../_lib/env";
 import { requireDb } from "../../_lib/db";
 import { createFileInitDraft } from "../../_lib/file-service";
-import { canWriteFiles, permissionDeniedJson, resolveActorAccess } from "../../_lib/permissions";
+import { canWriteFiles, listRolePolicies, permissionDeniedJson, resolveActorAccess } from "../../_lib/permissions";
 import { okJson, parseJsonBody, routeError } from "../../_lib/http";
-import { normalizeSlug, normalizeTags } from "../../../src/lib/chemvault-files/validation";
+import { normalizeRoleIds, normalizeSlug, normalizeTags } from "../../../src/lib/chemvault-files/validation";
+import type { ActorAccess, FileRolePolicy } from "../../../src/lib/chemvault-files/types";
 
 export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   try {
@@ -17,8 +18,9 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     const project = await db.prepare("SELECT slug FROM projects WHERE id = ?").bind(projectId).first<{ slug: string }>();
     if (!project) throw new Error("Project was not found");
 
+    const roles = await listRolePolicies(db, env);
     const draft = createFileInitDraft({
-      payload: body,
+      payload: restrictUploadAccessPayload(body, access, roles),
       projectSlug: project.slug,
       actorEmail: getActorEmail(request, env),
     });
@@ -94,3 +96,21 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     return routeError(error);
   }
 };
+
+function restrictUploadAccessPayload(payload: unknown, access: ActorAccess, roles: FileRolePolicy[]): unknown {
+  const input = payload as Record<string, unknown>;
+  if (input.visibility !== "roles") return payload;
+
+  const validRoleIds = new Set(roles.filter((role) => role.scope !== "owner").map((role) => role.id));
+  const requestedRoleIds = normalizeRoleIds(input.roleIds).filter((roleId) => validRoleIds.has(roleId));
+  const roleIds = access.canManageRoles
+    ? requestedRoleIds
+    : validRoleIds.has(access.roleId)
+      ? [access.roleId]
+      : [];
+
+  return {
+    ...input,
+    roleIds,
+  };
+}

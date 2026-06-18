@@ -11,7 +11,8 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     const db = requireDb(env.FILES_DB);
     const roles = await listRolePolicies(db, env);
     const actorAccess = await resolveActorAccess(request, env, db);
-    return okJson({ roles, actorAccess });
+    const visibleRoles = actorAccess.canManageRoles ? roles : roles.filter((role) => role.id === actorAccess.roleId);
+    return okJson({ roles: visibleRoles, actorAccess });
   } catch (error) {
     return routeError(error);
   }

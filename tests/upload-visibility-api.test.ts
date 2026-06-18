@@ -90,10 +90,10 @@ function request(email: string): Request {
 }
 
 describe("upload visibility API", () => {
-  it("stores selected role visibility when an internal ChemVault user uploads a file", async () => {
+  it("stores selected role visibility when an administrator uploads a file", async () => {
     const state: UploadState = { fileId: null, fileArgs: [], roleAccess: [] };
     const response = await initUpload({
-      request: request("scientist@chemvault.science"),
+      request: request("owner@chemvault.science"),
       env: {
         FILES_DB: new UploadD1(state),
         PRIVATE_OWNER_EMAIL: "owner@chemvault.science",
@@ -107,5 +107,21 @@ describe("upload visibility API", () => {
       [state.fileId, "role_internal"],
       [state.fileId, "role_external"],
     ]);
+  });
+
+  it("limits non-admin role visibility uploads to the actor's own role", async () => {
+    const state: UploadState = { fileId: null, fileArgs: [], roleAccess: [] };
+    const response = await initUpload({
+      request: request("scientist@chemvault.science"),
+      env: {
+        FILES_DB: new UploadD1(state),
+        PRIVATE_OWNER_EMAIL: "different-owner@chemvault.science",
+      },
+    } as unknown as Parameters<typeof initUpload>[0]);
+
+    expect(response.status).toBe(201);
+    const payload = (await response.json()) as { file: { visibility: string; roleIds: string[] } };
+    expect(payload.file).toMatchObject({ visibility: "roles", roleIds: ["role_internal"] });
+    expect(state.roleAccess).toEqual([[state.fileId, "role_internal"]]);
   });
 });

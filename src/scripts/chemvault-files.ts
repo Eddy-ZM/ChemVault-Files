@@ -321,6 +321,14 @@ function bindEvents(): void {
     void handleFiles(event.dataTransfer?.files ?? null);
   });
 
+  document.querySelector<HTMLElement>("[data-cv-sidebar]")?.addEventListener("click", (event) => {
+    const nav = (event.target as HTMLElement).closest<HTMLElement>("[data-cv-nav='all-files']");
+    if (!nav) return;
+    event.preventDefault();
+    filters = { search: filters.search, projectId: null, folderId: null, tagSlug: null, quickFilter: null };
+    renderAll();
+  });
+
   document.querySelector<HTMLElement>("[data-cv-folder-tree]")?.addEventListener("click", (event) => {
     const target = (event.target as HTMLElement).closest<HTMLElement>("[data-cv-project-id], [data-cv-folder-id]");
     if (!target) return;
@@ -632,6 +640,8 @@ function renderPermissionControls(): void {
     uploadButton.disabled = !canWrite;
     uploadButton.title = canWrite ? "" : "Current role is read-only or no-read.";
   }
+  const roleSection = document.querySelector<HTMLElement>("[data-cv-role-section]");
+  if (roleSection) roleSection.hidden = !currentActorAccess.canManageRoles;
 }
 
 function renderRoleSettings(): void {
@@ -641,7 +651,7 @@ function renderRoleSettings(): void {
     container.innerHTML = `<div class="role-settings__empty">Loading role permissions...</div>`;
     return;
   }
-  const roles = rolePolicies.length ? rolePolicies : fallbackRolePolicies();
+  const roles = visibleRolePolicies();
   const canManage = currentActorAccess.canManageRoles;
   const rows = roles.map((role) => renderRolePermissionRow(role, canManage)).join("");
   container.innerHTML = `
@@ -685,7 +695,8 @@ function permissionOption(value: FilePermissionLevel, selected: FilePermissionLe
 function renderUploadAccessControls(): void {
   const container = document.querySelector<HTMLElement>("[data-cv-upload-access]");
   if (!container) return;
-  const roles = (rolePolicies.length ? rolePolicies : fallbackRolePolicies()).filter((role) => role.scope !== "owner");
+  syncUploadRoleSelection();
+  const roles = selectableUploadRolePolicies();
   const roleControls = roles
     .map((role) => {
       const checked = uploadRoleIds.has(role.id);
@@ -706,7 +717,7 @@ function renderUploadAccessControls(): void {
     <header>
       <div>
         <strong>File access</strong>
-        <span>Admins can always view and manage uploaded files.</span>
+        <span>${currentActorAccess.canManageRoles ? "Admins can choose any file role." : "Your uploads can be public or limited to your current role."}</span>
       </div>
     </header>
     <div class="upload-access-modes">
@@ -808,6 +819,15 @@ function insightCard(label: string, value: string, detail: string, warning = fal
 function renderSidebar(): void {
   const folderTree = document.querySelector<HTMLElement>("[data-cv-folder-tree]");
   const tagsContainer = document.querySelector<HTMLElement>("[data-cv-tags]");
+  const allFilesLink = document.querySelector<HTMLElement>("[data-cv-nav='all-files']");
+  const allFilesCount = document.querySelector<HTMLElement>("[data-cv-all-files-count]");
+  if (allFilesLink) {
+    const isAllFiles = !filters.projectId && !filters.folderId && !filters.tagSlug && !filters.quickFilter;
+    allFilesLink.setAttribute("aria-current", isAllFiles ? "page" : "false");
+  }
+  if (allFilesCount) {
+    allFilesCount.textContent = String(library.files.filter((entry) => entry.status !== "deleted").length);
+  }
   if (folderTree) {
     folderTree.innerHTML = library.projects.map((projectRecord) => renderProject(projectRecord)).join("");
   }
@@ -1932,9 +1952,11 @@ function canWriteCurrentAccess(): boolean {
 }
 
 function uploadAccessPayload(): { visibility: FileVisibility; roleIds: string[] } {
+  const allowedRoleIds = new Set(selectableUploadRolePolicies().map((role) => role.id));
+  const roleIds = Array.from(uploadRoleIds).filter((roleId) => allowedRoleIds.has(roleId));
   return {
     visibility: uploadVisibility,
-    roleIds: uploadVisibility === "roles" ? Array.from(uploadRoleIds) : [],
+    roleIds: uploadVisibility === "roles" ? roleIds : [],
   };
 }
 
@@ -1956,6 +1978,42 @@ function fileVisibilityLabel(fileRecord: Pick<FileRecord, "visibility" | "roleId
     .map((roleId) => rolePolicies.find((role) => role.id === roleId)?.name || fallbackRolePolicies().find((role) => role.id === roleId)?.name || roleId)
     .join(", ");
   return names ? `Selected roles: ${names}` : "Selected roles";
+}
+
+function visibleRolePolicies(): FileRolePolicy[] {
+  const roles = rolePolicies.length ? rolePolicies : fallbackRolePolicies();
+  if (currentActorAccess.canManageRoles) return roles;
+  const currentRole = roles.find((role) => role.id === currentActorAccess.roleId);
+  return currentRole ? [currentRole] : [currentActorRolePolicy()];
+}
+
+function selectableUploadRolePolicies(): FileRolePolicy[] {
+  return visibleRolePolicies().filter((role) => role.scope !== "owner");
+}
+
+function syncUploadRoleSelection(): void {
+  const selectableRoles = selectableUploadRolePolicies();
+  const selectableRoleIds = new Set(selectableRoles.map((role) => role.id));
+  uploadRoleIds = new Set(Array.from(uploadRoleIds).filter((roleId) => selectableRoleIds.has(roleId)));
+
+  if (uploadVisibility === "roles" && !currentActorAccess.canManageRoles && selectableRoleIds.has(currentActorAccess.roleId)) {
+    uploadRoleIds = new Set([currentActorAccess.roleId]);
+  }
+}
+
+function currentActorRolePolicy(): FileRolePolicy {
+  const now = "2026-06-18T00:00:00.000Z";
+  return {
+    id: currentActorAccess.roleId,
+    name: currentActorAccess.roleName,
+    description: "Current Cloudflare Access role.",
+    scope: "external",
+    domain: null,
+    permission: currentActorAccess.permission,
+    isDefault: false,
+    createdAt: now,
+    updatedAt: now,
+  };
 }
 
 function fallbackRolePolicies(): FileRolePolicy[] {

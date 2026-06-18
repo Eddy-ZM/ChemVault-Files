@@ -1,7 +1,7 @@
 <aside class="sidebar panel" aria-label="File navigation" data-cv-sidebar>
-  <nav class="sidebar__section sidebar__section--top" aria-labelledby="projects-label">
+  <nav class="sidebar__section sidebar__section--top" aria-labelledby="library-label">
     <div class="section-heading">
-      <h2 id="projects-label">Projects</h2>
+      <h2 id="library-label">Library</h2>
       <button class="ghost-icon" type="button" aria-label="Create project">
         <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
           <path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
@@ -17,34 +17,7 @@
             <path d="M8 12h8M8 15h5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
           </svg>
           <span>All Files</span>
-          <strong>0</strong>
-        </a>
-      </li>
-      <li>
-        <a class="nav-row" href="#" data-cv-nav="recent">
-          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M12 7v5l3.2 2M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
-          </svg>
-          <span>Recent</span>
-          <strong>0</strong>
-        </a>
-      </li>
-      <li>
-        <a class="nav-row" href="#" data-cv-nav="starred">
-          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
-            <path d="m12 3.8 2.5 5.1 5.6.8-4.1 4 1 5.6-5-2.6-5 2.6 1-5.6-4.1-4 5.6-.8L12 3.8Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
-          </svg>
-          <span>Starred</span>
-          <strong>0</strong>
-        </a>
-      </li>
-      <li>
-        <a class="nav-row" href="#" data-cv-nav="trash">
-          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M5 7h14M9 7V5h6v2m-8 0 1 13h8l1-13M10 11v5m4-5v5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
-          </svg>
-          <span>Trash</span>
-          <strong>0</strong>
+          <strong data-cv-all-files-count>0</strong>
         </a>
       </li>
     </ul>
@@ -78,7 +51,7 @@
     <button class="link-button" type="button" data-cv-new-tag>+ New tag</button>
   </section>
 
-  <nav class="sidebar__section sidebar__section--admin" aria-labelledby="admin-label">
+  <nav class="sidebar__section sidebar__section--admin" aria-labelledby="admin-label" data-cv-role-section>
     <div class="section-heading">
       <h2 id="admin-label">Administration</h2>
     </div>
