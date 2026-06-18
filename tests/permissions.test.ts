@@ -20,7 +20,7 @@ describe("file role permissions", () => {
     expect(mapRolePolicy({ ...baseRole, permission: "write" })).toMatchObject({ permission: "write" });
   });
 
-  it("resolves fixed file capabilities for owner, ChemVault users, and external viewers", () => {
+  it("resolves configurable internal capabilities and caps external users at read-only", () => {
     const roles = [
       mapRolePolicy({ ...baseRole, id: "role_super", name: "Super", scope: "owner", permission: "write" }),
       mapRolePolicy({ ...baseRole, id: "role_internal", name: "Common_In", scope: "domain", domain: "chemvault.science", permission: "none" }),
@@ -32,10 +32,10 @@ describe("file role permissions", () => {
     const external = resolveActorAccessFromRoles("visitor@example.com", "owner@chemvault.science", roles);
 
     expect(owner).toMatchObject({ roleId: "role_super", permission: "write", canManageRoles: true });
-    expect(internal).toMatchObject({ roleId: "role_internal", permission: "write", canManageRoles: false });
+    expect(internal).toMatchObject({ roleId: "role_internal", permission: "none", canManageRoles: false });
     expect(external).toMatchObject({ roleId: "role_external", permission: "read", canManageRoles: false });
-    expect(canReadFiles(internal)).toBe(true);
-    expect(canWriteFiles(internal)).toBe(true);
+    expect(canReadFiles(internal)).toBe(false);
+    expect(canWriteFiles(internal)).toBe(false);
     expect(canReadFiles(external)).toBe(true);
     expect(canWriteFiles(external)).toBe(false);
   });

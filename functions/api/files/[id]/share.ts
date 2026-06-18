@@ -40,7 +40,8 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env, params }
     const fileId = String(params.id || "");
     const row = await db.prepare("SELECT * FROM files WHERE id = ? AND status = 'ready' AND deleted_at IS NULL").bind(fileId).first();
     if (!row) return errorJson("File was not found", 404, "FILE_NOT_FOUND");
-    const file = mapFile(row as Record<string, unknown>);
+    const file = { ...mapFile(row as Record<string, unknown>), roleIds: await listFileRoleIds(db, fileId) };
+    if (!canViewFile(access, file)) return permissionDeniedJson(access, "write");
     const now = new Date();
     const payload = coerceShareCreatePayload(await parseJsonBody(request), now);
     const token = createShareToken();

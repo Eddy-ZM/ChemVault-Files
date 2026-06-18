@@ -19,7 +19,7 @@ class FakeStatement {
         results: [
           role("role_super", "Super", "owner", null, "write"),
           role("role_internal", "Common_In", "domain", "chemvault.science", this.permission),
-          role("role_external", "Common_Out", "external", null, "none"),
+          role("role_external", "Common_Out", "external", null, this.permission),
         ],
       };
     }
@@ -101,6 +101,15 @@ function request(path: string, email = "scientist@chemvault.science", init?: Req
 }
 
 describe("access policy enforcement", () => {
+  it("rejects library reads for internal users whose role is configured as unreadable", async () => {
+    const response = await libraryGet({
+      request: request("/api/library", "scientist@chemvault.science"),
+      env: env("none"),
+    } as unknown as Parameters<typeof libraryGet>[0]);
+
+    expect(response.status).toBe(403);
+  });
+
   it("allows external read-only users to read the public library", async () => {
     const response = await libraryGet({ request: request("/api/library", "visitor@example.com"), env: env("read") } as unknown as Parameters<typeof libraryGet>[0]);
 

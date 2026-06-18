@@ -18,6 +18,14 @@ const ownerAccess: ActorAccess = {
   canManageRoles: true,
 };
 
+const internalWriteAccess: ActorAccess = {
+  actorEmail: "scientist@chemvault.science",
+  roleId: "role_internal",
+  roleName: "Common_In",
+  permission: "write",
+  canManageRoles: false,
+};
+
 class VisibilityStatement {
   constructor(private readonly sql: string) {}
 
@@ -95,5 +103,11 @@ describe("file visibility", () => {
     const library = await listLibrary(new VisibilityD1() as unknown as D1Database, ownerAccess);
 
     expect(library.files.map((entry) => entry.displayName)).toEqual(["public.pdf", "internal.pdf", "external.pdf"]);
+  });
+
+  it("keeps write-capable role users limited to public files and files assigned to their role", async () => {
+    const library = await listLibrary(new VisibilityD1() as unknown as D1Database, internalWriteAccess);
+
+    expect(library.files.map((entry) => entry.displayName)).toEqual(["public.pdf", "internal.pdf"]);
   });
 });

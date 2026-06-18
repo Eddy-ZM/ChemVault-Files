@@ -55,18 +55,19 @@ export function resolveActorAccessFromRoles(actorEmail: string, ownerEmail: stri
       actorEmail,
       roleId: domainRole.id,
       roleName: domainRole.name,
-      permission: "write",
+      permission: domainRole.permission,
       canManageRoles: false,
     };
   }
 
   const externalRole = roles.find((role) => role.scope === "external") ?? roles.find((role) => role.isDefault);
   const role = externalRole ?? defaultRolePolicies({ PRIVATE_OWNER_EMAIL: normalizedOwner })[2];
+  const permission = role.permission === "write" ? "read" : role.permission;
   return {
     actorEmail,
     roleId: role.id,
     roleName: role.name,
-    permission: "read",
+    permission,
     canManageRoles: false,
   };
 }
@@ -85,7 +86,8 @@ export function canWriteFiles(access: Pick<ActorAccess, "permission">): boolean 
 }
 
 export function canViewFile(access: ActorAccess, file: Pick<FileRecord, "visibility" | "roleIds">): boolean {
-  if (access.canManageRoles || canWriteFiles(access)) return true;
+  if (access.canManageRoles) return true;
+  if (!canReadFiles(access)) return false;
   if (file.visibility === "public") return true;
   return file.roleIds.includes(access.roleId);
 }

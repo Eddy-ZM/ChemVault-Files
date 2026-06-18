@@ -1,7 +1,7 @@
 import type { Env } from "../../../../_lib/env";
-import { mapShare, requireDb } from "../../../../_lib/db";
+import { listFileRoleIds, mapFile, mapShare, requireDb } from "../../../../_lib/db";
 import { coerceShareCreatePayload } from "../../../../_lib/file-service";
-import { canWriteFiles, permissionDeniedJson, resolveActorAccess } from "../../../../_lib/permissions";
+import { canViewFile, canWriteFiles, permissionDeniedJson, resolveActorAccess } from "../../../../_lib/permissions";
 import { errorJson, okJson, parseJsonBody, routeError } from "../../../../_lib/http";
 
 export const onRequestPatch: PagesFunction<Env> = async ({ request, env, params }) => {
@@ -11,6 +11,11 @@ export const onRequestPatch: PagesFunction<Env> = async ({ request, env, params 
     if (!canWriteFiles(access)) return permissionDeniedJson(access, "write");
     const fileId = String(params.id || "");
     const token = String(params.token || "");
+    const fileRow = await db.prepare("SELECT * FROM files WHERE id = ? AND deleted_at IS NULL").bind(fileId).first();
+    if (!fileRow) return errorJson("File was not found", 404, "FILE_NOT_FOUND");
+    const file = { ...mapFile(fileRow as Record<string, unknown>), roleIds: await listFileRoleIds(db, fileId) };
+    if (!canViewFile(access, file)) return permissionDeniedJson(access, "write");
+
     const existing = await db
       .prepare("SELECT * FROM file_shares WHERE token = ? AND file_id = ? AND revoked_at IS NULL")
       .bind(token, fileId)
@@ -37,6 +42,11 @@ export const onRequestDelete: PagesFunction<Env> = async ({ request, env, params
     if (!canWriteFiles(access)) return permissionDeniedJson(access, "write");
     const fileId = String(params.id || "");
     const token = String(params.token || "");
+    const fileRow = await db.prepare("SELECT * FROM files WHERE id = ? AND deleted_at IS NULL").bind(fileId).first();
+    if (!fileRow) return errorJson("File was not found", 404, "FILE_NOT_FOUND");
+    const file = { ...mapFile(fileRow as Record<string, unknown>), roleIds: await listFileRoleIds(db, fileId) };
+    if (!canViewFile(access, file)) return permissionDeniedJson(access, "write");
+
     const existing = await db
       .prepare("SELECT * FROM file_shares WHERE token = ? AND file_id = ? AND revoked_at IS NULL")
       .bind(token, fileId)

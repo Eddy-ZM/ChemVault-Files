@@ -147,7 +147,8 @@ export function mapFile(row: Record<string, unknown>): Omit<FileRecord, "tags"> 
 }
 
 function isFileVisibleToAccess(file: Pick<FileRecord, "visibility" | "roleIds">, access: ActorAccess): boolean {
-  if (access.canManageRoles || access.permission === "write") return true;
+  if (access.canManageRoles) return true;
+  if (access.permission === "none") return false;
   if (file.visibility === "public") return true;
   return file.roleIds.includes(access.roleId);
 }
