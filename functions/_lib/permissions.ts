@@ -51,12 +51,13 @@ export function resolveActorAccessFromRoles(actorEmail: string, ownerEmail: stri
 
   const domainRole = roles.find((role) => role.scope === "domain" && role.domain === actorDomain);
   if (domainRole) {
+    const canManageRoles = roleCanManageRoles(domainRole);
     return {
       actorEmail,
       roleId: domainRole.id,
       roleName: domainRole.name,
-      permission: domainRole.permission,
-      canManageRoles: false,
+      permission: canManageRoles ? "write" : domainRole.permission,
+      canManageRoles,
     };
   }
 
@@ -127,6 +128,12 @@ function rolePolicy(
     createdAt: timestamp,
     updatedAt: timestamp,
   };
+}
+
+function roleCanManageRoles(role: FileRolePolicy): boolean {
+  const normalizedId = role.id.trim().toLowerCase();
+  const normalizedName = role.name.trim().toLowerCase();
+  return role.scope === "owner" || normalizedId === "role_super" || normalizedName === "super";
 }
 
 function normalizeEmail(value: string): string {

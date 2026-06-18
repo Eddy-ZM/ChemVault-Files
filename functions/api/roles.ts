@@ -22,7 +22,7 @@ export const onRequestPatch: PagesFunction<Env> = async ({ request, env }) => {
   try {
     const db = requireDb(env.FILES_DB);
     const actorAccess = await resolveActorAccess(request, env, db);
-    if (!actorAccess.canManageRoles) return errorJson("Only the owner can update file roles.", 403, "FILES_PERMISSION_DENIED");
+    if (!actorAccess.canManageRoles) return errorJson("Only role administrators can update file roles.", 403, "FILES_PERMISSION_DENIED");
 
     const body = (await parseJsonBody(request)) as Record<string, unknown>;
     const entries = Array.isArray(body.roles) ? body.roles : [];

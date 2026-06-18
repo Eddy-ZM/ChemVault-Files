@@ -39,4 +39,16 @@ describe("file role permissions", () => {
     expect(canReadFiles(external)).toBe(true);
     expect(canWriteFiles(external)).toBe(false);
   });
+
+  it("treats a custom Super domain role as a role manager", () => {
+    const roles = [
+      mapRolePolicy({ ...baseRole, id: "role_super", name: "Super", scope: "owner", permission: "write" }),
+      mapRolePolicy({ ...baseRole, id: "role_research_super", name: "Super", scope: "domain", domain: "chemvault.science", permission: "read" }),
+      mapRolePolicy({ ...baseRole, id: "role_external", name: "Common_Out", scope: "external", permission: "read" }),
+    ];
+
+    const superUser = resolveActorAccessFromRoles("super@chemvault.science", "owner@chemvault.science", roles);
+
+    expect(superUser).toMatchObject({ roleId: "role_research_super", permission: "write", canManageRoles: true });
+  });
 });

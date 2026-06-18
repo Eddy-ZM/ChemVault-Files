@@ -1,10 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { onRequestGet as getRoles, onRequestPatch as patchRoles } from "../functions/api/roles";
 
+interface RoleState {
+  permission: string;
+  internalRoleId?: string;
+  internalRoleName?: string;
+}
+
 class FakeStatement {
   private args: unknown[] = [];
 
-  constructor(private readonly state: { permission: string }, private readonly sql: string) {}
+  constructor(private readonly state: RoleState, private readonly sql: string) {}
 
   bind(...args: unknown[]): FakeStatement {
     this.args = args;
@@ -16,7 +22,7 @@ class FakeStatement {
       return {
         results: [
           role("role_super", "Super", "owner", null, "write"),
-          role("role_internal", "Common_In", "domain", "chemvault.science", this.state.permission),
+          role(this.state.internalRoleId ?? "role_internal", this.state.internalRoleName ?? "Common_In", "domain", "chemvault.science", this.state.permission),
           role("role_external", "Common_Out", "external", null, "read"),
         ],
       };
@@ -25,7 +31,7 @@ class FakeStatement {
   }
 
   async run(): Promise<{ success: true }> {
-    if (this.sql.includes("UPDATE file_roles") && this.args[2] === "role_internal") {
+    if (this.sql.includes("UPDATE file_roles") && this.args[2] === (this.state.internalRoleId ?? "role_internal")) {
       this.state.permission = String(this.args[0]);
     }
     return { success: true };
@@ -33,7 +39,7 @@ class FakeStatement {
 }
 
 class FakeD1 {
-  constructor(private readonly state: { permission: string }) {}
+  constructor(private readonly state: RoleState) {}
 
   prepare(sql: string): FakeStatement {
     return new FakeStatement(this.state, sql);
@@ -54,7 +60,7 @@ function role(id: string, name: string, scope: string, domain: string | null, pe
   };
 }
 
-function context(state: { permission: string }, request: Request) {
+function context(state: RoleState, request: Request) {
   return {
     request,
     env: {
@@ -95,7 +101,19 @@ describe("roles API", () => {
     });
   });
 
-  it("allows only the owner to update role permission levels", async () => {
+  it("returns every role to a custom Super role administrator", async () => {
+    const response = await getRoles(
+      context({ permission: "read", internalRoleId: "role_research_super", internalRoleName: "Super" }, request("scientist@chemvault.science"))
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      roles: [{ id: "role_super" }, { id: "role_research_super", permission: "read" }, { id: "role_external" }],
+      actorAccess: { roleId: "role_research_super", permission: "write", canManageRoles: true },
+    });
+  });
+
+  it("blocks non-manager actors and allows owner updates", async () => {
     const state = { permission: "read" };
     const denied = await patchRoles(
       context(
@@ -109,6 +127,22 @@ describe("roles API", () => {
       context(
         state,
         request("owner@chemvault.science", { method: "PATCH", body: JSON.stringify({ roles: [{ id: "role_internal", permission: "write" }] }) })
+      ) as unknown as Parameters<typeof patchRoles>[0]
+    );
+
+    expect(updated.status).toBe(200);
+    expect(state.permission).toBe("write");
+  });
+
+  it("allows a custom Super role administrator to update role permission levels", async () => {
+    const state = { permission: "read", internalRoleId: "role_research_super", internalRoleName: "Super" };
+    const updated = await patchRoles(
+      context(
+        state,
+        request("scientist@chemvault.science", {
+          method: "PATCH",
+          body: JSON.stringify({ roles: [{ id: "role_research_super", permission: "write" }] }),
+        })
       ) as unknown as Parameters<typeof patchRoles>[0]
     );
 
