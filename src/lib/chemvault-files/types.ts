@@ -109,6 +109,10 @@ export interface SharePublicResponse {
     expiresAt: string;
     createdAt: string;
   };
-  previewUrl: string;
+  previewUrl: string | null;
   downloadUrl: string | null;
+}
+
+export interface FileShareListResponse {
+  shares: FileShareRecord[];
 }

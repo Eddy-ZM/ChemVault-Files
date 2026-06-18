@@ -9,6 +9,22 @@ import {
 } from "../../../_lib/file-service";
 import { errorJson, okJson, parseJsonBody, routeError } from "../../../_lib/http";
 
+export const onRequestGet: PagesFunction<Env> = async ({ env, params }) => {
+  try {
+    const db = requireDb(env.FILES_DB);
+    const fileId = String(params.id || "");
+    const rows = await db
+      .prepare("SELECT * FROM file_shares WHERE file_id = ? AND revoked_at IS NULL ORDER BY created_at DESC LIMIT 50")
+      .bind(fileId)
+      .all();
+    return okJson({
+      shares: (rows.results as Record<string, unknown>[]).map(mapShare),
+    });
+  } catch (error) {
+    return routeError(error);
+  }
+};
+
 export const onRequestPost: PagesFunction<Env> = async ({ request, env, params }) => {
   try {
     const db = requireDb(env.FILES_DB);

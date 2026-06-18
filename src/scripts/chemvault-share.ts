@@ -51,6 +51,9 @@ function renderShare(share: SharePublicResponse): string {
 }
 
 function renderPreview(share: SharePublicResponse): string {
+  if (!share.previewUrl) {
+    return `<div class="preview-empty">${fileIcon()}<strong>Preview restricted</strong><span>Read-only PDF shares do not stream the file because browser PDF viewers include their own download control.</span></div>`;
+  }
   if (share.file.previewKind === "unsupported") {
     return `<div class="preview-empty">${fileIcon()}<strong>No inline preview</strong><span>${escapeHtml(share.file.mimeType || "file")}</span></div>`;
   }

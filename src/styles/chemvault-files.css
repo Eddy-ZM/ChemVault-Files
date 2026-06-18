@@ -1641,6 +1641,88 @@ input:focus-visible {
   color: var(--red);
 }
 
+.share-list,
+.share-list__item,
+.share-list__summary,
+.share-list__actions {
+  display: grid;
+  min-width: 0;
+}
+
+.share-list {
+  gap: 10px;
+  padding-top: 4px;
+}
+
+.share-list__item {
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #fbfcfd;
+}
+
+.share-list__summary {
+  gap: 4px;
+}
+
+.share-list__summary strong,
+.share-list__summary span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.share-list__summary strong {
+  color: #26303d;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.share-list__summary span,
+.share-list-status {
+  color: #697381;
+  font-size: 12px;
+}
+
+.share-list__summary input {
+  min-width: 0;
+  width: 100%;
+  min-height: 32px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #fff;
+  color: #4b5563;
+  font-size: 12px;
+}
+
+.share-list__actions {
+  grid-template-columns: minmax(0, 1fr) auto auto auto;
+  gap: 6px;
+}
+
+.share-list__actions select {
+  min-width: 0;
+  min-height: 34px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #fff;
+  color: var(--text);
+  font-size: 12.5px;
+}
+
+.share-list__actions .button {
+  min-height: 34px;
+  padding-inline: 9px;
+  font-size: 12.5px;
+}
+
+.share-list-status--error {
+  color: var(--red);
+}
+
 .activity-list {
   display: grid;
   gap: 0;

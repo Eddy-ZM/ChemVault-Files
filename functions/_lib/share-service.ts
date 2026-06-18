@@ -28,13 +28,17 @@ export function isShareTargetInactive(target: ShareTarget, now = new Date()): bo
 }
 
 export function buildPublicShareResponse(target: ShareTarget): SharePublicResponse {
+  const previewKind = resolvePreviewKind(target.file);
+  const previewUrl = canStreamSharePreview(target.share.allowDownload, previewKind)
+    ? `/api/shares/${encodeURIComponent(target.share.token)}/preview`
+    : null;
   return {
     file: {
       id: target.file.id,
       displayName: target.file.displayName,
       mimeType: target.file.mimeType,
       sizeBytes: target.file.sizeBytes,
-      previewKind: resolvePreviewKind(target.file),
+      previewKind,
     },
     share: {
       token: target.share.token,
@@ -42,9 +46,14 @@ export function buildPublicShareResponse(target: ShareTarget): SharePublicRespon
       expiresAt: target.share.expiresAt,
       createdAt: target.share.createdAt,
     },
-    previewUrl: `/api/shares/${encodeURIComponent(target.share.token)}/preview`,
+    previewUrl,
     downloadUrl: target.share.allowDownload ? `/api/shares/${encodeURIComponent(target.share.token)}/download` : null,
   };
+}
+
+export function canStreamSharePreview(allowDownload: boolean, previewKind: ReturnType<typeof resolvePreviewKind>): boolean {
+  if (allowDownload) return previewKind !== "unsupported";
+  return previewKind !== "unsupported" && previewKind !== "pdf";
 }
 
 export async function recordShareAccess(

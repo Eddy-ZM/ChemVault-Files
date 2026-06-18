@@ -15,7 +15,17 @@ import {
   type FileSort,
   type UploadQueueItem,
 } from "../lib/chemvault-files/client-state";
-import type { FileActivityRecord, FileRecord, FolderRecord, LibraryResponse, ProjectRecord, ShareCreateResponse, TagRecord } from "../lib/chemvault-files/types";
+import type {
+  FileActivityRecord,
+  FileRecord,
+  FileShareListResponse,
+  FileShareRecord,
+  FolderRecord,
+  LibraryResponse,
+  ProjectRecord,
+  ShareCreateResponse,
+  TagRecord,
+} from "../lib/chemvault-files/types";
 
 interface HealthResponse {
   status: "ready" | "configuration-missing";
@@ -51,6 +61,9 @@ interface ShareUiState {
   link: string | null;
   message: string | null;
   error: string | null;
+  shares: FileShareRecord[] | null;
+  listLoading: boolean;
+  listError: string | null;
 }
 
 const seedProjects = [
@@ -378,14 +391,34 @@ function bindEvents(): void {
 
     if (target.closest("[data-cv-copy-share]")) {
       void copySelectedShareLink();
+      return;
+    }
+
+    const managedCopy = target.closest<HTMLElement>("[data-cv-copy-managed-share]");
+    if (managedCopy?.dataset.cvShareToken) {
+      void copyManagedShareLink(managedCopy.dataset.cvShareToken);
+      return;
+    }
+
+    const managedDelete = target.closest<HTMLElement>("[data-cv-delete-share]");
+    if (managedDelete?.dataset.cvShareToken) {
+      void deleteManagedShare(managedDelete.dataset.cvShareToken);
     }
   });
 
   document.querySelector<HTMLElement>("[data-cv-inspector]")?.addEventListener("submit", (event) => {
     const form = (event.target as HTMLElement).closest<HTMLFormElement>("[data-cv-share-form]");
-    if (!form) return;
-    event.preventDefault();
-    void createShareForSelected(form);
+    if (form) {
+      event.preventDefault();
+      void createShareForSelected(form);
+      return;
+    }
+
+    const updateForm = (event.target as HTMLElement).closest<HTMLFormElement>("[data-cv-share-update-form]");
+    if (updateForm) {
+      event.preventDefault();
+      void updateManagedShare(updateForm);
+    }
   });
 
   document.querySelector<HTMLElement>("[data-cv-account-button]")?.addEventListener("click", openAuthModal);
@@ -856,6 +889,9 @@ function renderInspector(): void {
   if (inspectorTab === "activity" && !activityByFileId.has(selectedFile.id)) {
     void loadActivityForSelected();
   }
+  if (inspectorTab === "details") {
+    void loadSharesForSelected();
+  }
 }
 
 function updateInspectorTabs(): void {
@@ -1015,12 +1051,13 @@ function renderSeedPreview(fileRecord: FileRecord, kind: ReturnType<typeof previ
 }
 
 function renderSharePanel(fileRecord: FileRecord): string {
-  const state = shareByFileId.get(fileRecord.id) ?? { loading: false, link: null, message: null, error: null };
+  const state = getShareState(fileRecord.id);
+  const shares = state.shares ?? [];
   return `
     <section class="share-panel" aria-label="File sharing">
       <header>
         <h3>Share</h3>
-        <span>Read-only link</span>
+        <span>${shares.length ? `${shares.length} managed` : "Read-only link"}</span>
       </header>
       <form class="share-form" data-cv-share-form>
         <label>
@@ -1044,7 +1081,45 @@ function renderSharePanel(fileRecord: FileRecord): string {
       }
       ${state.error ? `<p class="form-status form-status--error">${escapeHtml(state.error)}</p>` : ""}
       ${state.message ? `<p class="form-status">${escapeHtml(state.message)}</p>` : ""}
+      ${renderManagedShares(fileRecord.id, state)}
     </section>
+  `;
+}
+
+function renderManagedShares(fileId: string, state: ShareUiState): string {
+  if (state.listLoading) return `<div class="share-list-status">Loading share links...</div>`;
+  if (state.listError) return `<div class="share-list-status share-list-status--error">${escapeHtml(state.listError)}</div>`;
+  const shares = state.shares ?? [];
+  if (shares.length === 0) return `<div class="share-list-status">No active share links.</div>`;
+
+  return `
+    <div class="share-list" aria-label="Managed share links">
+      ${shares.map((share) => renderManagedShareRow(fileId, share)).join("")}
+    </div>
+  `;
+}
+
+function renderManagedShareRow(fileId: string, share: FileShareRecord): string {
+  const shareUrl = formatShareUrl(window.location.href, share.token);
+  const expired = new Date(share.expiresAt).getTime() <= Date.now();
+  return `
+    <form class="share-list__item" data-cv-share-update-form data-cv-file-id="${escapeAttr(fileId)}" data-cv-share-token="${escapeAttr(share.token)}">
+      <div class="share-list__summary">
+        <strong>${escapeHtml(share.token.slice(0, 12))}</strong>
+        <span>${expired ? "Expired" : `Expires ${escapeHtml(formatDate(share.expiresAt))}`} · ${share.accessCount} opens</span>
+        <input type="text" value="${escapeAttr(shareUrl)}" readonly />
+      </div>
+      <div class="share-list__actions">
+        <select name="expiresInDays" aria-label="New expiration for ${escapeAttr(share.token)}">
+          <option value="1">1 day</option>
+          <option value="7" selected>7 days</option>
+          <option value="30">30 days</option>
+        </select>
+        <button class="button button--secondary" type="submit">Update</button>
+        <button class="button button--secondary" type="button" data-cv-copy-managed-share data-cv-share-token="${escapeAttr(share.token)}">Copy</button>
+        <button class="button button--danger" type="button" data-cv-delete-share data-cv-share-token="${escapeAttr(share.token)}">Delete</button>
+      </div>
+    </form>
   `;
 }
 
@@ -1256,16 +1331,31 @@ async function createShareForSelected(form: HTMLFormElement): Promise<void> {
   const formData = new FormData(form);
   const expiresInDays = Number(formData.get("expiresInDays") || 7);
   const allowDownload = formData.get("allowDownload") === "on";
-  shareByFileId.set(fileId, { loading: true, link: shareByFileId.get(fileId)?.link ?? null, message: null, error: null });
+  const previous = getShareState(fileId);
+  shareByFileId.set(fileId, { ...previous, loading: true, message: null, error: null });
   renderInspector();
 
   if (previewMode) {
     const link = formatShareUrl(window.location.href, `preview_${fileId}`);
     shareByFileId.set(fileId, {
+      ...previous,
       loading: false,
       link,
       message: allowDownload ? "Preview share link includes download permission." : "Preview share link is read-only.",
       error: null,
+      shares: [
+        {
+          token: `preview_${fileId}`,
+          fileId,
+          createdByEmail: currentActorEmail,
+          allowDownload,
+          expiresAt: new Date(Date.now() + expiresInDays * 24 * 60 * 60 * 1000).toISOString(),
+          createdAt: new Date().toISOString(),
+          revokedAt: null,
+          accessCount: 0,
+          lastAccessedAt: null,
+        },
+      ],
     });
     activityByFileId.delete(fileId);
     renderInspector();
@@ -1279,17 +1369,124 @@ async function createShareForSelected(form: HTMLFormElement): Promise<void> {
       body: JSON.stringify({ expiresInDays, allowDownload }),
     });
     shareByFileId.set(fileId, {
+      ...previous,
       loading: false,
       link: response.shareUrl,
       message: response.share.allowDownload ? "Link ready with download access." : "Read-only link ready.",
       error: null,
+      shares: [response.share, ...(previous.shares ?? [])],
+      listLoading: false,
+      listError: null,
     });
     activityByFileId.delete(fileId);
   } catch (error) {
-    shareByFileId.set(fileId, { loading: false, link: null, message: null, error: errorMessage(error) });
+    shareByFileId.set(fileId, { ...previous, loading: false, link: null, message: null, error: errorMessage(error) });
   }
   renderInspector();
   if (inspectorTab === "activity") void loadActivityForSelected();
+}
+
+async function loadSharesForSelected(force = false): Promise<void> {
+  const fileId = selectedFileId;
+  if (!fileId || previewMode) return;
+  const state = getShareState(fileId);
+  if (!force && (state.listLoading || state.shares)) return;
+
+  shareByFileId.set(fileId, { ...state, listLoading: true, listError: null });
+  renderInspector();
+  try {
+    const response = await fetchJson<FileShareListResponse>(`/api/files/${encodeURIComponent(fileId)}/share`);
+    shareByFileId.set(fileId, { ...getShareState(fileId), shares: response.shares, listLoading: false, listError: null });
+  } catch (error) {
+    shareByFileId.set(fileId, { ...getShareState(fileId), listLoading: false, listError: errorMessage(error) });
+  }
+  if (selectedFileId === fileId && inspectorTab === "details") renderInspector();
+}
+
+async function updateManagedShare(form: HTMLFormElement): Promise<void> {
+  const fileId = selectedFileId;
+  const token = form.dataset.cvShareToken;
+  if (!fileId || !token) return;
+  const expiresInDays = Number(new FormData(form).get("expiresInDays") || 7);
+  const state = getShareState(fileId);
+  shareByFileId.set(fileId, { ...state, message: "Updating share link...", error: null });
+  renderInspector();
+
+  if (previewMode || token.startsWith("preview_")) {
+    const expiresAt = new Date(Date.now() + expiresInDays * 24 * 60 * 60 * 1000).toISOString();
+    const nextShares = (getShareState(fileId).shares ?? []).map((share) => (share.token === token ? { ...share, expiresAt } : share));
+    shareByFileId.set(fileId, { ...getShareState(fileId), shares: nextShares, message: "Share expiration updated.", error: null });
+    renderInspector();
+    return;
+  }
+
+  try {
+    const response = await fetchJson<{ share: FileShareRecord }>(
+      `/api/files/${encodeURIComponent(fileId)}/shares/${encodeURIComponent(token)}`,
+      {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ expiresInDays }),
+      }
+    );
+    const nextShares = (getShareState(fileId).shares ?? []).map((share) => (share.token === token ? response.share : share));
+    shareByFileId.set(fileId, { ...getShareState(fileId), shares: nextShares, message: "Share expiration updated.", error: null });
+  } catch (error) {
+    shareByFileId.set(fileId, { ...getShareState(fileId), message: null, error: errorMessage(error) });
+  }
+  renderInspector();
+}
+
+async function deleteManagedShare(token: string): Promise<void> {
+  const fileId = selectedFileId;
+  if (!fileId) return;
+  const state = getShareState(fileId);
+  shareByFileId.set(fileId, { ...state, message: "Deleting share link...", error: null });
+  renderInspector();
+
+  if (previewMode || token.startsWith("preview_")) {
+    shareByFileId.set(fileId, { ...getShareState(fileId), shares: [], link: null, message: "Share link deleted.", error: null });
+    renderInspector();
+    return;
+  }
+
+  try {
+    await fetchJson<{ status: string; token: string }>(`/api/files/${encodeURIComponent(fileId)}/shares/${encodeURIComponent(token)}`, {
+      method: "DELETE",
+    });
+    const nextShares = (getShareState(fileId).shares ?? []).filter((share) => share.token !== token);
+    shareByFileId.set(fileId, { ...getShareState(fileId), shares: nextShares, message: "Share link deleted.", error: null });
+  } catch (error) {
+    shareByFileId.set(fileId, { ...getShareState(fileId), message: null, error: errorMessage(error) });
+  }
+  renderInspector();
+}
+
+async function copyManagedShareLink(token: string): Promise<void> {
+  const fileId = selectedFileId;
+  if (!fileId) return;
+  const state = getShareState(fileId);
+  try {
+    await navigator.clipboard.writeText(formatShareUrl(window.location.href, token));
+    shareByFileId.set(fileId, { ...state, message: "Copied.", error: null });
+  } catch {
+    shareByFileId.set(fileId, { ...state, message: "Copy failed.", error: null });
+  }
+  renderInspector();
+}
+
+function getShareState(fileId: string): ShareUiState {
+  return (
+    shareByFileId.get(fileId) ?? {
+      loading: false,
+      link: null,
+      message: null,
+      error: null,
+      shares: null,
+      listLoading: false,
+      listError: null,
+    }
+  );
 }
 
 async function copySelectedShareLink(): Promise<void> {

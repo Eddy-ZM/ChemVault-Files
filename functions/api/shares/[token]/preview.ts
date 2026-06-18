@@ -1,9 +1,9 @@
 import type { Env } from "../../../_lib/env";
 import { requireDb } from "../../../_lib/db";
 import { buildInlinePreviewHeaders } from "../../../_lib/file-service";
-import { isShareTargetInactive, loadShareTarget, recordShareAccess } from "../../../_lib/share-service";
+import { canStreamSharePreview, isShareTargetInactive, loadShareTarget, recordShareAccess } from "../../../_lib/share-service";
 import { errorJson, routeError } from "../../../_lib/http";
-import { isPreviewableFile } from "../../../../src/lib/chemvault-files/preview";
+import { resolvePreviewKind } from "../../../../src/lib/chemvault-files/preview";
 
 export const onRequestGet: PagesFunction<Env> = async ({ env, params }) => {
   try {
@@ -13,7 +13,11 @@ export const onRequestGet: PagesFunction<Env> = async ({ env, params }) => {
     const target = await loadShareTarget(db, token);
     if (!target) return errorJson("Share link was not found", 404, "SHARE_NOT_FOUND");
     if (isShareTargetInactive(target)) return errorJson("Share link expired or was revoked", 410, "SHARE_INACTIVE");
-    if (!isPreviewableFile(target.file)) return errorJson("File type is not previewable", 415, "PREVIEW_UNSUPPORTED");
+    const previewKind = resolvePreviewKind(target.file);
+    if (previewKind === "unsupported") return errorJson("File type is not previewable", 415, "PREVIEW_UNSUPPORTED");
+    if (!canStreamSharePreview(target.share.allowDownload, previewKind)) {
+      return errorJson("This read-only PDF share cannot stream file bytes", 403, "SHARE_PREVIEW_REQUIRES_DOWNLOAD");
+    }
 
     const object = await env.FILES_BUCKET.get(target.file.r2Key);
     if (!object?.body) return errorJson("Stored object was not found", 404, "OBJECT_NOT_FOUND");

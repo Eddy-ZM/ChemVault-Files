@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { onRequestGet as shareDownloadGet } from "../functions/api/shares/[token]/download";
+import { onRequestGet as sharePreviewGet } from "../functions/api/shares/[token]/preview";
 import { onRequestGet as shareGet } from "../functions/api/shares/[token]";
 
 interface FakeState {
@@ -109,7 +110,18 @@ describe("share API", () => {
         token: "sh_active",
         allowDownload: false,
       },
-      previewUrl: "/api/shares/sh_active/preview",
+      previewUrl: null,
+    });
+  });
+
+  it("does not stream PDF bytes through preview-only share links", async () => {
+    const response = await sharePreviewGet(context(activeState()) as unknown as Parameters<typeof sharePreviewGet>[0]);
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toMatchObject({
+      error: {
+        code: "SHARE_PREVIEW_REQUIRES_DOWNLOAD",
+      },
     });
   });
 
