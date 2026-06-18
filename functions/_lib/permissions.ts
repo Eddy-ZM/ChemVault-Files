@@ -1,4 +1,4 @@
-import type { ActorAccess, FilePermissionLevel, FileRolePolicy, FileRoleScope } from "../../src/lib/chemvault-files/types";
+import type { ActorAccess, FilePermissionLevel, FileRecord, FileRolePolicy, FileRoleScope } from "../../src/lib/chemvault-files/types";
 import type { Env } from "./env";
 import { getActorEmail } from "./env";
 import { errorJson } from "./http";
@@ -55,7 +55,7 @@ export function resolveActorAccessFromRoles(actorEmail: string, ownerEmail: stri
       actorEmail,
       roleId: domainRole.id,
       roleName: domainRole.name,
-      permission: domainRole.permission,
+      permission: "write",
       canManageRoles: false,
     };
   }
@@ -66,7 +66,7 @@ export function resolveActorAccessFromRoles(actorEmail: string, ownerEmail: stri
     actorEmail,
     roleId: role.id,
     roleName: role.name,
-    permission: role.permission,
+    permission: "read",
     canManageRoles: false,
   };
 }
@@ -84,6 +84,12 @@ export function canWriteFiles(access: Pick<ActorAccess, "permission">): boolean 
   return access.permission === "write";
 }
 
+export function canViewFile(access: ActorAccess, file: Pick<FileRecord, "visibility" | "roleIds">): boolean {
+  if (access.canManageRoles || canWriteFiles(access)) return true;
+  if (file.visibility === "public") return true;
+  return file.roleIds.includes(access.roleId);
+}
+
 export function permissionDeniedJson(access: Pick<ActorAccess, "roleName" | "permission">, required: "read" | "write"): Response {
   return errorJson(`${access.roleName} role has ${access.permission} access; ${required} access is required.`, 403, "FILES_PERMISSION_DENIED");
 }
@@ -93,7 +99,7 @@ export function defaultRolePolicies(env: Pick<Env, "PRIVATE_OWNER_EMAIL">): File
   const ownerDomain = normalizeEmail(env.PRIVATE_OWNER_EMAIL || "owner@chemvault.science").split("@")[1] || "chemvault.science";
   return [
     rolePolicy("role_super", "Super", "Owner role with full file access.", "owner", null, "write", false, timestamp),
-    rolePolicy("role_internal", "Common_In", "Cloudflare Access users from the ChemVault domain.", "domain", ownerDomain, "read", false, timestamp),
+    rolePolicy("role_internal", "Common_In", "Cloudflare Access users from the ChemVault domain.", "domain", ownerDomain, "write", false, timestamp),
     rolePolicy("role_external", "Common_Out", "External Cloudflare Access users.", "external", null, "read", true, timestamp),
   ];
 }

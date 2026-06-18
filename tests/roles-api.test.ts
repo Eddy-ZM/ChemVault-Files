@@ -81,7 +81,7 @@ describe("roles API", () => {
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({
       roles: [{ id: "role_super" }, { id: "role_internal", permission: "read" }, { id: "role_external" }],
-      actorAccess: { roleId: "role_internal", permission: "read", canManageRoles: false },
+      actorAccess: { roleId: "role_internal", permission: "write", canManageRoles: false },
     });
   });
 

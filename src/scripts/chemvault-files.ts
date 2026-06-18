@@ -25,6 +25,7 @@ import type {
   FileRecord,
   FilePermissionLevel,
   FileRolePolicy,
+  FileVisibility,
   FileShareListResponse,
   FileShareRecord,
   FolderRecord,
@@ -186,6 +187,8 @@ let currentActorAccess: ActorAccess = {
 };
 let rolePolicies: FileRolePolicy[] = [];
 let roleSettingsState: RoleSettingsState = { loading: false, saving: false, error: null, message: null };
+let uploadVisibility: FileVisibility = "public";
+let uploadRoleIds = new Set<string>(["role_internal", "role_external"]);
 let fileSort: FileSort = { key: "modified", direction: "desc" };
 let viewMode: "list" | "grid" = "list";
 let inspectorTab: "details" | "preview" | "activity" = "details";
@@ -246,6 +249,8 @@ function file(
     uploadSessionId: null,
     actorEmail: "owner@chemvault.science",
     downloadCount: 0,
+    visibility: "public",
+    roleIds: [],
     createdAt: timestamp,
     updatedAt: timestamp,
     deletedAt: null,
@@ -280,6 +285,21 @@ function bindEvents(): void {
     folderInput.setAttribute("directory", "");
   }
   document.querySelector<HTMLButtonElement>("[data-cv-upload-button]")?.addEventListener("click", openUploadModal);
+  document.querySelector<HTMLElement>("[data-cv-upload-modal]")?.addEventListener("change", (event) => {
+    const target = event.target as HTMLInputElement | null;
+    if (!target) return;
+    if (target.matches("[data-cv-upload-visibility]")) {
+      uploadVisibility = target.value === "roles" ? "roles" : "public";
+      renderUploadAccessControls();
+      return;
+    }
+    if (target.matches("[data-cv-upload-role]")) {
+      const roleId = target.value;
+      if (target.checked) uploadRoleIds.add(roleId);
+      else uploadRoleIds.delete(roleId);
+      renderUploadAccessControls();
+    }
+  });
   fileInput?.addEventListener("change", () => {
     void handleFiles(fileInput.files);
     fileInput.value = "";
@@ -601,6 +621,7 @@ function renderAccountIdentity(): void {
     element.textContent = permissionLabel(currentActorAccess.permission);
   });
   renderRoleSettings();
+  renderUploadAccessControls();
   renderPermissionControls();
 }
 
@@ -659,6 +680,47 @@ function renderRolePermissionRow(role: FileRolePolicy, canManage: boolean): stri
 
 function permissionOption(value: FilePermissionLevel, selected: FilePermissionLevel): string {
   return `<option value="${value}" ${value === selected ? "selected" : ""}>${escapeHtml(permissionLabel(value))}</option>`;
+}
+
+function renderUploadAccessControls(): void {
+  const container = document.querySelector<HTMLElement>("[data-cv-upload-access]");
+  if (!container) return;
+  const roles = (rolePolicies.length ? rolePolicies : fallbackRolePolicies()).filter((role) => role.scope !== "owner");
+  const roleControls = roles
+    .map((role) => {
+      const checked = uploadRoleIds.has(role.id);
+      const disabled = uploadVisibility !== "roles";
+      return `
+        <label class="upload-access-role">
+          <input type="checkbox" value="${escapeAttr(role.id)}" data-cv-upload-role ${checked ? "checked" : ""} ${disabled ? "disabled" : ""} />
+          <span>
+            <strong>${escapeHtml(role.name)}</strong>
+            <small>${escapeHtml(roleDescription(role))}</small>
+          </span>
+        </label>
+      `;
+    })
+    .join("");
+
+  container.innerHTML = `
+    <header>
+      <div>
+        <strong>File access</strong>
+        <span>Admins can always view and manage uploaded files.</span>
+      </div>
+    </header>
+    <div class="upload-access-modes">
+      <label>
+        <input type="radio" name="uploadVisibility" value="public" data-cv-upload-visibility ${uploadVisibility === "public" ? "checked" : ""} />
+        <span>Public</span>
+      </label>
+      <label>
+        <input type="radio" name="uploadVisibility" value="roles" data-cv-upload-visibility ${uploadVisibility === "roles" ? "checked" : ""} />
+        <span>Selected roles</span>
+      </label>
+    </div>
+    <div class="upload-access-roles">${roleControls || `<div class="role-settings__empty">No file roles are available.</div>`}</div>
+  `;
 }
 
 function renderHealth(health?: HealthResponse): void {
@@ -1060,6 +1122,7 @@ function renderMetadata(fileRecord: FileRecord): string {
     ["Modified", formatDate(fileRecord.updatedAt)],
     ["Created", formatDate(fileRecord.createdAt)],
     ["Owner", fileRecord.actorEmail || "owner@chemvault.science"],
+    ["Visibility", fileVisibilityLabel(fileRecord)],
     ["Description", isNmrPreview ? "1H NMR spectrum of Compound 14 in CDCl3 at 400 MHz." : configurationMissing || previewMode ? "Preview data. Upload a file to replace this local seed row." : "ChemVault managed file metadata."],
     ...(isNmrPreview
       ? ([
@@ -1371,6 +1434,7 @@ async function uploadBrowserFile(
         uploadSessionId: null,
         actorEmail: currentActorEmail,
         downloadCount: 0,
+        ...uploadAccessPayload(),
         createdAt: now,
         updatedAt: now,
         deletedAt: null,
@@ -1393,6 +1457,7 @@ async function uploadBrowserFile(
         projectId: activeProjectId,
         folderId: target.folderId,
         tags: filters.tagSlug ? [library.tags.find((entry) => entry.slug === filters.tagSlug)?.name].filter(Boolean) : [],
+        ...uploadAccessPayload(),
       }),
     });
 
@@ -1866,6 +1931,13 @@ function canWriteCurrentAccess(): boolean {
   return currentActorAccess.permission === "write";
 }
 
+function uploadAccessPayload(): { visibility: FileVisibility; roleIds: string[] } {
+  return {
+    visibility: uploadVisibility,
+    roleIds: uploadVisibility === "roles" ? Array.from(uploadRoleIds) : [],
+  };
+}
+
 function permissionLabel(permission: FilePermissionLevel): string {
   if (permission === "none") return "不可读";
   if (permission === "read") return "只读";
@@ -1876,6 +1948,14 @@ function roleDescription(role: FileRolePolicy): string {
   if (role.scope === "owner") return "Owner / Super";
   if (role.scope === "domain") return `${role.domain || "domain"} Cloudflare Access`;
   return "External Cloudflare Access";
+}
+
+function fileVisibilityLabel(fileRecord: Pick<FileRecord, "visibility" | "roleIds">): string {
+  if (fileRecord.visibility === "public") return "Public";
+  const names = fileRecord.roleIds
+    .map((roleId) => rolePolicies.find((role) => role.id === roleId)?.name || fallbackRolePolicies().find((role) => role.id === roleId)?.name || roleId)
+    .join(", ");
+  return names ? `Selected roles: ${names}` : "Selected roles";
 }
 
 function fallbackRolePolicies(): FileRolePolicy[] {
@@ -2042,6 +2122,8 @@ function openUploadModal(): void {
   const modal = document.querySelector<HTMLElement>("[data-cv-upload-modal]");
   if (!modal) return;
   renderQueue();
+  renderUploadAccessControls();
+  void loadRoleSettings();
   modal.hidden = false;
   modal.querySelector<HTMLInputElement>("[data-cv-file-input]")?.focus();
 }

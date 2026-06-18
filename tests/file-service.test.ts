@@ -22,6 +22,8 @@ describe("file service", () => {
         projectId: "project_spectra",
         folderId: "folder_spectra",
         tags: ["NMR"],
+        visibility: "roles",
+        roleIds: ["role_internal", "role_external"],
       },
       projectSlug: "2024-q2-catalysis-program",
       actorEmail: "owner@chemvault.science",
@@ -33,6 +35,8 @@ describe("file service", () => {
     expect(draft.file.id).toBe("file_abc123");
     expect(draft.file.r2Key).toBe("files/2024-q2-catalysis-program/2026/06/file_abc123/Compound_14_1H.jdx");
     expect(draft.file.status).toBe("pending");
+    expect(draft.file.visibility).toBe("roles");
+    expect(draft.file.roleIds).toEqual(["role_internal", "role_external"]);
     expect(draft.session.mode).toBe("direct");
     expect(draft.session.status).toBe("created");
   });

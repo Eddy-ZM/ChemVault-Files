@@ -29,6 +29,8 @@ const file: FileRecord = {
   uploadSessionId: null,
   actorEmail: "owner@chemvault.science",
   downloadCount: 0,
+  visibility: "public",
+  roleIds: [],
   createdAt: "2026-06-11T00:00:00.000Z",
   updatedAt: "2026-06-11T00:00:00.000Z",
   deletedAt: null,

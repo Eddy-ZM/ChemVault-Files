@@ -101,16 +101,15 @@ function request(path: string, email = "scientist@chemvault.science", init?: Req
 }
 
 describe("access policy enforcement", () => {
-  it("rejects library reads for no-read roles", async () => {
+  it("allows external read-only users to read the public library", async () => {
     const response = await libraryGet({ request: request("/api/library", "visitor@example.com"), env: env("read") } as unknown as Parameters<typeof libraryGet>[0]);
 
-    expect(response.status).toBe(403);
-    await expect(response.json()).resolves.toMatchObject({ error: { code: "FILES_PERMISSION_DENIED" } });
+    expect(response.status).toBe(200);
   });
 
-  it("rejects uploads for read-only roles", async () => {
+  it("rejects uploads for external read-only users", async () => {
     const response = await initUpload({
-      request: request("/api/files/init", "scientist@chemvault.science", {
+      request: request("/api/files/init", "visitor@example.com", {
         method: "POST",
         body: JSON.stringify({ name: "report.pdf", size: 7, mimeType: "application/pdf", projectId: "project_spectra", folderId: null, tags: [] }),
       }),
@@ -121,9 +120,9 @@ describe("access policy enforcement", () => {
     await expect(response.json()).resolves.toMatchObject({ error: { code: "FILES_PERMISSION_DENIED" } });
   });
 
-  it("allows downloads for read-only roles", async () => {
+  it("allows downloads for external read-only users", async () => {
     const response = await downloadFile({
-      request: request("/api/files/file_1/download", "scientist@chemvault.science"),
+      request: request("/api/files/file_1/download", "visitor@example.com"),
       env: env("read"),
       params: { id: "file_1" },
     } as unknown as Parameters<typeof downloadFile>[0]);

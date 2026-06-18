@@ -8,7 +8,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
     const db = requireDb(env.FILES_DB);
     const access = await resolveActorAccess(request, env, db);
     if (!canReadFiles(access)) return permissionDeniedJson(access, "read");
-    return okJson(await listLibrary(db));
+    return okJson(await listLibrary(db, access));
   } catch (error) {
     return routeError(error);
   }

@@ -66,6 +66,8 @@ export function createFileInitDraft(input: CreateFileInitDraftInput): FileInitDr
       uploadSessionId: sessionId,
       actorEmail: input.actorEmail,
       downloadCount: 0,
+      visibility: payload.visibility,
+      roleIds: payload.roleIds,
       createdAt: timestamp,
       updatedAt: timestamp,
       deletedAt: null,

@@ -1,8 +1,8 @@
 import type { Env } from "../../../_lib/env";
 import { getActorEmail } from "../../../_lib/env";
-import { mapFile, requireDb } from "../../../_lib/db";
+import { listFileRoleIds, mapFile, requireDb } from "../../../_lib/db";
 import { buildInlinePreviewHeaders, createActivityDraft, recordFileActivity } from "../../../_lib/file-service";
-import { canReadFiles, permissionDeniedJson, resolveActorAccess } from "../../../_lib/permissions";
+import { canReadFiles, canViewFile, permissionDeniedJson, resolveActorAccess } from "../../../_lib/permissions";
 import { errorJson, routeError } from "../../../_lib/http";
 import { isPreviewableFile } from "../../../../src/lib/chemvault-files/preview";
 
@@ -15,7 +15,8 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env, params })
     const fileId = String(params.id || "");
     const row = await db.prepare("SELECT * FROM files WHERE id = ? AND status = 'ready' AND deleted_at IS NULL").bind(fileId).first();
     if (!row) return errorJson("File was not found", 404, "FILE_NOT_FOUND");
-    const file = mapFile(row as Record<string, unknown>);
+    const file = { ...mapFile(row as Record<string, unknown>), roleIds: await listFileRoleIds(db, fileId) };
+    if (!canViewFile(access, file)) return permissionDeniedJson(access, "read");
     if (!isPreviewableFile(file)) return errorJson("File type is not previewable", 415, "PREVIEW_UNSUPPORTED");
 
     const object = await env.FILES_BUCKET.get(file.r2Key);

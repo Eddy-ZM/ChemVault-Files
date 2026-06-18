@@ -1,13 +1,13 @@
 import type { Env } from "../../../_lib/env";
 import { getActorEmail } from "../../../_lib/env";
-import { mapFile, mapShare, requireDb } from "../../../_lib/db";
+import { listFileRoleIds, mapFile, mapShare, requireDb } from "../../../_lib/db";
 import {
   coerceShareCreatePayload,
   createActivityDraft,
   createShareToken,
   recordFileActivity,
 } from "../../../_lib/file-service";
-import { canReadFiles, canWriteFiles, permissionDeniedJson, resolveActorAccess } from "../../../_lib/permissions";
+import { canReadFiles, canViewFile, canWriteFiles, permissionDeniedJson, resolveActorAccess } from "../../../_lib/permissions";
 import { errorJson, okJson, parseJsonBody, routeError } from "../../../_lib/http";
 
 export const onRequestGet: PagesFunction<Env> = async ({ request, env, params }) => {
@@ -16,6 +16,10 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env, params })
     const access = await resolveActorAccess(request, env, db);
     if (!canReadFiles(access)) return permissionDeniedJson(access, "read");
     const fileId = String(params.id || "");
+    const fileRow = await db.prepare("SELECT * FROM files WHERE id = ? AND deleted_at IS NULL").bind(fileId).first();
+    if (!fileRow) return errorJson("File was not found", 404, "FILE_NOT_FOUND");
+    const file = { ...mapFile(fileRow as Record<string, unknown>), roleIds: await listFileRoleIds(db, fileId) };
+    if (!canViewFile(access, file)) return permissionDeniedJson(access, "read");
     const rows = await db
       .prepare("SELECT * FROM file_shares WHERE file_id = ? AND revoked_at IS NULL ORDER BY created_at DESC LIMIT 50")
       .bind(fileId)

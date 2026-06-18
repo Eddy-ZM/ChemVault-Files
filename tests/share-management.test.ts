@@ -27,18 +27,40 @@ class FakeStatement {
     return this;
   }
 
-  async all(): Promise<{ results: ShareRow[] }> {
+  async all(): Promise<{ results: Record<string, unknown>[] }> {
     if (this.sql.includes("FROM file_shares") && this.sql.includes("WHERE file_id = ?")) {
       return {
-        results: this.state.shares.filter((share) => share.file_id === this.args[0] && share.revoked_at === null),
+        results: this.state.shares.filter((share) => share.file_id === this.args[0] && share.revoked_at === null).map((share) => ({ ...share })),
       };
     }
     return { results: [] };
   }
 
-  async first(): Promise<ShareRow | null> {
+  async first(): Promise<Record<string, unknown> | null> {
+    if (this.sql.includes("FROM files")) {
+      return {
+        id: "file_1",
+        project_id: "project_spectra",
+        folder_id: null,
+        display_name: "report.pdf",
+        original_name: "report.pdf",
+        r2_key: "files/report.pdf",
+        mime_type: "application/pdf",
+        size_bytes: 7,
+        status: "ready",
+        checksum: null,
+        upload_session_id: null,
+        actor_email: "owner@chemvault.science",
+        download_count: 0,
+        visibility: "public",
+        created_at: "2026-06-18T00:00:00.000Z",
+        updated_at: "2026-06-18T00:00:00.000Z",
+        deleted_at: null,
+      };
+    }
     if (this.sql.includes("FROM file_shares") && this.sql.includes("token = ?") && this.sql.includes("file_id = ?")) {
-      return this.state.shares.find((share) => share.token === this.args[0] && share.file_id === this.args[1]) ?? null;
+      const share = this.state.shares.find((entry) => entry.token === this.args[0] && entry.file_id === this.args[1]);
+      return share ? { ...share } : null;
     }
     return null;
   }

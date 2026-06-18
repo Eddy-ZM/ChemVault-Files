@@ -5,6 +5,7 @@ export type PreviewKind = "pdf" | "image" | "csv" | "text" | "unsupported";
 export type FileActivityEventType = "preview" | "download" | "share_created" | "share_accessed" | "share_download";
 export type FilePermissionLevel = "none" | "read" | "write";
 export type FileRoleScope = "owner" | "domain" | "external";
+export type FileVisibility = "public" | "roles";
 
 export interface ProjectRecord {
   id: string;
@@ -49,6 +50,8 @@ export interface FileRecord {
   uploadSessionId: string | null;
   actorEmail: string | null;
   downloadCount: number;
+  visibility: FileVisibility;
+  roleIds: string[];
   createdAt: string;
   updatedAt: string;
   deletedAt: string | null;
@@ -69,6 +72,8 @@ export interface FileInitPayload {
   projectId: string;
   folderId: string | null;
   tags: string[];
+  visibility: FileVisibility;
+  roleIds: string[];
 }
 
 export interface FileShareRecord {

@@ -1,8 +1,8 @@
 import type { Env } from "../../../_lib/env";
 import { getActorEmail } from "../../../_lib/env";
-import { mapFile, requireDb } from "../../../_lib/db";
+import { listFileRoleIds, mapFile, requireDb } from "../../../_lib/db";
 import { buildDownloadHeaders, createActivityDraft, recordFileActivity } from "../../../_lib/file-service";
-import { canReadFiles, permissionDeniedJson, resolveActorAccess } from "../../../_lib/permissions";
+import { canReadFiles, canViewFile, permissionDeniedJson, resolveActorAccess } from "../../../_lib/permissions";
 import { routeError } from "../../../_lib/http";
 
 export const onRequestGet: PagesFunction<Env> = async ({ request, env, params }) => {
@@ -14,7 +14,8 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env, params })
     const fileId = String(params.id || "");
     const row = await db.prepare("SELECT * FROM files WHERE id = ? AND status = 'ready' AND deleted_at IS NULL").bind(fileId).first();
     if (!row) throw new Error("File was not found");
-    const file = mapFile(row as Record<string, unknown>);
+    const file = { ...mapFile(row as Record<string, unknown>), roleIds: await listFileRoleIds(db, fileId) };
+    if (!canViewFile(access, file)) return permissionDeniedJson(access, "read");
     const object = await env.FILES_BUCKET.get(file.r2Key);
     if (!object?.body) throw new Error("Stored object was not found");
 

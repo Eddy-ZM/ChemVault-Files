@@ -25,7 +25,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
 
     await db
       .prepare(
-        "INSERT INTO files (id, project_id, folder_id, display_name, original_name, r2_key, mime_type, size_bytes, status, checksum, upload_session_id, actor_email, download_count, created_at, updated_at, deleted_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        "INSERT INTO files (id, project_id, folder_id, display_name, original_name, r2_key, mime_type, size_bytes, status, checksum, upload_session_id, actor_email, download_count, visibility, created_at, updated_at, deleted_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
       )
       .bind(
         draft.file.id,
@@ -41,11 +41,16 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
         draft.file.uploadSessionId,
         draft.file.actorEmail,
         draft.file.downloadCount,
+        draft.file.visibility,
         draft.file.createdAt,
         draft.file.updatedAt,
         draft.file.deletedAt
       )
       .run();
+
+    for (const roleId of draft.file.roleIds) {
+      await db.prepare("INSERT OR IGNORE INTO file_role_access (file_id, role_id) VALUES (?, ?)").bind(draft.file.id, roleId).run();
+    }
 
     await db
       .prepare(

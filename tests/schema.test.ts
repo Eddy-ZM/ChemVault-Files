@@ -9,7 +9,18 @@ const sql = readdirSync("migrations")
 
 describe("D1 schema", () => {
   it("defines the approved metadata tables", () => {
-    for (const tableName of ["projects", "folders", "files", "tags", "file_tags", "upload_sessions", "file_shares", "file_activity", "file_roles"]) {
+    for (const tableName of [
+      "projects",
+      "folders",
+      "files",
+      "tags",
+      "file_tags",
+      "upload_sessions",
+      "file_shares",
+      "file_activity",
+      "file_roles",
+      "file_role_access",
+    ]) {
       expect(sql).toContain(`CREATE TABLE IF NOT EXISTS ${tableName}`);
     }
   });
@@ -19,6 +30,8 @@ describe("D1 schema", () => {
     expect(sql).toContain("CREATE INDEX IF NOT EXISTS idx_file_shares_expires_at");
     expect(sql).toContain("CREATE INDEX IF NOT EXISTS idx_file_activity_file_created");
     expect(sql).toContain("CREATE INDEX IF NOT EXISTS idx_file_roles_scope_domain");
+    expect(sql).toContain("CREATE INDEX IF NOT EXISTS idx_file_role_access_role");
+    expect(sql).toContain("CREATE INDEX IF NOT EXISTS idx_files_visibility");
   });
 
   it("seeds the initial ChemVault project sections", () => {

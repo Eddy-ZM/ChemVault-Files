@@ -1,5 +1,6 @@
 import type {
   FileActivityRecord,
+  ActorAccess,
   FileRecord,
   FileShareRecord,
   FolderRecord,
@@ -13,7 +14,7 @@ export function requireDb(db: D1Database | undefined): D1Database {
   return db;
 }
 
-export async function listLibrary(db: D1Database): Promise<LibraryResponse> {
+export async function listLibrary(db: D1Database, access?: ActorAccess): Promise<LibraryResponse> {
   const [projects, folders, tags, files] = await Promise.all([
     db.prepare("SELECT * FROM projects ORDER BY sort_order, name").all(),
     db.prepare("SELECT * FROM folders ORDER BY path").all(),
@@ -22,12 +23,13 @@ export async function listLibrary(db: D1Database): Promise<LibraryResponse> {
   ]);
 
   const fileRows = files.results as Record<string, unknown>[];
+  const mappedFiles = await mapFilesWithTags(db, fileRows);
 
   return {
     projects: (projects.results as Record<string, unknown>[]).map(mapProject),
     folders: (folders.results as Record<string, unknown>[]).map(mapFolder),
     tags: (tags.results as Record<string, unknown>[]).map(mapTag),
-    files: await mapFilesWithTags(db, fileRows),
+    files: access ? mappedFiles.filter((file) => isFileVisibleToAccess(file, access)) : mappedFiles,
   };
 }
 
@@ -49,7 +51,41 @@ export async function mapFilesWithTags(db: D1Database, fileRows: Record<string, 
     tagsByFile.set(fileId, current);
   }
 
-  return fileRows.map((row) => ({ ...mapFile(row), tags: tagsByFile.get(String(row.id)) ?? [] }));
+  const roleIdsByFile = await listFileRoleAccess(db, ids);
+
+  return fileRows.map((row) => {
+    const fileId = String(row.id);
+    return { ...mapFile(row), roleIds: roleIdsByFile.get(fileId) ?? [], tags: tagsByFile.get(fileId) ?? [] };
+  });
+}
+
+export async function listFileRoleAccess(db: D1Database, fileIds: string[]): Promise<Map<string, string[]>> {
+  const roleIdsByFile = new Map<string, string[]>();
+  if (fileIds.length === 0) return roleIdsByFile;
+
+  const placeholders = fileIds.map(() => "?").join(",");
+  try {
+    const result = await db
+      .prepare(`SELECT file_id, role_id FROM file_role_access WHERE file_id IN (${placeholders}) ORDER BY role_id`)
+      .bind(...fileIds)
+      .all();
+
+    for (const row of result.results as Record<string, unknown>[]) {
+      const fileId = String(row.file_id);
+      const current = roleIdsByFile.get(fileId) ?? [];
+      current.push(String(row.role_id));
+      roleIdsByFile.set(fileId, current);
+    }
+  } catch (error) {
+    if (error instanceof Error && error.message.includes("no such table: file_role_access")) return roleIdsByFile;
+    throw error;
+  }
+
+  return roleIdsByFile;
+}
+
+export async function listFileRoleIds(db: D1Database, fileId: string): Promise<string[]> {
+  return (await listFileRoleAccess(db, [fileId])).get(fileId) ?? [];
 }
 
 export function mapProject(row: Record<string, unknown>): ProjectRecord {
@@ -102,10 +138,18 @@ export function mapFile(row: Record<string, unknown>): Omit<FileRecord, "tags"> 
     uploadSessionId: row.upload_session_id === null ? null : String(row.upload_session_id),
     actorEmail: row.actor_email === null ? null : String(row.actor_email),
     downloadCount: Number(row.download_count),
+    visibility: row.visibility === "roles" ? "roles" : "public",
+    roleIds: [],
     createdAt: String(row.created_at),
     updatedAt: String(row.updated_at),
     deletedAt: row.deleted_at === null ? null : String(row.deleted_at),
   };
+}
+
+function isFileVisibleToAccess(file: Pick<FileRecord, "visibility" | "roleIds">, access: ActorAccess): boolean {
+  if (access.canManageRoles || access.permission === "write") return true;
+  if (file.visibility === "public") return true;
+  return file.roleIds.includes(access.roleId);
 }
 
 export function mapShare(row: Record<string, unknown>): FileShareRecord {
