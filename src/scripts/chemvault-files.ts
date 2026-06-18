@@ -1,4 +1,6 @@
 import {
+  accessLogoutUrl,
+  buildFolderTree,
   createInitialLibrary,
   filterFiles,
   formatBytes,
@@ -8,11 +10,13 @@ import {
   previewKindForFile,
   reduceUploadQueue,
   resolveLibraryDisplay,
+  splitUploadPath,
   sortFiles,
   summarizeFiles,
   type FileFilters,
   type FileQuickFilter,
   type FileSort,
+  type UploadPathInfo,
   type UploadQueueItem,
 } from "../lib/chemvault-files/client-state";
 import type {
@@ -233,14 +237,24 @@ function bindEvents(): void {
     }
     if (event.key === "Escape" && !target?.closest("[data-cv-search-input]")) {
       closeAuthModal();
+      closeUploadModal();
     }
   });
 
   const fileInput = document.querySelector<HTMLInputElement>("[data-cv-file-input]");
-  document.querySelector<HTMLButtonElement>("[data-cv-upload-button]")?.addEventListener("click", () => fileInput?.click());
+  const folderInput = document.querySelector<HTMLInputElement>("[data-cv-folder-input]");
+  if (folderInput) {
+    folderInput.setAttribute("webkitdirectory", "");
+    folderInput.setAttribute("directory", "");
+  }
+  document.querySelector<HTMLButtonElement>("[data-cv-upload-button]")?.addEventListener("click", openUploadModal);
   fileInput?.addEventListener("change", () => {
     void handleFiles(fileInput.files);
     fileInput.value = "";
+  });
+  folderInput?.addEventListener("change", () => {
+    void handleFiles(folderInput.files);
+    folderInput.value = "";
   });
 
   const dropzone = document.querySelector<HTMLElement>("[data-cv-file-dropzone]");
@@ -423,6 +437,7 @@ function bindEvents(): void {
 
   document.querySelector<HTMLElement>("[data-cv-account-button]")?.addEventListener("click", openAuthModal);
   document.querySelectorAll<HTMLElement>("[data-cv-auth-close]").forEach((element) => element.addEventListener("click", closeAuthModal));
+  document.querySelectorAll<HTMLElement>("[data-cv-upload-close]").forEach((element) => element.addEventListener("click", closeUploadModal));
 
   document.querySelector<HTMLButtonElement>("[data-cv-download-button]")?.addEventListener("click", () => {
     if (!selectedFileId) return;
@@ -527,6 +542,9 @@ function renderAccountIdentity(): void {
   document.querySelectorAll<HTMLInputElement>("[data-cv-auth-email]").forEach((element) => {
     element.value = email;
   });
+  document.querySelectorAll<HTMLAnchorElement>("[data-cv-logout-link]").forEach((element) => {
+    element.href = accessLogoutUrl(window.location.href);
+  });
 }
 
 function renderHealth(health?: HealthResponse): void {
@@ -623,24 +641,9 @@ function renderSidebar(): void {
 }
 
 function renderProject(projectRecord: ProjectRecord): string {
-  const projectFolders = library.folders.filter((entry) => entry.projectId === projectRecord.id);
   const count = library.files.filter((entry) => entry.projectId === projectRecord.id && entry.status !== "deleted").length;
   const isActive = filters.projectId === projectRecord.id && !filters.folderId;
-  const children = projectFolders
-    .map((folderRecord) => {
-      const folderCount = library.files.filter((entry) => entry.folderId === folderRecord.id && entry.status !== "deleted").length;
-      return `
-        <li>
-          <a class="folder-row folder-row--child${filters.folderId === folderRecord.id ? " is-active" : ""}" href="#" data-cv-project-id="${escapeAttr(projectRecord.id)}" data-cv-folder-id="${escapeAttr(folderRecord.id)}">
-            ${chevronIcon("right")}
-            ${folderIcon()}
-            <span>${escapeHtml(folderRecord.name)}</span>
-            <strong>${folderCount}</strong>
-          </a>
-        </li>
-      `;
-    })
-    .join("");
+  const children = buildFolderTree(projectRecord.id, library.folders, library.files).map((node) => renderFolderNode(projectRecord.id, node)).join("");
 
   return `
     <li>
@@ -651,6 +654,21 @@ function renderProject(projectRecord: ProjectRecord): string {
         <strong>${count}</strong>
       </a>
       ${children ? `<ul>${children}</ul>` : ""}
+    </li>
+  `;
+}
+
+function renderFolderNode(projectId: string, node: ReturnType<typeof buildFolderTree>[number]): string {
+  const hasChildren = node.children.length > 0;
+  return `
+    <li>
+      <a class="folder-row folder-row--child${filters.folderId === node.folder.id ? " is-active" : ""}" href="#" data-cv-project-id="${escapeAttr(projectId)}" data-cv-folder-id="${escapeAttr(node.folder.id)}" style="--folder-depth: ${node.depth}">
+        ${chevronIcon(hasChildren ? "down" : "right")}
+        ${folderIcon()}
+        <span>${escapeHtml(node.folder.name)}</span>
+        <strong>${node.totalFileCount}</strong>
+      </a>
+      ${hasChildren ? `<ul>${node.children.map((child) => renderFolderNode(projectId, child)).join("")}</ul>` : ""}
     </li>
   `;
 }
@@ -1170,28 +1188,80 @@ function activityEventLabel(eventType: FileActivityRecord["eventType"]): string 
 
 async function handleFiles(fileList: FileList | null): Promise<void> {
   const files = Array.from(fileList ?? []);
+  if (files.length === 0) return;
+  openUploadModal();
+  const activeProjectId = filters.projectId || library.projects[0]?.id;
+  if (!activeProjectId) {
+    const queueId = `local_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+    uploadQueue = reduceUploadQueue(uploadQueue, { type: "add", id: queueId, name: "Upload request", sizeBytes: 0 });
+    uploadQueue = reduceUploadQueue(uploadQueue, { type: "fail", id: queueId, message: "Project is required before upload" });
+    renderQueue();
+    return;
+  }
+
   for (const browserFile of files) {
-    await uploadBrowserFile(browserFile);
+    const pathInfo = splitUploadPath(browserFile);
+    const folderId = await ensureUploadFolderPath(activeProjectId, pathInfo.folderParts);
+    await uploadBrowserFile(browserFile, {
+      displayName: pathInfo.name,
+      queueName: pathInfo.relativePath,
+      folderId,
+      pathInfo,
+    });
   }
 }
 
-async function uploadBrowserFile(browserFile: File): Promise<void> {
+async function uploadBrowserFile(
+  browserFile: File,
+  target: { displayName: string; queueName: string; folderId: string | null; pathInfo: UploadPathInfo }
+): Promise<void> {
   const queueId = `local_${Date.now()}_${Math.random().toString(16).slice(2)}`;
-  uploadQueue = reduceUploadQueue(uploadQueue, { type: "add", id: queueId, name: browserFile.name, sizeBytes: browserFile.size });
+  uploadQueue = reduceUploadQueue(uploadQueue, { type: "add", id: queueId, name: target.queueName, sizeBytes: browserFile.size });
   renderQueue();
 
   try {
     const activeProjectId = filters.projectId || library.projects[0]?.id;
     if (!activeProjectId) throw new Error("Project is required before upload");
+
+    if (previewMode) {
+      uploadQueue = reduceUploadQueue(uploadQueue, { type: "progress", id: queueId, loadedBytes: browserFile.size });
+      uploadQueue = reduceUploadQueue(uploadQueue, { type: "complete", id: queueId });
+      const now = new Date().toISOString();
+      const localFile: FileRecord = {
+        id: `local_file_${Date.now()}_${Math.random().toString(16).slice(2)}`,
+        projectId: activeProjectId,
+        folderId: target.folderId,
+        displayName: target.displayName,
+        originalName: target.pathInfo.relativePath,
+        r2Key: `preview/${target.pathInfo.relativePath}`,
+        mimeType: browserFile.type || null,
+        sizeBytes: browserFile.size,
+        status: "ready",
+        checksum: null,
+        uploadSessionId: null,
+        actorEmail: currentActorEmail,
+        downloadCount: 0,
+        createdAt: now,
+        updatedAt: now,
+        deletedAt: null,
+        tags: [],
+      };
+      library = { ...library, files: [localFile, ...library.files] };
+      selectedFileId = localFile.id;
+      selectedFileIds = new Set([localFile.id]);
+      renderAll();
+      return;
+    }
+
     const init = await fetchJson<InitUploadResponse>("/api/files/init", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        name: browserFile.name,
+        name: target.displayName,
         size: browserFile.size,
         mimeType: browserFile.type || null,
         projectId: activeProjectId,
-        folderId: filters.folderId,
+        folderId: target.folderId,
         tags: filters.tagSlug ? [library.tags.find((entry) => entry.slug === filters.tagSlug)?.name].filter(Boolean) : [],
       }),
     });
@@ -1214,6 +1284,63 @@ async function uploadBrowserFile(browserFile: File): Promise<void> {
     uploadQueue = reduceUploadQueue(uploadQueue, { type: "fail", id: queueId, message: errorMessage(error) });
     renderQueue();
   }
+}
+
+async function ensureUploadFolderPath(projectId: string, folderParts: string[]): Promise<string | null> {
+  let parentId = filters.folderId;
+  for (const folderName of folderParts) {
+    parentId = await ensureUploadFolder(projectId, parentId, folderName);
+  }
+  return parentId;
+}
+
+async function ensureUploadFolder(projectId: string, parentId: string | null, name: string): Promise<string> {
+  const existing = findFolder(projectId, parentId, name);
+  if (existing) return existing.id;
+
+  if (previewMode) {
+    const folderRecord = createLocalFolder(projectId, parentId, name);
+    library = { ...library, folders: [...library.folders, folderRecord] };
+    renderSidebar();
+    return folderRecord.id;
+  }
+
+  const response = await fetchJson<{ folder: FolderRecord }>("/api/folders", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ projectId, parentId, name }),
+  });
+  library = { ...library, folders: [...library.folders, response.folder] };
+  renderSidebar();
+  return response.folder.id;
+}
+
+function findFolder(projectId: string, parentId: string | null, name: string): FolderRecord | null {
+  const normalizedName = name.trim().toLowerCase();
+  return (
+    library.folders.find(
+      (folderRecord) =>
+        folderRecord.projectId === projectId &&
+        (folderRecord.parentId ?? null) === (parentId ?? null) &&
+        folderRecord.name.trim().toLowerCase() === normalizedName
+    ) ?? null
+  );
+}
+
+function createLocalFolder(projectId: string, parentId: string | null, name: string): FolderRecord {
+  const now = new Date().toISOString();
+  const parent = parentId ? library.folders.find((entry) => entry.id === parentId) : null;
+  const path = `${parent?.path || ""}/${name}`.replace(/\/+/g, "/");
+  return {
+    id: `local_folder_${Date.now()}_${Math.random().toString(16).slice(2)}`,
+    projectId,
+    parentId,
+    name,
+    slug: slugify(name),
+    path,
+    createdAt: now,
+    updatedAt: now,
+  };
 }
 
 function uploadFileBytes(url: string, fileToUpload: File, onProgress: (loadedBytes: number) => void): Promise<void> {
@@ -1634,6 +1761,19 @@ function openAuthModal(): void {
 
 function closeAuthModal(): void {
   const modal = document.querySelector<HTMLElement>("[data-cv-auth-modal]");
+  if (modal) modal.hidden = true;
+}
+
+function openUploadModal(): void {
+  const modal = document.querySelector<HTMLElement>("[data-cv-upload-modal]");
+  if (!modal) return;
+  renderQueue();
+  modal.hidden = false;
+  modal.querySelector<HTMLInputElement>("[data-cv-file-input]")?.focus();
+}
+
+function closeUploadModal(): void {
+  const modal = document.querySelector<HTMLElement>("[data-cv-upload-modal]");
   if (modal) modal.hidden = true;
 }
 

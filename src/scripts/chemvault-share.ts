@@ -5,6 +5,7 @@ export function bootChemVaultShare(): void {
   const root = document.querySelector<HTMLElement>("[data-cv-share-page]");
   if (!root || root.dataset.cvBooted === "true") return;
   root.dataset.cvBooted = "true";
+  bindProtectedPreviewGuards();
   void loadShare();
 }
 
@@ -26,8 +27,11 @@ async function loadShare(): Promise<void> {
     const payload = (await response.json()) as SharePublicResponse | { error?: { message?: string } };
     const errorPayload = "error" in payload ? payload.error : null;
     if (!response.ok || errorPayload) throw new Error(errorPayload?.message || `${response.status} ${response.statusText}`);
-    container.innerHTML = renderShare(payload as SharePublicResponse);
+    const share = payload as SharePublicResponse;
+    setProtectedPreviewMode(!share.downloadUrl);
+    container.innerHTML = renderShare(share);
   } catch (error) {
+    setProtectedPreviewMode(false);
     container.innerHTML = renderShareError(error instanceof Error ? error.message : "Share link failed.");
   }
 }
@@ -52,15 +56,49 @@ function renderShare(share: SharePublicResponse): string {
 
 function renderPreview(share: SharePublicResponse): string {
   if (!share.previewUrl) {
-    return `<div class="preview-empty">${fileIcon()}<strong>Preview restricted</strong><span>Read-only PDF shares do not stream the file because browser PDF viewers include their own download control.</span></div>`;
+    return `<div class="preview-empty">${fileIcon()}<strong>No inline preview</strong><span>${escapeHtml(share.file.mimeType || "file")}</span></div>`;
   }
   if (share.file.previewKind === "unsupported") {
     return `<div class="preview-empty">${fileIcon()}<strong>No inline preview</strong><span>${escapeHtml(share.file.mimeType || "file")}</span></div>`;
   }
+  const protectedMode = !share.downloadUrl;
+  const protectedOverlay = protectedMode
+    ? `<div class="protected-preview__overlay" aria-hidden="true"><span>Read-only preview · ${escapeHtml(share.share.token.slice(0, 12))}</span></div>`
+    : "";
+  const protectedClass = protectedMode ? " protected-preview" : "";
   if (share.file.previewKind === "image") {
-    return `<figure class="preview-pane share-preview"><img class="preview-image" src="${escapeAttr(share.previewUrl)}" alt="${escapeAttr(share.file.displayName)}" /></figure>`;
+    return `<figure class="preview-pane share-preview${protectedClass}" data-cv-protected-preview="${protectedMode ? "true" : "false"}"><img class="preview-image" src="${escapeAttr(share.previewUrl)}" alt="${escapeAttr(share.file.displayName)}" draggable="false" />${protectedOverlay}</figure>`;
   }
-  return `<section class="preview-pane share-preview"><iframe class="preview-frame" src="${escapeAttr(share.previewUrl)}" title="${escapeAttr(share.file.displayName)} preview"></iframe></section>`;
+  const sandbox = protectedMode ? ` sandbox="allow-scripts" referrerpolicy="no-referrer"` : "";
+  const previewUrl = protectedMode && share.file.previewKind === "pdf" ? `${share.previewUrl}#toolbar=0&navpanes=0&view=FitH` : share.previewUrl;
+  return `<section class="preview-pane share-preview${protectedClass}" data-cv-protected-preview="${protectedMode ? "true" : "false"}"><iframe class="preview-frame" src="${escapeAttr(previewUrl)}" title="${escapeAttr(share.file.displayName)} preview"${sandbox}></iframe>${protectedOverlay}</section>`;
+}
+
+function setProtectedPreviewMode(enabled: boolean): void {
+  document.body.classList.toggle("share-body--protected", enabled);
+  document.querySelector<HTMLElement>("[data-cv-share-page]")?.classList.toggle("is-protected-share", enabled);
+}
+
+function bindProtectedPreviewGuards(): void {
+  document.addEventListener("contextmenu", (event) => {
+    if (document.body.classList.contains("share-body--protected")) event.preventDefault();
+  });
+  document.addEventListener("dragstart", (event) => {
+    if (document.body.classList.contains("share-body--protected")) event.preventDefault();
+  });
+  document.addEventListener("copy", (event) => {
+    if (document.body.classList.contains("share-body--protected")) event.preventDefault();
+  });
+  window.addEventListener("keydown", (event) => {
+    if (!document.body.classList.contains("share-body--protected")) return;
+    const key = event.key.toLowerCase();
+    if ((event.metaKey || event.ctrlKey) && ["c", "p", "s"].includes(key)) {
+      event.preventDefault();
+    }
+    if (key === "printscreen") {
+      event.preventDefault();
+    }
+  });
 }
 
 function formatDate(value: string): string {

@@ -1,4 +1,4 @@
-import type { FileRecord, LibraryResponse, TagRecord } from "./types";
+import type { FileRecord, FolderRecord, LibraryResponse, TagRecord } from "./types";
 import { resolvePreviewKind } from "./preview";
 
 export interface FileFilters {
@@ -37,6 +37,25 @@ export interface UploadQueueItem {
   progress: number;
   status: UploadQueueStatus;
   message: string | null;
+}
+
+export interface UploadPathInput {
+  name: string;
+  webkitRelativePath?: string;
+}
+
+export interface UploadPathInfo {
+  name: string;
+  folderParts: string[];
+  relativePath: string;
+}
+
+export interface FolderTreeNode {
+  folder: FolderRecord;
+  children: FolderTreeNode[];
+  depth: number;
+  fileCount: number;
+  totalFileCount: number;
 }
 
 export type UploadQueueAction =
@@ -120,6 +139,48 @@ export function previewKindForFile(file: Pick<FileRecord, "displayName" | "mimeT
 export function formatShareUrl(currentUrl: string, token: string): string {
   const url = new URL(currentUrl);
   return `${url.origin}/share?token=${encodeURIComponent(token)}`;
+}
+
+export function accessLogoutUrl(currentUrl: string): string {
+  return new URL("/cdn-cgi/access/logout", currentUrl).toString();
+}
+
+export function splitUploadPath(file: UploadPathInput): UploadPathInfo {
+  const rawPath = file.webkitRelativePath?.trim() || file.name;
+  const parts = rawPath
+    .split("/")
+    .map((part) => part.trim())
+    .filter(Boolean);
+  const name = parts.at(-1) || file.name;
+  return {
+    name,
+    folderParts: parts.slice(0, -1),
+    relativePath: parts.length ? parts.join("/") : name,
+  };
+}
+
+export function buildFolderTree(projectId: string, folders: FolderRecord[], files: FileRecord[]): FolderTreeNode[] {
+  const projectFolders = folders
+    .filter((folder) => folder.projectId === projectId)
+    .sort((left, right) => left.path.localeCompare(right.path, undefined, { sensitivity: "base" }));
+  const byParent = new Map<string, FolderRecord[]>();
+  for (const folder of projectFolders) {
+    const key = folder.parentId ?? "";
+    byParent.set(key, [...(byParent.get(key) ?? []), folder]);
+  }
+
+  const countDirectFiles = (folderId: string) =>
+    files.filter((file) => file.projectId === projectId && file.folderId === folderId && file.status !== "deleted").length;
+
+  const build = (parentId: string | null, depth: number): FolderTreeNode[] =>
+    (byParent.get(parentId ?? "") ?? []).map((folder) => {
+      const children = build(folder.id, depth + 1);
+      const fileCount = countDirectFiles(folder.id);
+      const totalFileCount = fileCount + children.reduce((total, child) => total + child.totalFileCount, 0);
+      return { folder, children, depth, fileCount, totalFileCount };
+    });
+
+  return build(null, 0);
 }
 
 export function filterFiles(files: FileRecord[], filters: FileFilters): FileRecord[] {

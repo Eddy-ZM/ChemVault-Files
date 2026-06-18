@@ -70,8 +70,60 @@ import Inspector from "./Inspector.astro";
           <input data-cv-auth-email type="email" value="owner@chemvault.science" autocomplete="email" readonly />
         </label>
         <button class="button button--primary button--wide" type="button" data-cv-auth-close>Continue as current user</button>
+        <a class="button button--secondary button--wide" href="/cdn-cgi/access/logout" data-cv-logout-link>Sign out</a>
       </form>
       <small>Cloudflare Access supplies the login email. Uploaded files will use it as the owner.</small>
+    </div>
+  </section>
+
+  <section class="auth-modal upload-modal" aria-label="Upload files and folders" data-cv-upload-modal hidden>
+    <div class="auth-modal__scrim" data-cv-upload-close></div>
+    <div class="auth-card upload-card" role="dialog" aria-modal="true" aria-labelledby="upload-title">
+      <header>
+        <span class="upload-card__icon">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 3v11m0-11 4 4M12 3 8 7M5 14v4.5A2.5 2.5 0 0 0 7.5 21h9a2.5 2.5 0 0 0 2.5-2.5V14" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+        </span>
+        <button class="ghost-icon" type="button" aria-label="Close upload" data-cv-upload-close>
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="m6 6 12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+          </svg>
+        </button>
+      </header>
+      <h2 id="upload-title" data-cv-upload-title>Upload Queue</h2>
+      <p>Upload files or complete folders. Folder structure is added to the sidebar while uploads are prepared.</p>
+
+      <div class="upload-picker-grid" aria-label="Upload source">
+        <label class="upload-choice">
+          <input class="sr-only" type="file" multiple data-cv-file-input />
+          <span>Choose files</span>
+          <small>Upload selected files into the active folder.</small>
+        </label>
+        <label class="upload-choice">
+          <input class="sr-only" type="file" multiple data-cv-folder-input />
+          <span>Choose folder</span>
+          <small>Preserve the selected folder tree.</small>
+        </label>
+      </div>
+
+      <label class="upload-dropzone" data-cv-file-dropzone>
+        <span class="upload-dropzone__icon">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M5 6.5A2.5 2.5 0 0 1 7.5 4H10l2 2h4.5A2.5 2.5 0 0 1 19 8.5v9A2.5 2.5 0 0 1 16.5 20h-9A2.5 2.5 0 0 1 5 17.5v-11Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
+            <path d="M12 10v6m0-6 2.5 2.5M12 10l-2.5 2.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+        </span>
+        <span>
+          <strong>Drop files to upload</strong>
+          <small>R2-backed queue accepts spectra, datasets, dossiers, and manuscripts.</small>
+        </span>
+        <span class="upload-dropzone__action">Drop here</span>
+      </label>
+
+      <ul class="upload-list" aria-label="Current uploads" data-cv-upload-list>
+        <li class="upload-row upload-row--empty">Ready for direct R2 upload. Choose files or a folder to start.</li>
+      </ul>
     </div>
   </section>
 </div>

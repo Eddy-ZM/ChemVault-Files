@@ -1,7 +1,19 @@
 import { describe, expect, it } from "vitest";
-import { filterFiles, formatBytes, formatShareUrl, normalizeActorEmail, previewKindForFile, reduceUploadQueue, sortFiles, summarizeFiles } from "../src/lib/chemvault-files/client-state";
+import {
+  accessLogoutUrl,
+  buildFolderTree,
+  filterFiles,
+  formatBytes,
+  formatShareUrl,
+  normalizeActorEmail,
+  previewKindForFile,
+  reduceUploadQueue,
+  splitUploadPath,
+  sortFiles,
+  summarizeFiles,
+} from "../src/lib/chemvault-files/client-state";
 import * as clientState from "../src/lib/chemvault-files/client-state";
-import type { FileRecord, LibraryResponse } from "../src/lib/chemvault-files/types";
+import type { FileRecord, FolderRecord, LibraryResponse } from "../src/lib/chemvault-files/types";
 
 const file: FileRecord = {
   id: "file_1",
@@ -171,5 +183,60 @@ describe("client state", () => {
 
   it("formats copied share links against the current origin", () => {
     expect(formatShareUrl("https://files.chemvault.science/library", "sh_abc123")).toBe("https://files.chemvault.science/share?token=sh_abc123");
+  });
+
+  it("builds a Cloudflare Access logout URL on the current origin", () => {
+    expect(accessLogoutUrl("https://file.chemvault.science/library?project=spectra")).toBe("https://file.chemvault.science/cdn-cgi/access/logout");
+  });
+
+  it("extracts upload folder paths from directory selections", () => {
+    expect(splitUploadPath({ name: "run.csv", webkitRelativePath: "screen-042/raw/run.csv" })).toEqual({
+      name: "run.csv",
+      folderParts: ["screen-042", "raw"],
+      relativePath: "screen-042/raw/run.csv",
+    });
+    expect(splitUploadPath({ name: "single.csv" })).toEqual({
+      name: "single.csv",
+      folderParts: [],
+      relativePath: "single.csv",
+    });
+  });
+
+  it("builds nested folder trees with descendant file counts", () => {
+    const folders: FolderRecord[] = [
+      {
+        id: "folder_parent",
+        projectId: "project_spectra",
+        parentId: null,
+        name: "Screen 042",
+        slug: "screen-042",
+        path: "/Screen 042",
+        createdAt: "2026-06-11T00:00:00.000Z",
+        updatedAt: "2026-06-11T00:00:00.000Z",
+      },
+      {
+        id: "folder_child",
+        projectId: "project_spectra",
+        parentId: "folder_parent",
+        name: "Raw",
+        slug: "raw",
+        path: "/Screen 042/Raw",
+        createdAt: "2026-06-11T00:00:00.000Z",
+        updatedAt: "2026-06-11T00:00:00.000Z",
+      },
+    ];
+    const tree = buildFolderTree("project_spectra", folders, [
+      { ...file, id: "file_parent", folderId: "folder_parent" },
+      { ...file, id: "file_child", folderId: "folder_child" },
+    ]);
+
+    expect(tree).toHaveLength(1);
+    expect(tree[0]).toMatchObject({
+      folder: { id: "folder_parent" },
+      depth: 0,
+      fileCount: 1,
+      totalFileCount: 2,
+      children: [{ folder: { id: "folder_child" }, depth: 1, fileCount: 1, totalFileCount: 1 }],
+    });
   });
 });

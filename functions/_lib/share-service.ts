@@ -51,9 +51,8 @@ export function buildPublicShareResponse(target: ShareTarget): SharePublicRespon
   };
 }
 
-export function canStreamSharePreview(allowDownload: boolean, previewKind: ReturnType<typeof resolvePreviewKind>): boolean {
-  if (allowDownload) return previewKind !== "unsupported";
-  return previewKind !== "unsupported" && previewKind !== "pdf";
+export function canStreamSharePreview(_allowDownload: boolean, previewKind: ReturnType<typeof resolvePreviewKind>): boolean {
+  return previewKind !== "unsupported";
 }
 
 export async function recordShareAccess(

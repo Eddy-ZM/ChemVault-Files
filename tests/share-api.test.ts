@@ -110,19 +110,16 @@ describe("share API", () => {
         token: "sh_active",
         allowDownload: false,
       },
-      previewUrl: null,
+      previewUrl: "/api/shares/sh_active/preview",
+      downloadUrl: null,
     });
   });
 
-  it("does not stream PDF bytes through preview-only share links", async () => {
+  it("streams PDF preview bytes for preview-only share links", async () => {
     const response = await sharePreviewGet(context(activeState()) as unknown as Parameters<typeof sharePreviewGet>[0]);
 
-    expect(response.status).toBe(403);
-    await expect(response.json()).resolves.toMatchObject({
-      error: {
-        code: "SHARE_PREVIEW_REQUIRES_DOWNLOAD",
-      },
-    });
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-disposition")).toContain("inline");
   });
 
   it("rejects public downloads when the share is preview-only", async () => {
