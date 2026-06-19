@@ -4,10 +4,13 @@ import { onRequestDelete as deleteFolder } from "../functions/api/folders/[id]";
 
 interface FolderState {
   folders: Record<string, Record<string, unknown>>;
+  files?: Record<string, Record<string, unknown>>;
+  roleAccess?: Record<string, string[]>;
   childCount: number;
   fileCount: number;
   inserted: number;
   deletedIds: string[];
+  deletedFileIds?: string[];
 }
 
 class FakeStatement {
@@ -28,6 +31,21 @@ class FakeStatement {
           role("role_internal", "Common_In", "domain", "chemvault.science", "write"),
           role("role_external", "Common_Out", "external", null, "read"),
         ],
+      };
+    }
+    if (this.sql.includes("WITH RECURSIVE folder_tree")) {
+      return { results: folderSubtreeIds(this.state, String(this.args[0])).map((id) => ({ id })) };
+    }
+    if (this.sql.includes("FROM files") && this.sql.includes("folder_id IN")) {
+      const folderIds = new Set(this.args.map(String));
+      return {
+        results: Object.values(this.state.files ?? {}).filter((file) => folderIds.has(String(file.folder_id)) && file.deleted_at === null),
+      };
+    }
+    if (this.sql.includes("FROM file_role_access")) {
+      const fileIds = this.args.map(String);
+      return {
+        results: fileIds.flatMap((fileId) => (this.state.roleAccess?.[fileId] ?? []).map((roleId) => ({ file_id: fileId, role_id: roleId }))),
       };
     }
     return { results: [] };
@@ -52,6 +70,11 @@ class FakeStatement {
       return { count: this.state.childCount } as T;
     }
     if (this.sql.includes("COUNT(*) AS count FROM files")) {
+      if (this.state.files) {
+        const folderId = String(this.args[0]);
+        const count = Object.values(this.state.files).filter((file) => file.folder_id === folderId && file.deleted_at === null).length;
+        return { count } as T;
+      }
       return { count: this.state.fileCount } as T;
     }
     return null;
@@ -75,6 +98,17 @@ class FakeStatement {
     if (this.sql.includes("DELETE FROM folders WHERE id = ?")) {
       this.state.deletedIds.push(String(this.args[0]));
       delete this.state.folders[String(this.args[0])];
+    }
+    if (this.sql.includes("UPDATE files SET status = 'deleted'")) {
+      const fileId = String(this.args[2]);
+      const file = this.state.files?.[fileId];
+      if (file) {
+        file.status = "deleted";
+        file.deleted_at = this.args[0];
+        file.updated_at = this.args[1];
+        file.folder_id = null;
+      }
+      this.state.deletedFileIds?.push(fileId);
     }
     return { success: true };
   }
@@ -116,14 +150,53 @@ function folder(id: string, name: string, parentId: string | null = null) {
   };
 }
 
+function file(id: string, folderId: string, r2Key: string) {
+  return {
+    id,
+    project_id: "project_spectra",
+    folder_id: folderId,
+    display_name: `${id}.pdf`,
+    original_name: `${id}.pdf`,
+    r2_key: r2Key,
+    mime_type: "application/pdf",
+    size_bytes: 1024,
+    status: "ready",
+    checksum: null,
+    upload_session_id: null,
+    actor_email: "owner@chemvault.science",
+    download_count: 0,
+    visibility: "public",
+    created_at: "2026-06-11T00:00:00.000Z",
+    updated_at: "2026-06-11T00:00:00.000Z",
+    deleted_at: null,
+  };
+}
+
+function folderSubtreeIds(state: FolderState, rootId: string): string[] {
+  const ids = [rootId];
+  for (let index = 0; index < ids.length; index += 1) {
+    const parentId = ids[index];
+    ids.push(...Object.values(state.folders).filter((entry) => entry.parent_id === parentId).map((entry) => String(entry.id)));
+  }
+  return ids;
+}
+
 function context(state: FolderState, request: Request, params: Record<string, string> = {}) {
+  const deletedR2Keys: string[] = [];
   return {
     request,
     params,
     env: {
       FILES_DB: new FakeD1(state),
+      FILES_BUCKET: {
+        delete: async (key: string) => {
+          deletedR2Keys.push(key);
+        },
+      },
       PRIVATE_OWNER_EMAIL: "owner@chemvault.science",
     },
+    waitUntil: () => undefined,
+    data: { deletedR2Keys },
   } as unknown as Parameters<typeof createFolder>[0] & Parameters<typeof deleteFolder>[0];
 }
 
@@ -178,7 +251,7 @@ describe("folders API", () => {
     expect(state.deletedIds).toEqual(["folder_empty"]);
   });
 
-  it("rejects non-empty folder deletion", async () => {
+  it("rejects non-empty folder deletion without recursive confirmation", async () => {
     const state: FolderState = {
       folders: { folder_parent: folder("folder_parent", "Parent") },
       childCount: 1,
@@ -191,5 +264,43 @@ describe("folders API", () => {
 
     expect(response.status).toBe(409);
     expect(state.deletedIds).toEqual([]);
+  });
+
+  it("recursively deletes a confirmed non-empty folder and its contents", async () => {
+    const state: FolderState = {
+      folders: {
+        folder_parent: folder("folder_parent", "Parent"),
+        folder_child: folder("folder_child", "Child", "folder_parent"),
+      },
+      files: {
+        file_parent: file("file_parent", "folder_parent", "files/parent.pdf"),
+        file_child: file("file_child", "folder_child", "files/child.pdf"),
+      },
+      childCount: 1,
+      fileCount: 1,
+      inserted: 0,
+      deletedIds: [],
+      deletedFileIds: [],
+    };
+    const requestWithConfirmation = request("owner@chemvault.science", {
+      method: "DELETE",
+      body: JSON.stringify({ recursive: true }),
+    });
+    const ctx = context(state, requestWithConfirmation, { id: "folder_parent" }) as unknown as Parameters<typeof deleteFolder>[0] & {
+      data: { deletedR2Keys: string[] };
+    };
+
+    const response = await deleteFolder(ctx);
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      status: "deleted",
+      folderId: "folder_parent",
+      deletedFolderCount: 2,
+      deletedFileCount: 2,
+    });
+    expect(state.deletedFileIds).toEqual(["file_parent", "file_child"]);
+    expect(state.deletedIds).toEqual(["folder_child", "folder_parent"]);
+    expect(ctx.data.deletedR2Keys).toEqual(["files/parent.pdf", "files/child.pdf"]);
   });
 });

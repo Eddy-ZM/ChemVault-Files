@@ -4,6 +4,8 @@ import {
   buildFolderTree,
   filterFiles,
   formatBytes,
+  getFolderDeletionScope,
+  markFilesDeleted,
   formatShareUrl,
   normalizeActorEmail,
   previewKindForFile,
@@ -182,6 +184,18 @@ describe("client state", () => {
     expect(reduceUploadQueue(queue, { type: "clear" })).toEqual([]);
   });
 
+  it("marks multiple selected files as deleted in local state", () => {
+    const deleted = markFilesDeleted([file, failedFile, csvFile], new Set(["file_1", "file_3"]), "2026-06-19T07:00:00.000Z");
+
+    expect(deleted.find((entry) => entry.id === "file_1")).toMatchObject({
+      status: "deleted",
+      deletedAt: "2026-06-19T07:00:00.000Z",
+      updatedAt: "2026-06-19T07:00:00.000Z",
+    });
+    expect(deleted.find((entry) => entry.id === "file_3")).toMatchObject({ status: "deleted" });
+    expect(deleted.find((entry) => entry.id === "file_2")).toBe(failedFile);
+  });
+
   it("classifies selected files for inspector previews", () => {
     expect(previewKindForFile({ ...file, mimeType: "application/pdf", displayName: "report.pdf" })).toBe("pdf");
     expect(previewKindForFile({ ...file, mimeType: "image/jpeg", displayName: "structure.jpg" })).toBe("image");
@@ -279,6 +293,52 @@ describe("client state", () => {
       fileCount: 1,
       totalFileCount: 2,
       children: [{ folder: { id: "folder_child" }, depth: 1, fileCount: 1, totalFileCount: 1 }],
+    });
+  });
+
+  it("finds every nested folder and file in a folder deletion scope", () => {
+    const folders: FolderRecord[] = [
+      {
+        id: "folder_parent",
+        projectId: "project_spectra",
+        parentId: null,
+        name: "Screen 042",
+        slug: "screen-042",
+        path: "/Screen 042",
+        createdAt: "2026-06-11T00:00:00.000Z",
+        updatedAt: "2026-06-11T00:00:00.000Z",
+      },
+      {
+        id: "folder_child",
+        projectId: "project_spectra",
+        parentId: "folder_parent",
+        name: "Raw",
+        slug: "raw",
+        path: "/Screen 042/Raw",
+        createdAt: "2026-06-11T00:00:00.000Z",
+        updatedAt: "2026-06-11T00:00:00.000Z",
+      },
+      {
+        id: "folder_other",
+        projectId: "project_spectra",
+        parentId: null,
+        name: "Other",
+        slug: "other",
+        path: "/Other",
+        createdAt: "2026-06-11T00:00:00.000Z",
+        updatedAt: "2026-06-11T00:00:00.000Z",
+      },
+    ];
+
+    expect(
+      getFolderDeletionScope(folders, [
+        { ...file, id: "file_parent", folderId: "folder_parent" },
+        { ...file, id: "file_child", folderId: "folder_child" },
+        { ...file, id: "file_other", folderId: "folder_other" },
+      ], "folder_parent")
+    ).toEqual({
+      folderIds: ["folder_parent", "folder_child"],
+      fileIds: ["file_parent", "file_child"],
     });
   });
 });

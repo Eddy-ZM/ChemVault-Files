@@ -59,6 +59,11 @@ export interface FolderTreeNode {
   totalFileCount: number;
 }
 
+export interface FolderDeletionScope {
+  folderIds: string[];
+  fileIds: string[];
+}
+
 export type UploadQueueAction =
   | { type: "add"; id: string; name: string; sizeBytes: number }
   | { type: "progress"; id: string; loadedBytes: number }
@@ -184,6 +189,37 @@ export function resolveUploadFolderParts(activeFolder: FolderRecord | null | und
 
 function normalizeFolderPart(value: string): string {
   return value.trim().toLowerCase();
+}
+
+export function getFolderDeletionScope(folders: FolderRecord[], files: FileRecord[], folderId: string): FolderDeletionScope {
+  const folderIds: string[] = [];
+  const queue = [folderId];
+
+  for (let index = 0; index < queue.length; index += 1) {
+    const currentId = queue[index];
+    folderIds.push(currentId);
+    queue.push(...folders.filter((folder) => folder.parentId === currentId).map((folder) => folder.id));
+  }
+
+  const folderIdSet = new Set(folderIds);
+  return {
+    folderIds,
+    fileIds: files.filter((file) => file.folderId !== null && folderIdSet.has(file.folderId) && file.status !== "deleted").map((file) => file.id),
+  };
+}
+
+export function markFilesDeleted(files: FileRecord[], fileIds: Set<string>, timestamp: string): FileRecord[] {
+  if (fileIds.size === 0) return files;
+  return files.map((file) =>
+    fileIds.has(file.id)
+      ? {
+          ...file,
+          status: "deleted",
+          updatedAt: timestamp,
+          deletedAt: timestamp,
+        }
+      : file
+  );
 }
 
 export function buildFolderTree(projectId: string, folders: FolderRecord[], files: FileRecord[]): FolderTreeNode[] {

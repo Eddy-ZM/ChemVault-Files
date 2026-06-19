@@ -5,6 +5,8 @@ import {
   filterFiles,
   formatBytes,
   formatShareUrl,
+  getFolderDeletionScope,
+  markFilesDeleted,
   mergeTags,
   normalizeActorEmail,
   previewKindForFile,
@@ -475,6 +477,10 @@ function bindEvents(): void {
     }
     if (target.closest("[data-cv-bulk-tag]")) {
       applyLocalReviewTag();
+      return;
+    }
+    if (target.closest("[data-cv-bulk-delete]")) {
+      void deleteSelectedFiles();
     }
   });
 
@@ -888,7 +894,7 @@ function renderProject(projectRecord: ProjectRecord): string {
 
 function renderFolderNode(projectId: string, node: ReturnType<typeof buildFolderTree>[number]): string {
   const hasChildren = node.children.length > 0;
-  const canDelete = canDeleteFolderNode(node);
+  const canDelete = canDeleteFolderNode();
   return `
     <li>
       <div class="folder-row-wrap${canDelete ? " folder-row-wrap--deletable" : ""}">
@@ -909,8 +915,8 @@ function renderFolderNode(projectId: string, node: ReturnType<typeof buildFolder
   `;
 }
 
-function canDeleteFolderNode(node: ReturnType<typeof buildFolderTree>[number]): boolean {
-  return canWriteCurrentAccess() && node.children.length === 0 && node.totalFileCount === 0;
+function canDeleteFolderNode(): boolean {
+  return canWriteCurrentAccess();
 }
 
 function renderTagButton(tagRecord: TagRecord): string {
@@ -1698,17 +1704,65 @@ async function reloadLibrary(): Promise<void> {
 
 async function deleteSelectedFile(): Promise<void> {
   if (!selectedFileId) return;
-  if (!canWriteCurrentAccess()) return;
-  const fileId = selectedFileId;
-  try {
-    await fetchJson<{ status: string; fileId: string }>(`/api/files/${encodeURIComponent(fileId)}`, { method: "DELETE" });
+  await deleteFileIds([selectedFileId], "Delete request");
+}
+
+async function deleteSelectedFiles(): Promise<void> {
+  const fileIds = Array.from(selectedFileIds).filter((fileId) => library.files.some((entry) => entry.id === fileId && entry.status !== "deleted"));
+  await deleteFileIds(fileIds, "Delete selected files");
+}
+
+async function deleteFileIds(fileIds: string[], queueName: string): Promise<void> {
+  if (fileIds.length === 0 || !canWriteCurrentAccess()) return;
+
+  if (previewMode) {
+    const now = new Date().toISOString();
+    library = { ...library, files: markFilesDeleted(library.files, new Set(fileIds), now) };
     selectedFileId = null;
+    selectedFileIds = new Set();
+    renderAll();
+    return;
+  }
+
+  const failures: string[] = [];
+  for (const fileId of fileIds) {
+    try {
+      await fetchJson<{ status: string; fileId: string }>(`/api/files/${encodeURIComponent(fileId)}`, { method: "DELETE" });
+    } catch (error) {
+      failures.push(errorMessage(error));
+    }
+  }
+
+  selectedFileId = null;
+  selectedFileIds = new Set();
+  if (failures.length > 0) {
+    uploadQueue = reduceUploadQueue(uploadQueue, {
+      type: "add",
+      id: `delete_${Date.now()}`,
+      name: queueName,
+      sizeBytes: 0,
+    });
+    const latest = uploadQueue[0];
+    if (latest) {
+      uploadQueue = reduceUploadQueue(uploadQueue, {
+        type: "fail",
+        id: latest.id,
+        message: failures.length === 1 ? failures[0] : `${failures.length} delete requests failed`,
+      });
+    }
+  }
+
+  try {
     await reloadLibrary();
+    selectedFileId = null;
+    selectedFileIds = new Set();
+    renderFiles();
+    renderInspector();
   } catch (error) {
     uploadQueue = reduceUploadQueue(uploadQueue, {
       type: "add",
       id: `delete_${Date.now()}`,
-      name: "Delete request",
+      name: queueName,
       sizeBytes: 0,
     });
     const latest = uploadQueue[0];
@@ -1723,19 +1777,37 @@ async function deleteFolder(folderId: string): Promise<void> {
   if (!folderId || !canWriteCurrentAccess()) return;
   const folderRecord = library.folders.find((entry) => entry.id === folderId);
   if (!folderRecord) return;
+  const scope = getFolderDeletionScope(library.folders, library.files, folderId);
+  const hasContents = scope.folderIds.length > 1 || scope.fileIds.length > 0;
+  if (hasContents && !window.confirm(folderDeleteConfirmationMessage(folderRecord.name, scope.folderIds.length, scope.fileIds.length))) return;
+  const folderIdSet = new Set(scope.folderIds);
+  const fileIdSet = new Set(scope.fileIds);
 
   if (previewMode) {
-    library = { ...library, folders: library.folders.filter((entry) => entry.id !== folderId) };
-    if (filters.folderId === folderId) {
+    const now = new Date().toISOString();
+    library = {
+      ...library,
+      folders: library.folders.filter((entry) => !folderIdSet.has(entry.id)),
+      files: markFilesDeleted(library.files, fileIdSet, now),
+    };
+    if (filters.folderId && folderIdSet.has(filters.folderId)) {
       filters = { ...filters, folderId: null, projectId: folderRecord.projectId };
+    }
+    if (selectedFileId && fileIdSet.has(selectedFileId)) {
+      selectedFileId = null;
+      selectedFileIds = new Set();
     }
     renderAll();
     return;
   }
 
   try {
-    await fetchJson<{ status: string; folderId: string }>(`/api/folders/${encodeURIComponent(folderId)}`, { method: "DELETE" });
-    if (filters.folderId === folderId) {
+    await fetchJson<{ status: string; folderId: string }>(`/api/folders/${encodeURIComponent(folderId)}`, {
+      method: "DELETE",
+      headers: hasContents ? { "content-type": "application/json" } : undefined,
+      body: hasContents ? JSON.stringify({ recursive: true }) : undefined,
+    });
+    if (filters.folderId && folderIdSet.has(filters.folderId)) {
       filters = { ...filters, folderId: null, projectId: folderRecord.projectId };
     }
     await reloadLibrary();
@@ -1752,6 +1824,13 @@ async function deleteFolder(folderId: string): Promise<void> {
     }
     renderQueue();
   }
+}
+
+function folderDeleteConfirmationMessage(folderName: string, folderCount: number, fileCount: number): string {
+  const nestedFolderCount = Math.max(0, folderCount - 1);
+  const folderLabel = nestedFolderCount === 1 ? "1 nested folder" : `${nestedFolderCount} nested folders`;
+  const fileLabel = fileCount === 1 ? "1 file" : `${fileCount} files`;
+  return `Delete "${folderName}" and all contained content? This will remove ${folderLabel} and ${fileLabel}.`;
 }
 
 async function loadActivityForSelected(): Promise<void> {
