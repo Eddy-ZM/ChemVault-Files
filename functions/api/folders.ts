@@ -15,6 +15,12 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     const name = assertNonEmptyName(body.name, "Folder name");
     if (!projectId) throw new Error("Project is required");
 
+    const existing = await db
+      .prepare("SELECT * FROM folders WHERE project_id = ? AND parent_id IS ? AND LOWER(name) = LOWER(?)")
+      .bind(projectId, parentId, name)
+      .first();
+    if (existing) return okJson({ folder: mapFolder(existing as Record<string, unknown>) });
+
     const parent = parentId
       ? await db.prepare("SELECT path FROM folders WHERE id = ?").bind(parentId).first<{ path: string }>()
       : null;

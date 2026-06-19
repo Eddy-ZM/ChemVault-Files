@@ -9,6 +9,7 @@ import {
   normalizeActorEmail,
   previewKindForFile,
   reduceUploadQueue,
+  resolveUploadFolderParts,
   resolveLibraryDisplay,
   splitUploadPath,
   sortFiles,
@@ -353,6 +354,14 @@ function bindEvents(): void {
   });
 
   document.querySelector<HTMLElement>("[data-cv-folder-tree]")?.addEventListener("click", (event) => {
+    const deleteButton = (event.target as HTMLElement).closest<HTMLElement>("[data-cv-delete-folder-id]");
+    if (deleteButton) {
+      event.preventDefault();
+      event.stopPropagation();
+      void deleteFolder(deleteButton.dataset.cvDeleteFolderId || "");
+      return;
+    }
+
     const target = (event.target as HTMLElement).closest<HTMLElement>("[data-cv-project-id], [data-cv-folder-id]");
     if (!target) return;
     event.preventDefault();
@@ -879,17 +888,29 @@ function renderProject(projectRecord: ProjectRecord): string {
 
 function renderFolderNode(projectId: string, node: ReturnType<typeof buildFolderTree>[number]): string {
   const hasChildren = node.children.length > 0;
+  const canDelete = canDeleteFolderNode(node);
   return `
     <li>
-      <a class="folder-row folder-row--child${filters.folderId === node.folder.id ? " is-active" : ""}" href="#" data-cv-project-id="${escapeAttr(projectId)}" data-cv-folder-id="${escapeAttr(node.folder.id)}" style="--folder-depth: ${node.depth}">
-        ${chevronIcon(hasChildren ? "down" : "right")}
-        ${folderIcon()}
-        <span>${escapeHtml(node.folder.name)}</span>
-        <strong>${node.totalFileCount}</strong>
-      </a>
+      <div class="folder-row-wrap${canDelete ? " folder-row-wrap--deletable" : ""}">
+        <a class="folder-row folder-row--child${filters.folderId === node.folder.id ? " is-active" : ""}" href="#" data-cv-project-id="${escapeAttr(projectId)}" data-cv-folder-id="${escapeAttr(node.folder.id)}" style="--folder-depth: ${node.depth}">
+          ${chevronIcon(hasChildren ? "down" : "right")}
+          ${folderIcon()}
+          <span>${escapeHtml(node.folder.name)}</span>
+          <strong>${node.totalFileCount}</strong>
+        </a>
+        ${
+          canDelete
+            ? `<button class="ghost-icon folder-delete-button" type="button" aria-label="Delete ${escapeAttr(node.folder.name)}" title="Delete empty folder" data-cv-delete-folder-id="${escapeAttr(node.folder.id)}">${trashIcon()}</button>`
+            : ""
+        }
+      </div>
       ${hasChildren ? `<ul>${node.children.map((child) => renderFolderNode(projectId, child)).join("")}</ul>` : ""}
     </li>
   `;
+}
+
+function canDeleteFolderNode(node: ReturnType<typeof buildFolderTree>[number]): boolean {
+  return canWriteCurrentAccess() && node.children.length === 0 && node.totalFileCount === 0;
 }
 
 function renderTagButton(tagRecord: TagRecord): string {
@@ -1576,8 +1597,9 @@ async function uploadBrowserFile(
 }
 
 async function ensureUploadFolderPath(projectId: string, folderParts: string[]): Promise<string | null> {
+  const activeFolder = filters.folderId ? library.folders.find((entry) => entry.id === filters.folderId) ?? null : null;
   let parentId = filters.folderId;
-  for (const folderName of folderParts) {
+  for (const folderName of resolveUploadFolderParts(activeFolder, folderParts)) {
     parentId = await ensureUploadFolder(projectId, parentId, folderName);
   }
   return parentId;
@@ -1687,6 +1709,41 @@ async function deleteSelectedFile(): Promise<void> {
       type: "add",
       id: `delete_${Date.now()}`,
       name: "Delete request",
+      sizeBytes: 0,
+    });
+    const latest = uploadQueue[0];
+    if (latest) {
+      uploadQueue = reduceUploadQueue(uploadQueue, { type: "fail", id: latest.id, message: errorMessage(error) });
+    }
+    renderQueue();
+  }
+}
+
+async function deleteFolder(folderId: string): Promise<void> {
+  if (!folderId || !canWriteCurrentAccess()) return;
+  const folderRecord = library.folders.find((entry) => entry.id === folderId);
+  if (!folderRecord) return;
+
+  if (previewMode) {
+    library = { ...library, folders: library.folders.filter((entry) => entry.id !== folderId) };
+    if (filters.folderId === folderId) {
+      filters = { ...filters, folderId: null, projectId: folderRecord.projectId };
+    }
+    renderAll();
+    return;
+  }
+
+  try {
+    await fetchJson<{ status: string; folderId: string }>(`/api/folders/${encodeURIComponent(folderId)}`, { method: "DELETE" });
+    if (filters.folderId === folderId) {
+      filters = { ...filters, folderId: null, projectId: folderRecord.projectId };
+    }
+    await reloadLibrary();
+  } catch (error) {
+    uploadQueue = reduceUploadQueue(uploadQueue, {
+      type: "add",
+      id: `delete_folder_${Date.now()}`,
+      name: folderRecord.name,
       sizeBytes: 0,
     });
     const latest = uploadQueue[0];
@@ -2367,4 +2424,8 @@ function starIcon(): string {
 
 function moreIcon(): string {
   return `<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 6.5h.01M12 12h.01M12 17.5h.01" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" /></svg>`;
+}
+
+function trashIcon(): string {
+  return `<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 11v6m6-6v6M5 7h14m-2 0-.8 12.2A2 2 0 0 1 14.2 21H9.8a2 2 0 0 1-2-1.8L7 7m3-3h4l1 3H9l1-3Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg>`;
 }

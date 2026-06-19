@@ -126,6 +126,16 @@ describe("roles API", () => {
     });
   });
 
+  it("returns every role to the ChemVault Super mailbox", async () => {
+    const response = await getRoles(context({ permission: "read" }, request("ziwen.mu@chemvault.science")));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      roles: [{ id: "role_super" }, { id: "role_internal", permission: "read" }, { id: "role_external" }],
+      actorAccess: { roleId: "role_super", permission: "write", canManageRoles: true },
+    });
+  });
+
   it("blocks non-manager actors and allows owner updates", async () => {
     const state = { permission: "read" };
     const denied = await patchRoles(

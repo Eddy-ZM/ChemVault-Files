@@ -161,6 +161,31 @@ export function splitUploadPath(file: UploadPathInput): UploadPathInfo {
   };
 }
 
+export function resolveUploadFolderParts(activeFolder: FolderRecord | null | undefined, folderParts: string[]): string[] {
+  const cleanedParts = folderParts.map((part) => part.trim()).filter(Boolean);
+  if (!activeFolder || cleanedParts.length === 0) return cleanedParts;
+
+  const activePathParts = activeFolder.path
+    .split("/")
+    .map((part) => part.trim())
+    .filter(Boolean);
+  const maxMatchLength = Math.min(activePathParts.length, cleanedParts.length);
+
+  for (let matchLength = maxMatchLength; matchLength > 0; matchLength -= 1) {
+    const activeSuffix = activePathParts.slice(-matchLength).map(normalizeFolderPart);
+    const uploadPrefix = cleanedParts.slice(0, matchLength).map(normalizeFolderPart);
+    if (activeSuffix.every((part, index) => part === uploadPrefix[index])) {
+      return cleanedParts.slice(matchLength);
+    }
+  }
+
+  return cleanedParts;
+}
+
+function normalizeFolderPart(value: string): string {
+  return value.trim().toLowerCase();
+}
+
 export function buildFolderTree(projectId: string, folders: FolderRecord[], files: FileRecord[]): FolderTreeNode[] {
   const projectFolders = folders
     .filter((folder) => folder.projectId === projectId)

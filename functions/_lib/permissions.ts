@@ -5,6 +5,7 @@ import { errorJson } from "./http";
 
 const PERMISSION_LEVELS = new Set<FilePermissionLevel>(["none", "read", "write"]);
 const ROLE_SCOPES = new Set<FileRoleScope>(["owner", "domain", "external"]);
+const DEFAULT_ADMIN_EMAILS = ["ziwen.mu@chemvault.science"];
 
 export function mapRolePolicy(row: Record<string, unknown>): FileRolePolicy {
   const permission = String(row.permission || "read") as FilePermissionLevel;
@@ -43,7 +44,7 @@ export function resolveActorAccessFromRoles(
   const ownerEmails = parseEmailList(ownerEmail || "owner@chemvault.science");
   const normalizedOwner = ownerEmails[0] ?? "owner@chemvault.science";
   const actorDomain = normalizedActor.split("@")[1] || "";
-  const adminEmailSet = new Set([...ownerEmails, ...parseEmailList(adminEmails)]);
+  const adminEmailSet = new Set([...ownerEmails, ...DEFAULT_ADMIN_EMAILS, ...parseEmailList(adminEmails)]);
 
   if (adminEmailSet.has(normalizedActor)) {
     const ownerRole =

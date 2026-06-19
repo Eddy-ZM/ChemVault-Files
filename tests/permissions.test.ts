@@ -68,4 +68,16 @@ describe("file role permissions", () => {
 
     expect(superUser).toMatchObject({ roleId: "role_super", permission: "write", canManageRoles: true });
   });
+
+  it("treats the ChemVault Super mailbox as a role manager without extra env wiring", () => {
+    const roles = [
+      mapRolePolicy({ ...baseRole, id: "role_super", name: "Super", scope: "owner", permission: "write" }),
+      mapRolePolicy({ ...baseRole, id: "role_internal", name: "Common_In", scope: "domain", domain: "chemvault.science", permission: "read" }),
+      mapRolePolicy({ ...baseRole, id: "role_external", name: "Common_Out", scope: "external", permission: "read" }),
+    ];
+
+    const superUser = resolveActorAccessFromRoles("ziwen.mu@chemvault.science", "owner@chemvault.science", roles);
+
+    expect(superUser).toMatchObject({ roleId: "role_super", permission: "write", canManageRoles: true });
+  });
 });

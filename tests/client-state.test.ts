@@ -8,6 +8,7 @@ import {
   normalizeActorEmail,
   previewKindForFile,
   reduceUploadQueue,
+  resolveUploadFolderParts,
   splitUploadPath,
   sortFiles,
   summarizeFiles,
@@ -207,6 +208,40 @@ describe("client state", () => {
       folderParts: [],
       relativePath: "single.csv",
     });
+  });
+
+  it("does not nest an uploaded folder under itself when that folder is already active", () => {
+    expect(
+      resolveUploadFolderParts(
+        {
+          id: "folder_screen",
+          projectId: "project_spectra",
+          parentId: null,
+          name: "Screen 042",
+          slug: "screen-042",
+          path: "/Screen 042",
+          createdAt: "2026-06-11T00:00:00.000Z",
+          updatedAt: "2026-06-11T00:00:00.000Z",
+        },
+        ["Screen 042", "raw"]
+      )
+    ).toEqual(["raw"]);
+
+    expect(
+      resolveUploadFolderParts(
+        {
+          id: "folder_raw",
+          projectId: "project_spectra",
+          parentId: "folder_screen",
+          name: "Raw",
+          slug: "raw",
+          path: "/Screen 042/Raw",
+          createdAt: "2026-06-11T00:00:00.000Z",
+          updatedAt: "2026-06-11T00:00:00.000Z",
+        },
+        ["screen 042", "raw", "images"]
+      )
+    ).toEqual(["images"]);
   });
 
   it("builds nested folder trees with descendant file counts", () => {

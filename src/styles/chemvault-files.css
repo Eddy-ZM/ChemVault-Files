@@ -483,6 +483,34 @@ input:focus-visible {
   grid-template-columns: 16px 22px minmax(0, 1fr) auto;
 }
 
+.folder-row-wrap {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 28px;
+  align-items: center;
+  gap: 2px;
+}
+
+.folder-row-wrap .folder-row {
+  min-width: 0;
+}
+
+.folder-delete-button {
+  width: 26px;
+  height: 26px;
+  color: #7b8494;
+  opacity: 0;
+}
+
+.folder-row-wrap--deletable:hover .folder-delete-button,
+.folder-delete-button:focus-visible {
+  opacity: 1;
+}
+
+.folder-delete-button:hover {
+  color: #c5162e;
+  background: #fff0f2;
+}
+
 .folder-row span,
 .nav-row span {
   overflow: hidden;
