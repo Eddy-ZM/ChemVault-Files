@@ -1164,6 +1164,8 @@ function renderInspector(): void {
 }
 
 function updateInspectorTabs(): void {
+  document.querySelector<HTMLElement>("[data-cv-shell]")?.setAttribute("data-cv-inspector-mode", inspectorTab);
+  document.querySelector<HTMLElement>("[data-cv-inspector]")?.setAttribute("data-cv-inspector-mode", inspectorTab);
   document.querySelectorAll<HTMLElement>("[data-cv-inspector-tab]").forEach((button) => {
     const isActive = button.dataset.cvInspectorTab === inspectorTab;
     button.classList.toggle("is-active", isActive);
