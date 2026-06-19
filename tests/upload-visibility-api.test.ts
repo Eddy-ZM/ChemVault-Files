@@ -30,11 +30,23 @@ class UploadStatement {
   }
 
   async run(): Promise<{ success: true }> {
+    if (this.sql.includes("ALTER TABLE files ADD COLUMN visibility")) {
+      this.state.hasVisibilityColumn = true;
+    }
+    if (this.sql.includes("CREATE TABLE IF NOT EXISTS file_role_access")) {
+      this.state.hasFileRoleAccessTable = true;
+    }
     if (this.sql.includes("INSERT INTO files")) {
+      if (this.sql.includes("visibility") && this.state.hasVisibilityColumn === false) {
+        throw new Error("D1_ERROR: table files has no column named visibility: SQLITE_ERROR");
+      }
       this.state.fileId = String(this.args[0]);
       this.state.fileArgs = this.args;
     }
-    if (this.sql.includes("file_role_access")) {
+    if (this.sql.includes("INSERT") && this.sql.includes("file_role_access")) {
+      if (this.state.hasFileRoleAccessTable === false) {
+        throw new Error("D1_ERROR: no such table: file_role_access: SQLITE_ERROR");
+      }
       this.state.roleAccess.push([String(this.args[0]), String(this.args[1])]);
     }
     return { success: true };
@@ -53,6 +65,8 @@ interface UploadState {
   fileId: string | null;
   fileArgs: unknown[];
   roleAccess: string[][];
+  hasVisibilityColumn?: boolean;
+  hasFileRoleAccessTable?: boolean;
 }
 
 function role(id: string, name: string, scope: string, domain: string | null, permission: string) {
@@ -123,5 +137,30 @@ describe("upload visibility API", () => {
     const payload = (await response.json()) as { file: { visibility: string; roleIds: string[] } };
     expect(payload.file).toMatchObject({ visibility: "roles", roleIds: ["role_internal"] });
     expect(state.roleAccess).toEqual([[state.fileId, "role_internal"]]);
+  });
+
+  it("repairs legacy visibility schema before creating an upload", async () => {
+    const state: UploadState = {
+      fileId: null,
+      fileArgs: [],
+      roleAccess: [],
+      hasVisibilityColumn: false,
+      hasFileRoleAccessTable: false,
+    };
+    const response = await initUpload({
+      request: request("owner@chemvault.science"),
+      env: {
+        FILES_DB: new UploadD1(state),
+        PRIVATE_OWNER_EMAIL: "owner@chemvault.science",
+      },
+    } as unknown as Parameters<typeof initUpload>[0]);
+
+    expect(response.status).toBe(201);
+    expect(state.hasVisibilityColumn).toBe(true);
+    expect(state.hasFileRoleAccessTable).toBe(true);
+    expect(state.roleAccess).toEqual([
+      [state.fileId, "role_internal"],
+      [state.fileId, "role_external"],
+    ]);
   });
 });

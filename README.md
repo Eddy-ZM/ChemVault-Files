@@ -90,9 +90,10 @@ Preview, download, share creation, share access, and shared downloads are writte
 2. Set the output directory to `dist`.
 3. Bind `FILES_BUCKET` to the `chemvault-files` R2 bucket.
 4. Bind `FILES_DB` to the `chemvault-files` D1 database.
-5. Set `PRIVATE_OWNER_EMAIL` to the owner email.
-6. Apply D1 migrations before first upload.
-7. Keep Cloudflare Access enabled for the main app; public share API routes still validate opaque share tokens before reading R2 objects.
+5. Set `PRIVATE_OWNER_EMAIL` to the primary owner email.
+6. Set `FILES_ADMIN_EMAILS` to every Super administrator email that should manage file roles, separated by commas.
+7. Apply D1 migrations before first upload. The upload API also repairs the file visibility columns and role-access table if an older D1 schema is missing them.
+8. Keep Cloudflare Access enabled for the main app; public share API routes still validate opaque share tokens before reading R2 objects.
 
 ## Scripts
 

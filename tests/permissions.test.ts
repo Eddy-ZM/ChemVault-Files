@@ -51,4 +51,21 @@ describe("file role permissions", () => {
 
     expect(superUser).toMatchObject({ roleId: "role_research_super", permission: "write", canManageRoles: true });
   });
+
+  it("treats configured admin emails as Super role managers", () => {
+    const roles = [
+      mapRolePolicy({ ...baseRole, id: "role_super", name: "Super", scope: "owner", permission: "write" }),
+      mapRolePolicy({ ...baseRole, id: "role_internal", name: "Common_In", scope: "domain", domain: "chemvault.science", permission: "read" }),
+      mapRolePolicy({ ...baseRole, id: "role_external", name: "Common_Out", scope: "external", permission: "read" }),
+    ];
+
+    const superUser = resolveActorAccessFromRoles(
+      "ziwen@chemvault.science",
+      "owner@chemvault.science",
+      roles,
+      "ziwen@chemvault.science, teammate@chemvault.science"
+    );
+
+    expect(superUser).toMatchObject({ roleId: "role_super", permission: "write", canManageRoles: true });
+  });
 });

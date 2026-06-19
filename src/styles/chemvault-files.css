@@ -781,6 +781,10 @@ input:focus-visible {
   margin-top: 16px;
 }
 
+.upload-picker-grid--single {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .upload-choice {
   display: grid;
   gap: 4px;
@@ -790,6 +794,12 @@ input:focus-visible {
   border-radius: var(--radius);
   background: #fbfcfd;
   cursor: pointer;
+}
+
+.upload-choice--unified {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  cursor: default;
 }
 
 .upload-choice:hover {
@@ -807,6 +817,31 @@ input:focus-visible {
   color: #66707d;
   font-size: 12px;
   line-height: 1.35;
+}
+
+.upload-choice__actions {
+  display: inline-flex;
+  gap: 8px;
+  grid-row: 1 / span 2;
+  grid-column: 2;
+}
+
+.upload-choice__actions button {
+  min-width: 72px;
+  min-height: 34px;
+  border: 1px solid #bfd4f2;
+  border-radius: var(--radius);
+  background: #eef6ff;
+  color: var(--blue);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.upload-choice__actions button:hover {
+  border-color: rgba(0, 113, 227, 0.46);
+  background: #e4f1ff;
 }
 
 .upload-modal .upload-dropzone {

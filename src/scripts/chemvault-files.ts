@@ -87,6 +87,27 @@ interface RoleSettingsState {
   message: string | null;
 }
 
+interface BrowserUploadSelection {
+  file: File;
+  relativePath?: string;
+}
+
+interface BrowserFileEntry {
+  isFile: boolean;
+  isDirectory: boolean;
+  name: string;
+}
+
+interface BrowserFileSystemFileEntry extends BrowserFileEntry {
+  file: (success: (file: File) => void, error?: (error: DOMException) => void) => void;
+}
+
+interface BrowserFileSystemDirectoryEntry extends BrowserFileEntry {
+  createReader: () => {
+    readEntries: (success: (entries: BrowserFileEntry[]) => void, error?: (error: DOMException) => void) => void;
+  };
+}
+
 const seedProjects = [
   project("project_dossiers", "Dossiers", "dossiers", 10),
   project("project_methods", "Methods", "methods", 20),
@@ -284,7 +305,9 @@ function bindEvents(): void {
     folderInput.setAttribute("webkitdirectory", "");
     folderInput.setAttribute("directory", "");
   }
-  document.querySelector<HTMLButtonElement>("[data-cv-upload-button]")?.addEventListener("click", openUploadModal);
+  document.querySelector<HTMLButtonElement>("[data-cv-upload-button]")?.addEventListener("click", () => openUploadModal({ reset: true }));
+  document.querySelector<HTMLButtonElement>("[data-cv-file-picker]")?.addEventListener("click", () => fileInput?.click());
+  document.querySelector<HTMLButtonElement>("[data-cv-folder-picker]")?.addEventListener("click", () => folderInput?.click());
   document.querySelector<HTMLElement>("[data-cv-upload-modal]")?.addEventListener("change", (event) => {
     const target = event.target as HTMLInputElement | null;
     if (!target) return;
@@ -318,7 +341,7 @@ function bindEvents(): void {
   dropzone?.addEventListener("drop", (event) => {
     event.preventDefault();
     dropzone.classList.remove("is-dragover");
-    void handleFiles(event.dataTransfer?.files ?? null);
+    void handleDroppedUploads(event.dataTransfer);
   });
 
   document.querySelector<HTMLElement>("[data-cv-sidebar]")?.addEventListener("click", (event) => {
@@ -1391,18 +1414,62 @@ function activityEventLabel(eventType: FileActivityRecord["eventType"]): string 
   }
 }
 
-async function handleFiles(fileList: FileList | null): Promise<void> {
+async function handleDroppedUploads(dataTransfer: DataTransfer | null): Promise<void> {
+  const selections = await uploadSelectionsFromDataTransfer(dataTransfer);
+  await handleFiles(selections.length ? selections : dataTransfer?.files ?? null);
+}
+
+async function uploadSelectionsFromDataTransfer(dataTransfer: DataTransfer | null): Promise<BrowserUploadSelection[]> {
+  if (!dataTransfer?.items?.length) return [];
+  const selections = await Promise.all(
+    Array.from(dataTransfer.items).map((item) => {
+      const entry = typeof item.webkitGetAsEntry === "function" ? (item.webkitGetAsEntry() as unknown as BrowserFileEntry | null) : null;
+      return entry ? uploadSelectionsFromEntry(entry, "") : Promise.resolve([]);
+    })
+  );
+  return selections.flat();
+}
+
+async function uploadSelectionsFromEntry(entry: BrowserFileEntry, prefix: string): Promise<BrowserUploadSelection[]> {
+  if (entry.isFile) {
+    const file = await readFileEntry(entry as BrowserFileSystemFileEntry);
+    return [{ file, relativePath: `${prefix}${file.name}` }];
+  }
+
+  if (!entry.isDirectory) return [];
+  const directory = entry as BrowserFileSystemDirectoryEntry;
+  const entries = await readAllDirectoryEntries(directory);
+  const childSelections = await Promise.all(entries.map((child) => uploadSelectionsFromEntry(child, `${prefix}${directory.name}/`)));
+  return childSelections.flat();
+}
+
+function readFileEntry(entry: BrowserFileSystemFileEntry): Promise<File> {
+  return new Promise((resolve, reject) => entry.file(resolve, reject));
+}
+
+async function readAllDirectoryEntries(directory: BrowserFileSystemDirectoryEntry): Promise<BrowserFileEntry[]> {
+  const reader = directory.createReader();
+  const entries: BrowserFileEntry[] = [];
+
+  while (true) {
+    const batch = await new Promise<BrowserFileEntry[]>((resolve, reject) => reader.readEntries(resolve, reject));
+    if (batch.length === 0) return entries;
+    entries.push(...batch);
+  }
+}
+
+async function handleFiles(fileList: FileList | BrowserUploadSelection[] | null): Promise<void> {
   if (!canWriteCurrentAccess()) {
-    openUploadModal();
+    openUploadModal({ reset: false });
     const queueId = `local_${Date.now()}_${Math.random().toString(16).slice(2)}`;
     uploadQueue = reduceUploadQueue(uploadQueue, { type: "add", id: queueId, name: "Upload request", sizeBytes: 0 });
     uploadQueue = reduceUploadQueue(uploadQueue, { type: "fail", id: queueId, message: "Current role does not allow uploads" });
     renderQueue();
     return;
   }
-  const files = Array.from(fileList ?? []);
+  const files = normalizeUploadSelections(fileList);
   if (files.length === 0) return;
-  openUploadModal();
+  openUploadModal({ reset: false });
   const activeProjectId = filters.projectId || library.projects[0]?.id;
   if (!activeProjectId) {
     const queueId = `local_${Date.now()}_${Math.random().toString(16).slice(2)}`;
@@ -1412,8 +1479,9 @@ async function handleFiles(fileList: FileList | null): Promise<void> {
     return;
   }
 
-  for (const browserFile of files) {
-    const pathInfo = splitUploadPath(browserFile);
+  for (const selection of files) {
+    const browserFile = selection.file;
+    const pathInfo = splitUploadPath({ name: browserFile.name, webkitRelativePath: browserFile.webkitRelativePath, relativePath: selection.relativePath });
     const folderId = await ensureUploadFolderPath(activeProjectId, pathInfo.folderParts);
     await uploadBrowserFile(browserFile, {
       displayName: pathInfo.name,
@@ -1422,6 +1490,12 @@ async function handleFiles(fileList: FileList | null): Promise<void> {
       pathInfo,
     });
   }
+}
+
+function normalizeUploadSelections(fileList: FileList | BrowserUploadSelection[] | null): BrowserUploadSelection[] {
+  if (!fileList) return [];
+  if (Array.isArray(fileList)) return fileList;
+  return Array.from(fileList).map((file) => ({ file }));
 }
 
 async function uploadBrowserFile(
@@ -2176,14 +2250,24 @@ function closeRoleModal(): void {
   if (modal) modal.hidden = true;
 }
 
-function openUploadModal(): void {
+function openUploadModal(options: { reset?: boolean } = {}): void {
   const modal = document.querySelector<HTMLElement>("[data-cv-upload-modal]");
   if (!modal) return;
+  if (options.reset) resetUploadModalState(modal);
   renderQueue();
   renderUploadAccessControls();
   void loadRoleSettings();
   modal.hidden = false;
-  modal.querySelector<HTMLInputElement>("[data-cv-file-input]")?.focus();
+  modal.querySelector<HTMLButtonElement>("[data-cv-file-picker]")?.focus();
+}
+
+function resetUploadModalState(modal: HTMLElement): void {
+  uploadQueue = reduceUploadQueue(uploadQueue, { type: "clear" });
+  uploadVisibility = "public";
+  uploadRoleIds = new Set(selectableUploadRolePolicies().map((role) => role.id));
+  modal.querySelectorAll<HTMLInputElement>("[data-cv-file-input], [data-cv-folder-input]").forEach((input) => {
+    input.value = "";
+  });
 }
 
 function closeUploadModal(): void {

@@ -3,12 +3,14 @@ import { requireDb } from "../_lib/db";
 import { listRolePolicies, resolveActorAccess } from "../_lib/permissions";
 import { errorJson, okJson, parseJsonBody, routeError } from "../_lib/http";
 import type { FilePermissionLevel } from "../../src/lib/chemvault-files/types";
+import { ensureFileAccessSchema } from "../_lib/schema";
 
 const VALID_PERMISSIONS = new Set<FilePermissionLevel>(["none", "read", "write"]);
 
 export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
   try {
     const db = requireDb(env.FILES_DB);
+    await ensureFileAccessSchema(db, env);
     const roles = await listRolePolicies(db, env);
     const actorAccess = await resolveActorAccess(request, env, db);
     const visibleRoles = actorAccess.canManageRoles ? roles : roles.filter((role) => role.id === actorAccess.roleId);
@@ -21,6 +23,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env }) => {
 export const onRequestPatch: PagesFunction<Env> = async ({ request, env }) => {
   try {
     const db = requireDb(env.FILES_DB);
+    await ensureFileAccessSchema(db, env);
     const actorAccess = await resolveActorAccess(request, env, db);
     if (!actorAccess.canManageRoles) return errorJson("Only role administrators can update file roles.", 403, "FILES_PERMISSION_DENIED");
 

@@ -2,6 +2,7 @@ export interface Env {
   FILES_DB?: D1Database;
   FILES_BUCKET?: R2Bucket;
   PRIVATE_OWNER_EMAIL?: string;
+  FILES_ADMIN_EMAILS?: string;
   ENVIRONMENT?: string;
 }
 

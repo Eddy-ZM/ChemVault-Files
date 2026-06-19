@@ -33,13 +33,23 @@ export async function listRolePolicies(db: D1Database, env: Env): Promise<FileRo
   }
 }
 
-export function resolveActorAccessFromRoles(actorEmail: string, ownerEmail: string | undefined, roles: FileRolePolicy[]): ActorAccess {
+export function resolveActorAccessFromRoles(
+  actorEmail: string,
+  ownerEmail: string | undefined,
+  roles: FileRolePolicy[],
+  adminEmails?: string
+): ActorAccess {
   const normalizedActor = normalizeEmail(actorEmail);
-  const normalizedOwner = normalizeEmail(ownerEmail || "owner@chemvault.science");
+  const ownerEmails = parseEmailList(ownerEmail || "owner@chemvault.science");
+  const normalizedOwner = ownerEmails[0] ?? "owner@chemvault.science";
   const actorDomain = normalizedActor.split("@")[1] || "";
+  const adminEmailSet = new Set([...ownerEmails, ...parseEmailList(adminEmails)]);
 
-  if (normalizedActor === normalizedOwner) {
-    const ownerRole = roles.find((role) => role.scope === "owner") ?? defaultRolePolicies({ PRIVATE_OWNER_EMAIL: normalizedOwner })[0];
+  if (adminEmailSet.has(normalizedActor)) {
+    const ownerRole =
+      roles.find((role) => role.scope === "owner") ??
+      roles.find((role) => roleCanManageRoles(role)) ??
+      defaultRolePolicies({ PRIVATE_OWNER_EMAIL: normalizedOwner })[0];
     return {
       actorEmail,
       roleId: ownerRole.id,
@@ -75,7 +85,7 @@ export function resolveActorAccessFromRoles(actorEmail: string, ownerEmail: stri
 
 export async function resolveActorAccess(request: Request, env: Env, db: D1Database): Promise<ActorAccess> {
   const actorEmail = getActorEmail(request, env);
-  return resolveActorAccessFromRoles(actorEmail, env.PRIVATE_OWNER_EMAIL, await listRolePolicies(db, env));
+  return resolveActorAccessFromRoles(actorEmail, env.PRIVATE_OWNER_EMAIL, await listRolePolicies(db, env), env.FILES_ADMIN_EMAILS);
 }
 
 export function canReadFiles(access: Pick<ActorAccess, "permission">): boolean {
@@ -134,6 +144,13 @@ function roleCanManageRoles(role: FileRolePolicy): boolean {
   const normalizedId = role.id.trim().toLowerCase();
   const normalizedName = role.name.trim().toLowerCase();
   return role.scope === "owner" || normalizedId === "role_super" || normalizedName === "super";
+}
+
+function parseEmailList(value: string | undefined): string[] {
+  return String(value || "")
+    .split(/[\s,;]+/)
+    .map((email) => normalizeEmail(email))
+    .filter((email) => email.includes("@"));
 }
 
 function normalizeEmail(value: string): string {

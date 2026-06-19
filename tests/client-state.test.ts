@@ -176,6 +176,11 @@ describe("client state", () => {
     expect(progressed[0]).toMatchObject({ progress: 60, status: "uploading" });
   });
 
+  it("clears upload queue state for a new upload session", () => {
+    const queue = reduceUploadQueue([], { type: "add", id: "local_1", name: "raw.zip", sizeBytes: 100 });
+    expect(reduceUploadQueue(queue, { type: "clear" })).toEqual([]);
+  });
+
   it("classifies selected files for inspector previews", () => {
     expect(previewKindForFile({ ...file, mimeType: "application/pdf", displayName: "report.pdf" })).toBe("pdf");
     expect(previewKindForFile({ ...file, mimeType: "image/jpeg", displayName: "structure.jpg" })).toBe("image");

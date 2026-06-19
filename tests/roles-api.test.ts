@@ -60,12 +60,13 @@ function role(id: string, name: string, scope: string, domain: string | null, pe
   };
 }
 
-function context(state: RoleState, request: Request) {
+function context(state: RoleState, request: Request, envOverrides: Record<string, unknown> = {}) {
   return {
     request,
     env: {
       FILES_DB: new FakeD1(state),
       PRIVATE_OWNER_EMAIL: "owner@chemvault.science",
+      ...envOverrides,
     },
   } as unknown as Parameters<typeof getRoles>[0];
 }
@@ -110,6 +111,18 @@ describe("roles API", () => {
     await expect(response.json()).resolves.toMatchObject({
       roles: [{ id: "role_super" }, { id: "role_research_super", permission: "read" }, { id: "role_external" }],
       actorAccess: { roleId: "role_research_super", permission: "write", canManageRoles: true },
+    });
+  });
+
+  it("returns every role to a configured admin email", async () => {
+    const response = await getRoles(
+      context({ permission: "read" }, request("ziwen@chemvault.science"), { FILES_ADMIN_EMAILS: "ziwen@chemvault.science" })
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      roles: [{ id: "role_super" }, { id: "role_internal", permission: "read" }, { id: "role_external" }],
+      actorAccess: { roleId: "role_super", permission: "write", canManageRoles: true },
     });
   });
 

@@ -115,17 +115,17 @@ import Inspector from "./Inspector.astro";
       <h2 id="upload-title" data-cv-upload-title>Upload Queue</h2>
       <p>Upload files or complete folders. Folder structure is added to the sidebar while uploads are prepared.</p>
 
-      <div class="upload-picker-grid" aria-label="Upload source">
-        <label class="upload-choice">
+      <div class="upload-picker-grid upload-picker-grid--single" aria-label="Upload source">
+        <div class="upload-choice upload-choice--unified">
           <input class="sr-only" type="file" multiple data-cv-file-input />
-          <span>Choose files</span>
-          <small>Upload selected files into the active folder.</small>
-        </label>
-        <label class="upload-choice">
           <input class="sr-only" type="file" multiple data-cv-folder-input />
-          <span>Choose folder</span>
-          <small>Preserve the selected folder tree.</small>
-        </label>
+          <span>Choose files or folder</span>
+          <small>Files use the active folder; folders keep their tree automatically.</small>
+          <div class="upload-choice__actions">
+            <button type="button" data-cv-file-picker>Files</button>
+            <button type="button" data-cv-folder-picker>Folder</button>
+          </div>
+        </div>
       </div>
 
       <section class="upload-access" aria-label="Upload file access" data-cv-upload-access>
@@ -140,7 +140,7 @@ import Inspector from "./Inspector.astro";
           </svg>
         </span>
         <span>
-          <strong>Drop files to upload</strong>
+          <strong>Drop files or folders to upload</strong>
           <small>R2-backed queue accepts spectra, datasets, dossiers, and manuscripts.</small>
         </span>
         <span class="upload-dropzone__action">Drop here</span>

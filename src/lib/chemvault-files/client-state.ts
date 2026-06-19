@@ -41,6 +41,7 @@ export interface UploadQueueItem {
 
 export interface UploadPathInput {
   name: string;
+  relativePath?: string;
   webkitRelativePath?: string;
 }
 
@@ -63,6 +64,7 @@ export type UploadQueueAction =
   | { type: "progress"; id: string; loadedBytes: number }
   | { type: "complete"; id: string; message?: string }
   | { type: "fail"; id: string; message: string }
+  | { type: "clear" }
   | { type: "clear-complete" };
 
 interface LibraryDisplayInput {
@@ -146,7 +148,7 @@ export function accessLogoutUrl(currentUrl: string): string {
 }
 
 export function splitUploadPath(file: UploadPathInput): UploadPathInfo {
-  const rawPath = file.webkitRelativePath?.trim() || file.name;
+  const rawPath = file.relativePath?.trim() || file.webkitRelativePath?.trim() || file.name;
   const parts = rawPath
     .split("/")
     .map((part) => part.trim())
@@ -288,6 +290,8 @@ export function reduceUploadQueue(queue: UploadQueueItem[], action: UploadQueueA
       );
     case "fail":
       return queue.map((item) => (item.id === action.id ? { ...item, status: "failed", message: action.message } : item));
+    case "clear":
+      return [];
     case "clear-complete":
       return queue.filter((item) => item.status !== "complete");
   }
