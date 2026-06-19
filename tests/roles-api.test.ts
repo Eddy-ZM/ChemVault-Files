@@ -5,6 +5,7 @@ interface RoleState {
   permission: string;
   internalRoleId?: string;
   internalRoleName?: string;
+  extraRoles?: ReturnType<typeof role>[];
 }
 
 class FakeStatement {
@@ -23,6 +24,7 @@ class FakeStatement {
         results: [
           role("role_super", "Super", "owner", null, "write"),
           role(this.state.internalRoleId ?? "role_internal", this.state.internalRoleName ?? "Common_In", "domain", "chemvault.science", this.state.permission),
+          ...(this.state.extraRoles ?? []),
           role("role_external", "Common_Out", "external", null, "read"),
         ],
       };
@@ -110,6 +112,24 @@ describe("roles API", () => {
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({
       roles: [{ id: "role_super" }, { id: "role_research_super", permission: "read" }, { id: "role_external" }],
+      actorAccess: { roleId: "role_research_super", permission: "write", canManageRoles: true },
+    });
+  });
+
+  it("returns every role to a custom Super role even when Common_In is listed first", async () => {
+    const response = await getRoles(
+      context(
+        {
+          permission: "read",
+          extraRoles: [role("role_research_super", "Super", "domain", "chemvault.science", "read")],
+        },
+        request("research-super@chemvault.science")
+      )
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      roles: [{ id: "role_super" }, { id: "role_internal", permission: "read" }, { id: "role_research_super", permission: "read" }, { id: "role_external" }],
       actorAccess: { roleId: "role_research_super", permission: "write", canManageRoles: true },
     });
   });

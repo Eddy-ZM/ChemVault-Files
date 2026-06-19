@@ -52,6 +52,32 @@ describe("file role permissions", () => {
     expect(superUser).toMatchObject({ roleId: "role_research_super", permission: "write", canManageRoles: true });
   });
 
+  it("prefers a same-domain Super role over an ordinary same-domain role", () => {
+    const roles = [
+      mapRolePolicy({ ...baseRole, id: "role_super", name: "Super", scope: "owner", permission: "write" }),
+      mapRolePolicy({ ...baseRole, id: "role_internal", name: "Common_In", scope: "domain", domain: "chemvault.science", permission: "read" }),
+      mapRolePolicy({ ...baseRole, id: "role_research_super", name: "Super", scope: "domain", domain: "chemvault.science", permission: "read" }),
+      mapRolePolicy({ ...baseRole, id: "role_external", name: "Common_Out", scope: "external", permission: "read" }),
+    ];
+
+    const superUser = resolveActorAccessFromRoles("research-super@chemvault.science", "owner@chemvault.science", roles);
+
+    expect(superUser).toMatchObject({ roleId: "role_research_super", permission: "write", canManageRoles: true });
+  });
+
+  it("keeps unrelated same-domain users on the ordinary role when another Super role exists", () => {
+    const roles = [
+      mapRolePolicy({ ...baseRole, id: "role_super", name: "Super", scope: "owner", permission: "write" }),
+      mapRolePolicy({ ...baseRole, id: "role_internal", name: "Common_In", scope: "domain", domain: "chemvault.science", permission: "read" }),
+      mapRolePolicy({ ...baseRole, id: "role_research_super", name: "Super", scope: "domain", domain: "chemvault.science", permission: "read" }),
+      mapRolePolicy({ ...baseRole, id: "role_external", name: "Common_Out", scope: "external", permission: "read" }),
+    ];
+
+    const internalUser = resolveActorAccessFromRoles("scientist@chemvault.science", "owner@chemvault.science", roles);
+
+    expect(internalUser).toMatchObject({ roleId: "role_internal", permission: "read", canManageRoles: false });
+  });
+
   it("treats configured admin emails as Super role managers", () => {
     const roles = [
       mapRolePolicy({ ...baseRole, id: "role_super", name: "Super", scope: "owner", permission: "write" }),

@@ -60,7 +60,9 @@ export function resolveActorAccessFromRoles(
     };
   }
 
-  const domainRole = roles.find((role) => role.scope === "domain" && role.domain === actorDomain);
+  const domainRoles = roles.filter((role) => role.scope === "domain" && role.domain === actorDomain);
+  const matchedManagerRole = domainRoles.find((role) => roleCanManageRoles(role) && roleMatchesActorEmail(role, normalizedActor));
+  const domainRole = matchedManagerRole ?? domainRoles.find((role) => !roleCanManageRoles(role)) ?? domainRoles[0];
   if (domainRole) {
     const canManageRoles = roleCanManageRoles(domainRole);
     return {
@@ -145,6 +147,18 @@ function roleCanManageRoles(role: FileRolePolicy): boolean {
   const normalizedId = role.id.trim().toLowerCase();
   const normalizedName = role.name.trim().toLowerCase();
   return role.scope === "owner" || normalizedId === "role_super" || normalizedName === "super";
+}
+
+function roleMatchesActorEmail(role: FileRolePolicy, normalizedActorEmail: string): boolean {
+  const actorToken = normalizeRoleMatchToken(normalizedActorEmail.split("@")[0] || "");
+  if (!actorToken) return false;
+  const roleIdToken = normalizeRoleMatchToken(role.id.replace(/^role[_-]?/i, ""));
+  const roleNameToken = normalizeRoleMatchToken(role.name);
+  return roleIdToken === actorToken || roleNameToken === actorToken;
+}
+
+function normalizeRoleMatchToken(value: string): string {
+  return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "");
 }
 
 function parseEmailList(value: string | undefined): string[] {
