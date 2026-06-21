@@ -12,6 +12,8 @@ describe("interface motion state", () => {
     expect(nextModalMotionState("opening", "opened")).toBe("open");
     expect(nextModalMotionState("open", "close")).toBe("closing");
     expect(nextModalMotionState("closing", "closed")).toBe("closed");
+    expect(nextModalMotionState("closing", "open")).toBe("opening");
+    expect(nextModalMotionState("opening", "closed")).toBe("opening");
   });
 
   it("does not delay a modal close when reduced motion is requested", () => {
