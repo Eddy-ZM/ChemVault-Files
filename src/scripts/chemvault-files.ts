@@ -22,6 +22,11 @@ import {
   type UploadPathInfo,
   type UploadQueueItem,
 } from "../lib/chemvault-files/client-state";
+import {
+  closeDelayForMotion,
+  nextModalMotionState,
+  type ModalMotionState,
+} from "../lib/chemvault-files/motion";
 import type {
   ActorAccess,
   FileActivityRecord,
@@ -298,6 +303,7 @@ function bindEvents(): void {
     }
     if (event.key === "Escape" && !target?.closest("[data-cv-search-input]")) {
       closeAuthModal();
+      closeRoleModal();
       closeUploadModal();
     }
   });
@@ -2361,17 +2367,71 @@ function applyLocalReviewTag(): void {
   renderAll();
 }
 
+const modalCloseTimers = new WeakMap<HTMLElement, number>();
+
+function prefersReducedMotion(): boolean {
+  return window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+}
+
+function modalState(modal: HTMLElement): ModalMotionState {
+  const value = modal.dataset.cvModalState;
+  return value === "opening" || value === "open" || value === "closing" ? value : "closed";
+}
+
+function openModal(modal: HTMLElement, focusSelector: string): void {
+  const timer = modalCloseTimers.get(modal);
+  if (timer !== undefined) window.clearTimeout(timer);
+  modalCloseTimers.delete(modal);
+
+  const current = modalState(modal);
+  if (current === "open" || current === "opening") return;
+
+  modal.dataset.cvModalState = nextModalMotionState(current, "open");
+  modal.hidden = false;
+  requestAnimationFrame(() => {
+    if (modalState(modal) === "opening") {
+      modal.dataset.cvModalState = nextModalMotionState("opening", "opened");
+    }
+    modal.querySelector<HTMLElement>(focusSelector)?.focus();
+  });
+}
+
+function closeModal(modal: HTMLElement): void {
+  const current = modalState(modal);
+  const next = nextModalMotionState(current, "close");
+  if (next === current) return;
+
+  modal.dataset.cvModalState = next;
+  const finish = () => {
+    const timer = modalCloseTimers.get(modal);
+    if (timer !== undefined) window.clearTimeout(timer);
+    modalCloseTimers.delete(modal);
+    modal.hidden = true;
+    modal.dataset.cvModalState = nextModalMotionState("closing", "closed");
+  };
+
+  const delay = closeDelayForMotion(prefersReducedMotion());
+  if (delay === 0) {
+    finish();
+    return;
+  }
+
+  modal.addEventListener("transitionend", (event) => {
+    if (event.target === modal && event.propertyName === "opacity") finish();
+  }, { once: true });
+  modalCloseTimers.set(modal, window.setTimeout(finish, delay + 80));
+}
+
 function openAuthModal(): void {
   const modal = document.querySelector<HTMLElement>("[data-cv-auth-modal]");
   if (!modal) return;
   renderAccountIdentity();
-  modal.hidden = false;
-  modal.querySelector<HTMLInputElement>("[data-cv-auth-email]")?.focus();
+  openModal(modal, "[data-cv-auth-email]");
 }
 
 function closeAuthModal(): void {
   const modal = document.querySelector<HTMLElement>("[data-cv-auth-modal]");
-  if (modal) modal.hidden = true;
+  if (modal) closeModal(modal);
 }
 
 function openRoleModal(): void {
@@ -2379,13 +2439,12 @@ function openRoleModal(): void {
   if (!modal) return;
   renderAccountIdentity();
   void loadRoleSettings();
-  modal.hidden = false;
-  (modal.querySelector("[data-cv-role-permission]:not(:disabled)") as HTMLSelectElement | null)?.focus();
+  openModal(modal, "[data-cv-role-permission]:not(:disabled)");
 }
 
 function closeRoleModal(): void {
   const modal = document.querySelector<HTMLElement>("[data-cv-role-modal]");
-  if (modal) modal.hidden = true;
+  if (modal) closeModal(modal);
 }
 
 function openUploadModal(options: { reset?: boolean } = {}): void {
@@ -2395,8 +2454,7 @@ function openUploadModal(options: { reset?: boolean } = {}): void {
   renderQueue();
   renderUploadAccessControls();
   void loadRoleSettings();
-  modal.hidden = false;
-  modal.querySelector<HTMLButtonElement>("[data-cv-file-picker]")?.focus();
+  openModal(modal, "[data-cv-file-picker]");
 }
 
 function resetUploadModalState(modal: HTMLElement): void {
@@ -2410,7 +2468,7 @@ function resetUploadModalState(modal: HTMLElement): void {
 
 function closeUploadModal(): void {
   const modal = document.querySelector<HTMLElement>("[data-cv-upload-modal]");
-  if (modal) modal.hidden = true;
+  if (modal) closeModal(modal);
 }
 
 function formatDate(value: string): string {
