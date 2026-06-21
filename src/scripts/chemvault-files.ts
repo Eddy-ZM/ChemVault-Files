@@ -2368,6 +2368,19 @@ function applyLocalReviewTag(): void {
 }
 
 const modalCloseTimers = new WeakMap<HTMLElement, number>();
+const modalCloseListeners = new WeakMap<HTMLElement, (event: TransitionEvent) => void>();
+const modalCloseTokens = new WeakMap<HTMLElement, symbol>();
+
+function clearModalClose(modal: HTMLElement): void {
+  const timer = modalCloseTimers.get(modal);
+  if (timer !== undefined) window.clearTimeout(timer);
+  modalCloseTimers.delete(modal);
+
+  const listener = modalCloseListeners.get(modal);
+  if (listener) modal.removeEventListener("transitionend", listener);
+  modalCloseListeners.delete(modal);
+  modalCloseTokens.delete(modal);
+}
 
 function prefersReducedMotion(): boolean {
   return window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
@@ -2379,9 +2392,7 @@ function modalState(modal: HTMLElement): ModalMotionState {
 }
 
 function openModal(modal: HTMLElement, focusSelector: string): void {
-  const timer = modalCloseTimers.get(modal);
-  if (timer !== undefined) window.clearTimeout(timer);
-  modalCloseTimers.delete(modal);
+  clearModalClose(modal);
 
   const current = modalState(modal);
   if (current === "open" || current === "opening") return;
@@ -2402,10 +2413,11 @@ function closeModal(modal: HTMLElement): void {
   if (next === current) return;
 
   modal.dataset.cvModalState = next;
+  const closeToken = Symbol();
+  modalCloseTokens.set(modal, closeToken);
   const finish = () => {
-    const timer = modalCloseTimers.get(modal);
-    if (timer !== undefined) window.clearTimeout(timer);
-    modalCloseTimers.delete(modal);
+    if (modalCloseTokens.get(modal) !== closeToken || modalState(modal) !== "closing") return;
+    clearModalClose(modal);
     modal.hidden = true;
     modal.dataset.cvModalState = nextModalMotionState("closing", "closed");
   };
@@ -2416,9 +2428,11 @@ function closeModal(modal: HTMLElement): void {
     return;
   }
 
-  modal.addEventListener("transitionend", (event) => {
+  const onTransitionEnd = (event: TransitionEvent) => {
     if (event.target === modal && event.propertyName === "opacity") finish();
-  }, { once: true });
+  };
+  modalCloseListeners.set(modal, onTransitionEnd);
+  modal.addEventListener("transitionend", onTransitionEnd);
   modalCloseTimers.set(modal, window.setTimeout(finish, delay + 80));
 }
 
