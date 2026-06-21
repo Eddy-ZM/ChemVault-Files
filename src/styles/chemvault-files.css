@@ -2289,6 +2289,18 @@ input:focus-visible {
   transform: translateY(0) scale(1);
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .auth-modal {
+    transition: opacity var(--motion-fast) var(--motion-ease), visibility 0s linear var(--motion-fast);
+  }
+
+  .auth-card,
+  .auth-modal[data-cv-modal-state="open"] .auth-card {
+    transform: none;
+    transition: opacity var(--motion-fast) var(--motion-ease);
+  }
+}
+
 .role-card {
   width: min(520px, 100%);
 }
