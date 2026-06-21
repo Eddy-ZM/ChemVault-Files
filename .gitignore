@@ -1,4 +1,5 @@
 .astro/
+.worktrees/
 .wrangler/
 dist/
 node_modules/
