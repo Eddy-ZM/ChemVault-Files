@@ -3,7 +3,6 @@ import {
   buildFileBrowserItems,
   buildFolderTree,
   createInitialLibrary,
-  filterFiles,
   formatBytes,
   formatShareUrl,
   getFolderDeletionScope,
@@ -497,8 +496,22 @@ function bindEvents(): void {
   });
 
   document.querySelector<HTMLElement>("[data-cv-file-table-body]")?.addEventListener("click", (event) => {
-    const row = (event.target as HTMLElement).closest<HTMLTableRowElement>("[data-cv-file-id]");
+    const row = (event.target as HTMLElement).closest<HTMLTableRowElement>("[data-cv-file-row]");
     if (!row) return;
+    const kind = row.dataset.cvListKind ?? "file";
+    if (kind !== "file") {
+      filters = {
+        ...filters,
+        projectId: row.dataset.cvBrowserProjectId || null,
+        folderId: row.dataset.cvBrowserFolderId || null,
+      };
+      workspaceView = "library";
+      selectedFileId = null;
+      selectedFileIds = new Set();
+      renderAll();
+      return;
+    }
+
     const checkbox = (event.target as HTMLElement).closest<HTMLInputElement>("input[type='checkbox']");
     if (checkbox) {
       toggleSelectedFile(row.dataset.cvFileId || null, checkbox.checked);
@@ -507,6 +520,7 @@ function bindEvents(): void {
       renderInspector();
       return;
     }
+
     selectedFileId = row.dataset.cvFileId || null;
     selectedFileIds = selectedFileId ? new Set([selectedFileId]) : new Set();
     revealInspectorForSelection();
@@ -516,7 +530,7 @@ function bindEvents(): void {
 
   document.querySelector<HTMLInputElement>("[data-cv-select-all]")?.addEventListener("change", (event) => {
     const checked = (event.currentTarget as HTMLInputElement).checked;
-    const visibleFileIds = getVisibleFiles().map((entry) => entry.id);
+    const visibleFileIds = getSelectableVisibleFileIds();
     selectedFileIds = checked ? new Set(visibleFileIds) : new Set();
     selectedFileId = checked ? visibleFileIds[0] ?? null : null;
     revealInspectorForSelection();
@@ -1272,26 +1286,34 @@ function renderFiles(): void {
   const bulkBar = document.querySelector<HTMLElement>("[data-cv-bulk-bar]");
   const bulkSummary = document.querySelector<HTMLElement>("[data-cv-bulk-summary]");
   const selectAll = document.querySelector<HTMLInputElement>("[data-cv-select-all]");
-  const filteredFiles = getVisibleFiles();
-  const visibleIds = new Set(filteredFiles.map((entry) => entry.id));
+  const sortedListItems = viewMode === "list" ? getBrowserItemsForListView() : buildFileBrowserItems(library, filters);
+  const visibleFileItems = sortedListItems.filter((entry): entry is FileBrowserItem & { kind: "file" } => entry.kind === "file");
+  const visibleFiles = visibleFileItems.map((entry) => entry.file);
+  const visibleIds = new Set(visibleFiles.map((entry) => entry.id));
 
   selectedFileIds = new Set(Array.from(selectedFileIds).filter((id) => visibleIds.has(id)));
 
-  if (selectedFileId && !filteredFiles.some((entry) => entry.id === selectedFileId)) {
-    selectedFileId = selectedFileIds.values().next().value ?? filteredFiles[0]?.id ?? null;
+  if (selectedFileId && !visibleIds.has(selectedFileId)) {
+    selectedFileId = selectedFileIds.values().next().value ?? visibleFiles[0]?.id ?? null;
   }
   if (!selectedFileId) {
-    selectedFileId = selectedFileIds.values().next().value ?? filteredFiles[0]?.id ?? null;
+    selectedFileId = selectedFileIds.values().next().value ?? visibleFiles[0]?.id ?? null;
   }
 
-  if (filesTitle) filesTitle.textContent = libraryLoading ? "Files" : `Files (${filteredFiles.length})`;
+  if (filesTitle) filesTitle.textContent = libraryLoading ? "Files" : `Items (${sortedListItems.length})`;
   if (selectionSummary) selectionSummary.textContent = selectedFileIds.size ? `${selectedFileIds.size} selected` : "No files checked";
-  if (pageSummary) pageSummary.textContent = libraryLoading ? "Loading" : filteredFiles.length ? `1-${Math.min(50, filteredFiles.length)} of ${filteredFiles.length}` : "0 files";
+  if (pageSummary)
+    pageSummary.textContent = libraryLoading
+      ? "Loading"
+      : sortedListItems.length
+        ? `1-${Math.min(50, sortedListItems.length)} of ${sortedListItems.length}`
+        : "0 files";
   if (activeFilters) activeFilters.innerHTML = renderActiveFilters();
   if (bulkBar) bulkBar.hidden = selectedFileIds.size === 0;
   if (bulkSummary) bulkSummary.textContent = selectedFileIds.size === 1 ? "1 file selected" : `${selectedFileIds.size} files selected`;
   if (selectAll) {
-    selectAll.checked = filteredFiles.length > 0 && filteredFiles.every((entry) => selectedFileIds.has(entry.id));
+    const visibleFileIds = visibleFileItems.map((entry) => entry.id);
+    selectAll.checked = visibleFileIds.length > 0 && visibleFileIds.every((entryId) => selectedFileIds.has(entryId));
     selectAll.indeterminate = selectedFileIds.size > 0 && !selectAll.checked;
   }
   updateSortButtons();
@@ -1306,9 +1328,9 @@ function renderFiles(): void {
   if (body && !listRegion?.hidden) {
     body.innerHTML = libraryLoading
       ? `<tr><td colspan="8"><div class="empty-state">Loading file index...</div></td></tr>`
-      : filteredFiles.length
-      ? filteredFiles.map((fileRecord) => renderFileRow(fileRecord)).join("")
-      : `<tr><td colspan="8"><div class="empty-state">${escapeHtml(emptyFilesLabel())}</div></td></tr>`;
+      : sortedListItems.length
+        ? sortedListItems.map((item) => renderFileListRow(item)).join("")
+        : `<tr><td colspan="8"><div class="empty-state">${escapeHtml(emptyFilesLabel())}</div></td></tr>`;
   }
 }
 
@@ -1403,6 +1425,97 @@ function renderFileBrowserItem(item: FileBrowserItem): string {
   `;
 }
 
+function getBrowserItemsForListView(): FileBrowserItem[] {
+  return sortBrowserItemsForList(buildFileBrowserItems(library, filters), fileSort);
+}
+
+function getSelectableVisibleFileIds(): string[] {
+  return getBrowserItemsForListView().filter((entry): entry is FileBrowserItem & { kind: "file" } => entry.kind === "file").map((entry) => entry.id);
+}
+
+function renderFileListRow(item: FileBrowserItem): string {
+  if (item.kind === "project") {
+    return renderFileListContainerRow("project", "Project", item.id, null, item.name, item.fileCount, item.totalBytes);
+  }
+
+  if (item.kind === "folder") {
+    return renderFileListContainerRow("folder", "Folder", item.projectId, item.id, item.name, item.fileCount, item.totalBytes);
+  }
+
+  return renderFileListFileRow(item.file);
+}
+
+function sortBrowserItemsForList(items: FileBrowserItem[], sort: FileSort): FileBrowserItem[] {
+  const rows = [...items];
+  rows.sort((left, right) => {
+    const leftGroup = listItemOrder(left);
+    const rightGroup = listItemOrder(right);
+    if (leftGroup !== rightGroup) return leftGroup - rightGroup;
+
+    if (left.kind === "file" && right.kind === "file") {
+      const leftValue = browserListSortValue(left.file, sort.key);
+      const rightValue = browserListSortValue(right.file, sort.key);
+      const compare =
+        leftValue.kind === "string" && rightValue.kind === "string"
+          ? leftValue.value.localeCompare(rightValue.value, undefined, { sensitivity: "base" })
+          : (leftValue.kind === "number" && rightValue.kind === "number" ? leftValue.value - rightValue.value : 0);
+      if (compare !== 0) return sort.direction === "asc" ? compare : -compare;
+      return left.name.localeCompare(right.name, undefined, { sensitivity: "base" });
+    }
+
+    return left.name.localeCompare(right.name, undefined, { sensitivity: "base" });
+  });
+  return rows;
+}
+
+function listItemOrder(item: FileBrowserItem): number {
+  if (item.kind === "project") return 0;
+  if (item.kind === "folder") return 1;
+  return 2;
+}
+
+function browserListSortValue(fileRecord: FileRecord, key: FileSort["key"]): { kind: "number"; value: number } | { kind: "string"; value: string } {
+  if (key === "size") return { kind: "number", value: fileRecord.sizeBytes };
+  if (key === "modified") return { kind: "number", value: Number.isFinite(new Date(fileRecord.updatedAt).getTime()) ? new Date(fileRecord.updatedAt).getTime() : 0 };
+
+  if (key === "type") return { kind: "string", value: typeLabel(fileRecord) };
+  return { kind: "string", value: fileRecord.displayName };
+}
+
+function renderFileListContainerRow(
+  itemKind: "project" | "folder",
+  itemTypeLabel: string,
+  projectId: string,
+  folderId: string | null,
+  name: string,
+  fileCount: number,
+  totalBytes: number
+): string {
+  return `
+    <tr class="file-table__row file-table__row--folder" data-cv-file-row data-cv-list-kind="${escapeAttr(itemKind)}" data-cv-browser-project-id="${escapeAttr(projectId)}" ${folderId ? `data-cv-browser-folder-id="${escapeAttr(folderId)}"` : ""} tabindex="0">
+      <td class="select-cell">
+        <span class="folder-row-placeholder" aria-hidden="true"></span>
+      </td>
+      <td>
+        <span class="file-name">
+          <span class="folder-row-icon" aria-hidden="true">${folderIcon()}</span>
+          <span>${escapeHtml(name)}</span>
+        </span>
+      </td>
+      <td><span class="file-list-meta">${escapeHtml(fileCountLabel(fileCount))}</span></td>
+      <td>${escapeHtml(itemTypeLabel)}</td>
+      <td>${formatBytes(totalBytes)}</td>
+      <td class="date-cell">—</td>
+      <td class="icon-cell"><span class="file-list-meta">—</span></td>
+      <td class="icon-cell"></td>
+    </tr>
+  `;
+}
+
+function renderFileListFileRow(fileRecord: FileRecord): string {
+  return renderFileRow(fileRecord);
+}
+
 function fileCountLabel(count: number): string {
   return count === 1 ? "1 file" : `${count} files`;
 }
@@ -1441,7 +1554,7 @@ function renderFileRow(fileRecord: FileRecord): string {
   const isSelected = selectedFileIds.has(fileRecord.id);
   const isFailed = fileRecord.status === "failed";
   return `
-    <tr class="${isSelected ? "is-selected" : ""}${isFailed ? " is-failed" : ""}" data-cv-file-row data-cv-file-id="${escapeAttr(fileRecord.id)}" tabindex="0" aria-selected="${isSelected ? "true" : "false"}">
+    <tr class="${isSelected ? "is-selected" : ""}${isFailed ? " is-failed" : ""}" data-cv-file-row data-cv-list-kind="file" data-cv-file-id="${escapeAttr(fileRecord.id)}" tabindex="0" aria-selected="${isSelected ? "true" : "false"}">
       <td class="select-cell">
         <label class="checkbox"><input type="checkbox" ${isSelected ? "checked" : ""} /><span></span><span class="sr-only">Select ${escapeHtml(fileRecord.displayName)}</span></label>
       </td>
@@ -2641,10 +2754,6 @@ function fallbackRolePolicies(): FileRolePolicy[] {
       updatedAt: now,
     },
   ];
-}
-
-function getVisibleFiles(): FileRecord[] {
-  return sortFiles(filterFiles(library.files.filter((entry) => entry.status !== "deleted"), filters), fileSort);
 }
 
 function toggleSelectedFile(fileId: string | null, selected: boolean): void {

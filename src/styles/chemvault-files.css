@@ -2164,6 +2164,38 @@ input:focus-visible {
   background: var(--red-soft);
 }
 
+.file-table__row--folder {
+  color: #425066;
+}
+
+.file-table__row--folder td {
+  color: inherit;
+}
+
+.file-table__row--folder .file-name {
+  color: #283141;
+  font-weight: 620;
+}
+
+.folder-row-icon {
+  display: inline-flex;
+  width: 16px;
+  height: 16px;
+  color: #7b6500;
+}
+
+.folder-row-placeholder {
+  display: inline-block;
+  width: 15px;
+  height: 15px;
+  border-radius: 3px;
+}
+
+.file-list-meta {
+  color: #65707d;
+  font-size: 12px;
+}
+
 .select-cell {
   width: 42px;
 }
