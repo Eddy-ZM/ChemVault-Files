@@ -4,6 +4,7 @@ import {
   closeDelayForMotion,
   inspectorTabDirection,
   isTreeNodeExpanded,
+  nextInspectorTabMotion,
   nextInspectorPanelCollapsed,
   nextModalMotionState,
   nextWorkspaceView,
@@ -57,5 +58,18 @@ describe("interface motion state", () => {
     expect(inspectorTabDirection("details", "preview")).toBe("forward");
     expect(inspectorTabDirection("activity", "preview")).toBe("backward");
     expect(inspectorTabDirection("preview", "preview")).toBe("none");
+  });
+
+  it("increments the inspector animation key when switching tabs", () => {
+    expect(nextInspectorTabMotion("details", "preview", 3)).toEqual({
+      tab: "preview",
+      direction: "forward",
+      sequence: 4,
+    });
+    expect(nextInspectorTabMotion("preview", "preview", 4)).toEqual({
+      tab: "preview",
+      direction: "none",
+      sequence: 4,
+    });
   });
 });

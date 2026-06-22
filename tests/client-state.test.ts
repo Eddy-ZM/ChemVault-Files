@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   accessLogoutUrl,
+  buildFileBrowserItems,
   buildFolderTree,
   filterFiles,
   formatBytes,
@@ -294,6 +295,61 @@ describe("client state", () => {
       totalFileCount: 2,
       children: [{ folder: { id: "folder_child" }, depth: 1, fileCount: 1, totalFileCount: 1 }],
     });
+  });
+
+  it("builds file browser items for root, project, and folder scopes", () => {
+    const folders: FolderRecord[] = [
+      {
+        id: "folder_parent",
+        projectId: "project_spectra",
+        parentId: null,
+        name: "Screen 042",
+        slug: "screen-042",
+        path: "/Screen 042",
+        createdAt: "2026-06-11T00:00:00.000Z",
+        updatedAt: "2026-06-11T00:00:00.000Z",
+      },
+      {
+        id: "folder_child",
+        projectId: "project_spectra",
+        parentId: "folder_parent",
+        name: "Raw",
+        slug: "raw",
+        path: "/Screen 042/Raw",
+        createdAt: "2026-06-11T00:00:00.000Z",
+        updatedAt: "2026-06-11T00:00:00.000Z",
+      },
+    ];
+    const library: LibraryResponse = {
+      projects: [
+        {
+          id: "project_spectra",
+          name: "Spectra",
+          slug: "spectra",
+          description: null,
+          sortOrder: 10,
+          createdAt: "2026-06-11T00:00:00.000Z",
+          updatedAt: "2026-06-11T00:00:00.000Z",
+        },
+      ],
+      folders,
+      tags: file.tags,
+      files: [
+        { ...file, id: "file_root", folderId: null, sizeBytes: 10 },
+        { ...file, id: "file_parent", folderId: "folder_parent", sizeBytes: 20 },
+        { ...file, id: "file_child", folderId: "folder_child", sizeBytes: 30 },
+      ],
+    };
+
+    expect(buildFileBrowserItems(library, { search: "", projectId: null, folderId: null, tagSlug: null }).map((item) => item.kind)).toEqual(["project"]);
+    expect(buildFileBrowserItems(library, { search: "", projectId: "project_spectra", folderId: null, tagSlug: null })).toMatchObject([
+      { kind: "folder", id: "folder_parent", name: "Screen 042", fileCount: 2, totalBytes: 50 },
+      { kind: "file", id: "file_root" },
+    ]);
+    expect(buildFileBrowserItems(library, { search: "", projectId: "project_spectra", folderId: "folder_parent", tagSlug: null })).toMatchObject([
+      { kind: "folder", id: "folder_child", name: "Raw", fileCount: 1, totalBytes: 30 },
+      { kind: "file", id: "file_parent" },
+    ]);
   });
 
   it("finds every nested folder and file in a folder deletion scope", () => {

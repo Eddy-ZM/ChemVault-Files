@@ -119,6 +119,18 @@
       <button class="smart-chip" type="button" data-cv-quick-filter="large">Large objects</button>
     </div>
 
+    <section class="file-browser" aria-label="Folders and files" data-cv-file-browser>
+      <header class="file-browser__header">
+        <nav class="file-browser__path" aria-label="Current folder" data-cv-file-browser-path>
+          <button type="button" data-cv-browser-root>Vault</button>
+        </nav>
+        <span data-cv-file-browser-summary>Loading</span>
+      </header>
+      <div class="file-browser__grid" data-cv-file-browser-grid>
+        <div class="empty-state">Loading file browser...</div>
+      </div>
+    </section>
+
     <div class="bulk-action-bar" data-cv-bulk-bar hidden>
       <span data-cv-bulk-summary>1 selected</span>
       <div>

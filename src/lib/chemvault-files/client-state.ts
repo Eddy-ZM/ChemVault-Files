@@ -59,6 +59,34 @@ export interface FolderTreeNode {
   totalFileCount: number;
 }
 
+export interface FileBrowserProjectItem {
+  kind: "project";
+  id: string;
+  name: string;
+  fileCount: number;
+  totalBytes: number;
+}
+
+export interface FileBrowserFolderItem {
+  kind: "folder";
+  id: string;
+  projectId: string;
+  parentId: string | null;
+  name: string;
+  path: string;
+  fileCount: number;
+  totalBytes: number;
+}
+
+export interface FileBrowserFileItem {
+  kind: "file";
+  id: string;
+  name: string;
+  file: FileRecord;
+}
+
+export type FileBrowserItem = FileBrowserProjectItem | FileBrowserFolderItem | FileBrowserFileItem;
+
 export interface FolderDeletionScope {
   folderIds: string[];
   fileIds: string[];
@@ -244,6 +272,89 @@ export function buildFolderTree(projectId: string, folders: FolderRecord[], file
     });
 
   return build(null, 0);
+}
+
+export function buildFileBrowserItems(library: LibraryResponse, filters: FileFilters): FileBrowserItem[] {
+  const activeFolder = filters.folderId ? library.folders.find((folder) => folder.id === filters.folderId) ?? null : null;
+  const projectId = filters.projectId ?? activeFolder?.projectId ?? null;
+  const liveFiles = library.files.filter((file) => file.status !== "deleted");
+  const matchedFiles = filterFiles(liveFiles, {
+    search: filters.search,
+    projectId: null,
+    folderId: null,
+    tagSlug: filters.tagSlug,
+    quickFilter: filters.quickFilter ?? null,
+  });
+
+  if (!projectId) {
+    return library.projects
+      .map((project) => {
+        const projectFiles = matchedFiles.filter((file) => file.projectId === project.id);
+        return {
+          kind: "project" as const,
+          id: project.id,
+          name: project.name,
+          fileCount: projectFiles.length,
+          totalBytes: totalBytes(projectFiles),
+        };
+      })
+      .filter((item) => shouldShowBrowserContainer(item.name, item.fileCount, filters))
+      .sort((left, right) => left.name.localeCompare(right.name, undefined, { sensitivity: "base" }));
+  }
+
+  const parentId = activeFolder?.id ?? null;
+  const folders = library.folders
+    .filter((folder) => folder.projectId === projectId && (folder.parentId ?? null) === parentId)
+    .map((folder) => {
+      const folderIds = descendantFolderIds(library.folders, folder.id);
+      const folderFiles = matchedFiles.filter((file) => file.folderId !== null && folderIds.has(file.folderId));
+      return {
+        kind: "folder" as const,
+        id: folder.id,
+        projectId: folder.projectId,
+        parentId: folder.parentId,
+        name: folder.name,
+        path: folder.path,
+        fileCount: folderFiles.length,
+        totalBytes: totalBytes(folderFiles),
+      };
+    })
+    .filter((item) => shouldShowBrowserContainer(`${item.name} ${item.path}`, item.fileCount, filters))
+    .sort((left, right) => left.name.localeCompare(right.name, undefined, { sensitivity: "base" }));
+
+  const files = matchedFiles
+    .filter((file) => file.projectId === projectId && (file.folderId ?? null) === parentId)
+    .sort((left, right) => left.displayName.localeCompare(right.displayName, undefined, { sensitivity: "base" }))
+    .map((file) => ({
+      kind: "file" as const,
+      id: file.id,
+      name: file.displayName,
+      file,
+    }));
+
+  return [...folders, ...files];
+}
+
+function descendantFolderIds(folders: FolderRecord[], folderId: string): Set<string> {
+  const ids = new Set<string>();
+  const queue = [folderId];
+  for (let index = 0; index < queue.length; index += 1) {
+    const currentId = queue[index];
+    ids.add(currentId);
+    queue.push(...folders.filter((folder) => folder.parentId === currentId).map((folder) => folder.id));
+  }
+  return ids;
+}
+
+function totalBytes(files: FileRecord[]): number {
+  return files.reduce((sum, file) => sum + file.sizeBytes, 0);
+}
+
+function shouldShowBrowserContainer(name: string, fileCount: number, filters: FileFilters): boolean {
+  const search = filters.search.trim().toLowerCase();
+  const hasNarrowing = Boolean(search || filters.tagSlug || filters.quickFilter);
+  if (!hasNarrowing) return true;
+  return fileCount > 0 || (search.length > 0 && name.toLowerCase().includes(search));
 }
 
 export function filterFiles(files: FileRecord[], filters: FileFilters): FileRecord[] {

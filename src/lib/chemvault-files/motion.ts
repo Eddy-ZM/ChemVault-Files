@@ -7,6 +7,12 @@ export type InspectorTab = "details" | "preview" | "activity";
 export type TabMotionDirection = "forward" | "backward" | "none";
 export type WorkspaceView = "library" | "flow" | "insights";
 
+export interface InspectorTabMotionState {
+  tab: InspectorTab;
+  direction: TabMotionDirection;
+  sequence: number;
+}
+
 export function nextModalMotionState(current: ModalMotionState, event: ModalMotionEvent): ModalMotionState {
   if (event === "open" && current !== "open") return "opening";
   if (event === "opened" && current === "opening") return "open";
@@ -47,4 +53,13 @@ export function inspectorTabDirection(current: InspectorTab, next: InspectorTab)
   const nextIndex = inspectorTabs.indexOf(next);
   if (currentIndex === nextIndex) return "none";
   return nextIndex > currentIndex ? "forward" : "backward";
+}
+
+export function nextInspectorTabMotion(current: InspectorTab, requested: InspectorTab, sequence: number): InspectorTabMotionState {
+  const direction = inspectorTabDirection(current, requested);
+  return {
+    tab: requested,
+    direction,
+    sequence: direction === "none" ? sequence : sequence + 1,
+  };
 }

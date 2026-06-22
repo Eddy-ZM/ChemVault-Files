@@ -1,5 +1,6 @@
 import {
   accessLogoutUrl,
+  buildFileBrowserItems,
   buildFolderTree,
   createInitialLibrary,
   filterFiles,
@@ -17,6 +18,7 @@ import {
   sortFiles,
   summarizeFiles,
   type FileFilters,
+  type FileBrowserItem,
   type FileQuickFilter,
   type FileSort,
   type UploadPathInfo,
@@ -24,8 +26,8 @@ import {
 } from "../lib/chemvault-files/client-state";
 import {
   closeDelayForMotion,
-  inspectorTabDirection,
   isTreeNodeExpanded,
+  nextInspectorTabMotion,
   nextInspectorPanelCollapsed,
   nextModalMotionState,
   nextWorkspaceView,
@@ -133,8 +135,12 @@ const seedProjects = [
 ];
 
 const seedFolders = [
-  folder("folder_spectra", "project_spectra", "Spectra", "spectra", "/Spectra"),
-  folder("folder_datasets", "project_datasets", "Datasets", "datasets", "/Datasets"),
+  folder("folder_spectra", "project_spectra", "NMR Archive", "nmr-archive", "/NMR Archive"),
+  folder("folder_spectra_compound_14", "project_spectra", "Compound 14 NMR", "compound-14-nmr", "/NMR Archive/Compound 14 NMR", "folder_spectra"),
+  folder("folder_spectra_reference_ir", "project_spectra", "Reference IR", "reference-ir", "/NMR Archive/Reference IR", "folder_spectra"),
+  folder("folder_datasets", "project_datasets", "Experiment Runs", "experiment-runs", "/Experiment Runs"),
+  folder("folder_datasets_kinetics", "project_datasets", "Kinetics Runs", "kinetics-runs", "/Experiment Runs/Kinetics Runs", "folder_datasets"),
+  folder("folder_datasets_screen_042", "project_datasets", "Screen 042", "screen-042", "/Experiment Runs/Screen 042", "folder_datasets"),
 ];
 
 const seedTags = [
@@ -158,16 +164,16 @@ const seedLibrary: LibraryResponse = {
   folders: seedFolders,
   tags: seedTags,
   files: [
-    file("file_seed_1", "project_spectra", "folder_spectra", "2024-05-21_NMR_Compound_14.zip", "application/zip", 1331439861, ["NMR", "Raw Data"]),
-    file("file_seed_2", "project_spectra", "folder_spectra", "Compound_14_1H.jdx", "chemical/x-jcamp-dx", 13214592, ["NMR"]),
-    file("file_seed_3", "project_spectra", "folder_spectra", "Compound_14_13C.jdx", "chemical/x-jcamp-dx", 19188940, ["NMR"]),
+    file("file_seed_1", "project_spectra", "folder_spectra_compound_14", "2024-05-21_NMR_Compound_14.zip", "application/zip", 1331439861, ["NMR", "Raw Data"]),
+    file("file_seed_2", "project_spectra", "folder_spectra_compound_14", "Compound_14_1H.jdx", "chemical/x-jcamp-dx", 13214592, ["NMR"]),
+    file("file_seed_3", "project_spectra", "folder_spectra_compound_14", "Compound_14_13C.jdx", "chemical/x-jcamp-dx", 19188940, ["NMR"]),
     file("file_seed_4", "project_manuscripts", null, "NMR_Analysis_Report_Compound_14.pdf", "application/pdf", 1887436, ["PDF"]),
-    file("file_seed_5", "project_datasets", "folder_datasets", "kinetics_run_042_processed.csv", "text/csv", 47919923, ["Kinetics", "Raw Data"]),
-    file("file_seed_6", "project_datasets", "folder_datasets", "dataset_reaction_screen_042.h5", "application/x-hdf5", 2480343613, ["Raw Data", "Screen"]),
-    file("file_seed_7", "project_datasets", "folder_datasets", "failed_upload_package.zip", "application/zip", 3886942618, ["Raw Data"], "failed"),
+    file("file_seed_5", "project_datasets", "folder_datasets_kinetics", "kinetics_run_042_processed.csv", "text/csv", 47919923, ["Kinetics", "Raw Data"]),
+    file("file_seed_6", "project_datasets", "folder_datasets_screen_042", "dataset_reaction_screen_042.h5", "application/x-hdf5", 2480343613, ["Raw Data", "Screen"]),
+    file("file_seed_7", "project_datasets", "folder_datasets_screen_042", "failed_upload_package.zip", "application/zip", 3886942618, ["Raw Data"], "failed"),
     file("file_seed_8", "project_manuscripts", null, "Supplementary_Information.pdf", "application/pdf", 2516582, ["SI", "PDF"]),
-    file("file_seed_9", "project_spectra", "folder_spectra", "Compound_13_1H.jdx", "chemical/x-jcamp-dx", 11744051, ["NMR", "1H"]),
-    file("file_seed_10", "project_spectra", "folder_spectra", "FTIR_Compound_14.dat", "application/octet-stream", 7025459, ["IR"]),
+    file("file_seed_9", "project_spectra", "folder_spectra_compound_14", "Compound_13_1H.jdx", "chemical/x-jcamp-dx", 11744051, ["NMR", "1H"]),
+    file("file_seed_10", "project_spectra", "folder_spectra_reference_ir", "FTIR_Compound_14.dat", "application/octet-stream", 7025459, ["IR"]),
   ],
 };
 
@@ -233,6 +239,7 @@ let viewMode: "list" | "grid" = "list";
 let workspaceView: WorkspaceView = "library";
 let inspectorTab: InspectorTab = "details";
 let inspectorTabMotion: TabMotionDirection = "none";
+let inspectorTabMotionSequence = 0;
 let inspectorCollapsed = false;
 const activityByFileId = new Map<string, InspectorAsyncState<FileActivityRecord[]>>();
 const shareByFileId = new Map<string, ShareUiState>();
@@ -253,9 +260,9 @@ function project(id: string, name: string, slug: string, sortOrder: number): Pro
   return { id, name, slug, description: null, sortOrder, createdAt: timestamp, updatedAt: timestamp };
 }
 
-function folder(id: string, projectId: string, name: string, slug: string, path: string): FolderRecord {
+function folder(id: string, projectId: string, name: string, slug: string, path: string, parentId: string | null = null): FolderRecord {
   const timestamp = "2026-06-11T00:00:00.000Z";
-  return { id, projectId, parentId: null, name, slug, path, createdAt: timestamp, updatedAt: timestamp };
+  return { id, projectId, parentId, name, slug, path, createdAt: timestamp, updatedAt: timestamp };
 }
 
 function tag(id: string, name: string, slug: string, color: string | null): TagRecord {
@@ -313,6 +320,46 @@ function bindEvents(): void {
     const viewButton = target.closest<HTMLElement>("[data-cv-workspace-view-button]");
     if (viewButton) {
       workspaceView = nextWorkspaceView(workspaceView, viewButton.dataset.cvWorkspaceViewButton);
+      updateWorkspaceView();
+      return;
+    }
+
+    const rootButton = target.closest<HTMLElement>("[data-cv-browser-root]");
+    if (rootButton) {
+      filters = { ...filters, projectId: null, folderId: null };
+      workspaceView = "library";
+      renderAll();
+      return;
+    }
+
+    const browserFolder = target.closest<HTMLElement>("[data-cv-browser-folder-id]");
+    if (browserFolder?.dataset.cvBrowserFolderId) {
+      filters = {
+        ...filters,
+        projectId: browserFolder.dataset.cvBrowserProjectId || filters.projectId,
+        folderId: browserFolder.dataset.cvBrowserFolderId,
+      };
+      workspaceView = "library";
+      renderAll();
+      return;
+    }
+
+    const browserProject = target.closest<HTMLElement>("[data-cv-browser-project-id]");
+    if (browserProject?.dataset.cvBrowserProjectId) {
+      filters = { ...filters, projectId: browserProject.dataset.cvBrowserProjectId, folderId: null };
+      workspaceView = "library";
+      renderAll();
+      return;
+    }
+
+    const browserFile = target.closest<HTMLElement>("[data-cv-browser-file-id]");
+    if (browserFile?.dataset.cvBrowserFileId) {
+      selectedFileId = browserFile.dataset.cvBrowserFileId;
+      selectedFileIds = new Set([selectedFileId]);
+      revealInspectorForSelection();
+      workspaceView = "library";
+      renderFiles();
+      renderInspector();
       updateWorkspaceView();
       return;
     }
@@ -555,8 +602,10 @@ function bindEvents(): void {
     const tabButton = target.closest<HTMLElement>("[data-cv-inspector-tab]");
     if (tabButton) {
       const nextTab = (tabButton.dataset.cvInspectorTab as InspectorTab) || "details";
-      inspectorTabMotion = inspectorTabDirection(inspectorTab, nextTab);
-      inspectorTab = nextTab;
+      const transition = nextInspectorTabMotion(inspectorTab, nextTab, inspectorTabMotionSequence);
+      inspectorTab = transition.tab;
+      inspectorTabMotion = transition.direction;
+      inspectorTabMotionSequence = transition.sequence;
       renderInspector();
       if (inspectorTab === "activity") void loadActivityForSelected();
       return;
@@ -1264,6 +1313,7 @@ function renderFiles(): void {
   updateSortButtons();
   updateQuickFilterButtons();
   updateViewModeButtons();
+  renderFileBrowser();
 
   if (filePanel) filePanel.classList.toggle("is-grid-view", viewMode === "grid");
   if (listRegion) listRegion.hidden = viewMode !== "list";
@@ -1284,6 +1334,101 @@ function renderFiles(): void {
       ? filteredFiles.map((fileRecord) => renderFileCard(fileRecord)).join("")
       : `<div class="empty-state">${escapeHtml(emptyFilesLabel())}</div>`;
   }
+}
+
+function renderFileBrowser(): void {
+  const path = document.querySelector<HTMLElement>("[data-cv-file-browser-path]");
+  const summary = document.querySelector<HTMLElement>("[data-cv-file-browser-summary]");
+  const grid = document.querySelector<HTMLElement>("[data-cv-file-browser-grid]");
+  if (path) path.innerHTML = renderFileBrowserPath();
+  if (summary) summary.textContent = libraryLoading ? "Loading" : fileBrowserSummary();
+  if (!grid) return;
+
+  if (libraryLoading) {
+    grid.innerHTML = `<div class="empty-state">Loading file browser...</div>`;
+    return;
+  }
+
+  const items = buildFileBrowserItems(library, filters);
+  grid.innerHTML = items.length
+    ? items.map((item) => renderFileBrowserItem(item)).join("")
+    : `<div class="empty-state">${escapeHtml(emptyFilesLabel())}</div>`;
+}
+
+function renderFileBrowserPath(): string {
+  const activeFolder = filters.folderId ? library.folders.find((folderRecord) => folderRecord.id === filters.folderId) ?? null : null;
+  const activeProjectId = filters.projectId ?? activeFolder?.projectId ?? null;
+  const activeProject = activeProjectId ? library.projects.find((projectRecord) => projectRecord.id === activeProjectId) ?? null : null;
+  const parts = [`<button type="button" data-cv-browser-root>Vault</button>`];
+
+  if (activeProject) {
+    parts.push(
+      `<span aria-hidden="true">/</span><button type="button" data-cv-browser-project-id="${escapeAttr(activeProject.id)}">${escapeHtml(activeProject.name)}</button>`
+    );
+  }
+
+  for (const folderRecord of activeFolder ? folderAncestry(activeFolder.id) : []) {
+    parts.push(
+      `<span aria-hidden="true">/</span><button type="button" data-cv-browser-project-id="${escapeAttr(folderRecord.projectId)}" data-cv-browser-folder-id="${escapeAttr(folderRecord.id)}">${escapeHtml(folderRecord.name)}</button>`
+    );
+  }
+
+  return parts.join("");
+}
+
+function folderAncestry(folderId: string): FolderRecord[] {
+  const ancestry: FolderRecord[] = [];
+  let current = library.folders.find((folderRecord) => folderRecord.id === folderId) ?? null;
+  while (current) {
+    ancestry.unshift(current);
+    current = current.parentId ? library.folders.find((folderRecord) => folderRecord.id === current?.parentId) ?? null : null;
+  }
+  return ancestry;
+}
+
+function fileBrowserSummary(): string {
+  const items = buildFileBrowserItems(library, filters);
+  const folders = items.filter((item) => item.kind === "project" || item.kind === "folder").length;
+  const files = items.filter((item) => item.kind === "file").length;
+  return `${folders} folders · ${files} files`;
+}
+
+function renderFileBrowserItem(item: FileBrowserItem): string {
+  if (item.kind === "project") {
+    return `
+      <button class="file-os-item file-os-item--folder" type="button" data-cv-file-os-item data-cv-browser-project-id="${escapeAttr(item.id)}">
+        <span class="file-os-item__icon file-os-item__icon--folder">${folderIcon()}</span>
+        <span class="file-os-item__name">${escapeHtml(item.name)}</span>
+        <span class="file-os-item__meta">${escapeHtml(fileCountLabel(item.fileCount))} · ${formatBytes(item.totalBytes)}</span>
+      </button>
+    `;
+  }
+
+  if (item.kind === "folder") {
+    return `
+      <button class="file-os-item file-os-item--folder" type="button" data-cv-file-os-item data-cv-browser-project-id="${escapeAttr(item.projectId)}" data-cv-browser-folder-id="${escapeAttr(item.id)}">
+        <span class="file-os-item__icon file-os-item__icon--folder">${folderIcon()}</span>
+        <span class="file-os-item__name">${escapeHtml(item.name)}</span>
+        <span class="file-os-item__meta">${escapeHtml(fileCountLabel(item.fileCount))} · ${formatBytes(item.totalBytes)}</span>
+      </button>
+    `;
+  }
+
+  const ext = extensionForFile(item.file);
+  const isSelected = selectedFileId === item.id;
+  return `
+    <button class="file-os-item file-os-item--file${isSelected ? " is-selected" : ""}" type="button" data-cv-file-os-item data-cv-browser-file-id="${escapeAttr(item.id)}" aria-selected="${isSelected ? "true" : "false"}">
+      <span class="file-os-item__icon">
+        <span class="file-type-icon" data-ext="${escapeAttr(ext)}">${escapeHtml(ext)}</span>
+      </span>
+      <span class="file-os-item__name">${escapeHtml(item.name)}</span>
+      <span class="file-os-item__meta">${escapeHtml(typeLabel(item.file))} · ${formatBytes(item.file.sizeBytes)}</span>
+    </button>
+  `;
+}
+
+function fileCountLabel(count: number): string {
+  return count === 1 ? "1 file" : `${count} files`;
 }
 
 function emptyFilesLabel(): string {
@@ -1453,7 +1598,7 @@ function renderInspectorBody(fileRecord: FileRecord): string {
   let content = `${renderDetailsPanel(fileRecord)}${renderSharePanel(fileRecord)}`;
   if (inspectorTab === "preview") content = renderPreviewPanel(fileRecord);
   if (inspectorTab === "activity") content = renderActivityPanel(fileRecord);
-  return `<div data-cv-inspector-content data-cv-inspector-motion="${inspectorTabMotion}">${content}</div>`;
+  return `<div data-cv-inspector-content data-cv-inspector-motion="${inspectorTabMotion}" data-cv-inspector-motion-key="${inspectorTabMotionSequence}">${content}</div>`;
 }
 
 function renderDetailsPanel(fileRecord: FileRecord): string {
