@@ -514,21 +514,6 @@ function bindEvents(): void {
     renderInspector();
   });
 
-  document.querySelector<HTMLElement>("[data-cv-card-grid]")?.addEventListener("click", (event) => {
-    const card = (event.target as HTMLElement).closest<HTMLElement>("[data-cv-file-id]");
-    if (!card) return;
-    const checkbox = (event.target as HTMLElement).closest<HTMLInputElement>("input[type='checkbox']");
-    if (checkbox) {
-      toggleSelectedFile(card.dataset.cvFileId || null, checkbox.checked);
-    } else {
-      selectedFileId = card.dataset.cvFileId || null;
-      selectedFileIds = selectedFileId ? new Set([selectedFileId]) : new Set();
-    }
-    revealInspectorForSelection();
-    renderFiles();
-    renderInspector();
-  });
-
   document.querySelector<HTMLInputElement>("[data-cv-select-all]")?.addEventListener("change", (event) => {
     const checked = (event.currentTarget as HTMLInputElement).checked;
     const visibleFileIds = getVisibleFiles().map((entry) => entry.id);
@@ -1280,7 +1265,6 @@ function renderFiles(): void {
   const filesTitle = document.querySelector<HTMLElement>("[data-cv-files-title]");
   const activeFilters = document.querySelector<HTMLElement>("[data-cv-active-filters]");
   const body = document.querySelector<HTMLElement>("[data-cv-file-table-body]");
-  const cardGrid = document.querySelector<HTMLElement>("[data-cv-card-grid]");
   const listRegion = document.querySelector<HTMLElement>("[data-cv-list-region]");
   const fileBrowserGrid = document.querySelector<HTMLElement>("[data-cv-file-browser-grid]");
   const selectionSummary = document.querySelector<HTMLElement>("[data-cv-selection-summary]");
@@ -1318,7 +1302,6 @@ function renderFiles(): void {
   const isGridView = viewMode === "grid";
   if (fileBrowserGrid) fileBrowserGrid.hidden = !isGridView;
   if (listRegion) listRegion.hidden = isGridView;
-  if (cardGrid) cardGrid.hidden = true;
 
   if (body && !listRegion?.hidden) {
     body.innerHTML = libraryLoading
@@ -1326,14 +1309,6 @@ function renderFiles(): void {
       : filteredFiles.length
       ? filteredFiles.map((fileRecord) => renderFileRow(fileRecord)).join("")
       : `<tr><td colspan="8"><div class="empty-state">${escapeHtml(emptyFilesLabel())}</div></td></tr>`;
-  }
-
-  if (cardGrid) {
-    cardGrid.innerHTML = libraryLoading
-      ? `<div class="empty-state">Loading file index...</div>`
-      : filteredFiles.length
-      ? filteredFiles.map((fileRecord) => renderFileCard(fileRecord)).join("")
-      : `<div class="empty-state">${escapeHtml(emptyFilesLabel())}</div>`;
   }
 }
 
@@ -1487,30 +1462,6 @@ function renderFileRow(fileRecord: FileRecord): string {
       }</td>
       <td class="icon-cell">${isFailed ? `<button class="link-button" type="button">Retry</button>` : ""}<button class="ghost-icon" type="button" aria-label="Open actions">${moreIcon()}</button></td>
     </tr>
-  `;
-}
-
-function renderFileCard(fileRecord: FileRecord): string {
-  const ext = extensionForFile(fileRecord);
-  const isSelected = selectedFileIds.has(fileRecord.id);
-  const isFailed = fileRecord.status === "failed";
-  const projectRecord = library.projects.find((entry) => entry.id === fileRecord.projectId);
-  return `
-    <article class="file-card${isSelected ? " is-selected" : ""}${isFailed ? " is-failed" : ""}" data-cv-file-id="${escapeAttr(fileRecord.id)}" tabindex="0" aria-selected="${isSelected ? "true" : "false"}">
-      <header>
-        <label class="checkbox"><input type="checkbox" ${isSelected ? "checked" : ""} /><span></span><span class="sr-only">Select ${escapeHtml(fileRecord.displayName)}</span></label>
-        <span class="file-type-icon" data-ext="${escapeAttr(ext)}">${escapeHtml(ext)}</span>
-        <button class="ghost-icon" type="button" aria-label="Open actions">${moreIcon()}</button>
-      </header>
-      <h3>${escapeHtml(fileRecord.displayName)}</h3>
-      <p>${escapeHtml(projectRecord?.name ?? "Unfiled")} · ${escapeHtml(formatDate(fileRecord.updatedAt))}</p>
-      <div class="file-card__meta">
-        <span>${escapeHtml(typeLabel(fileRecord))}</span>
-        <strong>${formatBytes(fileRecord.sizeBytes)}</strong>
-      </div>
-      <div class="chip-list">${fileRecord.tags.map((entry) => `<span class="mini-chip">${escapeHtml(entry.name)}</span>`).join("") || "<span class=\"mini-chip\">No tags</span>"}</div>
-      ${isFailed ? `<span class="failed-state">${warningIcon()} Needs review</span>` : ""}
-    </article>
   `;
 }
 
