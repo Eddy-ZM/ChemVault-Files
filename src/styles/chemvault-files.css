@@ -797,13 +797,13 @@ input:focus-visible {
 .workspace-command {
   position: relative;
   min-width: 0;
-  min-height: 76px;
+  min-height: 68px;
   display: grid;
   grid-template-columns: minmax(260px, 0.78fr) minmax(430px, 1.22fr);
   align-items: center;
   gap: 16px;
   overflow: hidden;
-  padding: 12px 14px;
+  padding: 10px 12px;
   background:
     linear-gradient(90deg, rgba(0, 113, 227, 0.08), transparent 34%),
     linear-gradient(180deg, #ffffff, #fbfcfd);
@@ -946,7 +946,7 @@ input:focus-visible {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   align-items: center;
-  min-height: 46px;
+  min-height: 42px;
   overflow: hidden;
 }
 
@@ -991,7 +991,7 @@ input:focus-visible {
 
 .insight-card {
   min-width: 0;
-  min-height: 46px;
+  min-height: 42px;
   padding: 8px 10px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -1476,13 +1476,14 @@ input:focus-visible {
 .file-panel {
   min-height: 0;
   display: grid;
-  grid-template-rows: auto auto auto auto auto auto;
-  padding-top: 12px;
+  grid-template-rows: auto auto auto 1fr auto;
+  gap: 8px;
+  padding-top: 8px;
   overflow: auto;
 }
 
 .file-panel__header {
-  padding: 0 14px 10px;
+  padding: 0 12px 0;
 }
 
 .active-filters {
@@ -1490,7 +1491,7 @@ input:focus-visible {
   flex-wrap: wrap;
   align-items: center;
   gap: 10px;
-  margin-top: 12px;
+  margin-top: 8px;
 }
 
 .smart-filter-row {
@@ -1498,7 +1499,7 @@ input:focus-visible {
   align-items: center;
   gap: 8px;
   min-width: 0;
-  padding: 0 14px 10px;
+  padding: 0 12px;
   overflow-x: auto;
 }
 
@@ -1523,10 +1524,10 @@ input:focus-visible {
 
 .file-browser {
   min-width: 0;
-  min-height: 132px;
+  min-height: 0;
   display: grid;
   grid-template-rows: auto 1fr;
-  margin: 0 14px 12px;
+  margin: 0 12px;
   overflow: hidden;
   border: 1px solid rgba(169, 179, 193, 0.72);
   border-radius: var(--radius);
@@ -1543,7 +1544,7 @@ input:focus-visible {
   justify-content: space-between;
   gap: 12px;
   min-height: 38px;
-  padding: 8px 10px 7px;
+  padding: 6px 10px;
   border-bottom: 1px solid rgba(211, 218, 227, 0.8);
 }
 
@@ -1588,8 +1589,7 @@ input:focus-visible {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(152px, 1fr));
   gap: 8px;
-  max-height: 190px;
-  min-height: 84px;
+  min-height: 0;
   padding: 10px;
   overflow: auto;
 }
@@ -1599,8 +1599,9 @@ input:focus-visible {
 }
 
 .file-browser__list {
-  min-height: 132px;
-  display: block;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
   overflow: hidden;
 }
 
@@ -1610,7 +1611,7 @@ input:focus-visible {
 
 .file-browser__grid > .empty-state {
   grid-column: 1 / -1;
-  min-height: 58px;
+  min-height: 50px;
 }
 
 .file-os-item {
@@ -1714,8 +1715,8 @@ input:focus-visible {
   justify-content: space-between;
   gap: 12px;
   min-height: 46px;
-  margin: 0 14px 10px;
-  padding: 6px 8px 6px 12px;
+  margin: 0 12px;
+  padding: 6px 8px;
   border: 1px solid rgba(0, 113, 227, 0.24);
   border-radius: var(--radius);
   background: #f5faff;
@@ -2090,8 +2091,9 @@ input:focus-visible {
 }
 
 .file-browser__list .file-table-wrap {
-  min-height: 132px;
-  max-height: 240px;
+  min-height: 0;
+  max-height: none;
+  height: 100%;
   overflow: auto;
   contain: paint;
 }
@@ -2314,7 +2316,8 @@ input:focus-visible {
 .empty-state {
   display: flex;
   align-items: center;
-  min-height: 120px;
+  min-height: 96px;
+  justify-content: flex-start;
   color: #6d7480;
   font-size: 13px;
 }
@@ -2323,8 +2326,8 @@ input:focus-visible {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  min-height: 46px;
-  padding: 0 14px;
+  min-height: 40px;
+  padding: 0 12px;
   color: #59616d;
   font-size: 12.5px;
 }
