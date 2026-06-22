@@ -24,11 +24,16 @@ import {
 } from "../lib/chemvault-files/client-state";
 import {
   closeDelayForMotion,
+  inspectorTabDirection,
   isTreeNodeExpanded,
   nextInspectorPanelCollapsed,
   nextModalMotionState,
+  nextWorkspaceView,
   toggleCollapsedId,
+  type InspectorTab,
   type ModalMotionState,
+  type TabMotionDirection,
+  type WorkspaceView,
 } from "../lib/chemvault-files/motion";
 import type {
   ActorAccess,
@@ -225,7 +230,9 @@ let uploadVisibility: FileVisibility = "public";
 let uploadRoleIds = new Set<string>(["role_internal", "role_external"]);
 let fileSort: FileSort = { key: "modified", direction: "desc" };
 let viewMode: "list" | "grid" = "list";
-let inspectorTab: "details" | "preview" | "activity" = "details";
+let workspaceView: WorkspaceView = "library";
+let inspectorTab: InspectorTab = "details";
+let inspectorTabMotion: TabMotionDirection = "none";
 let inspectorCollapsed = false;
 const activityByFileId = new Map<string, InspectorAsyncState<FileActivityRecord[]>>();
 const shareByFileId = new Map<string, ShareUiState>();
@@ -299,6 +306,26 @@ function bindEvents(): void {
     filters = { ...filters, search: (event.currentTarget as HTMLInputElement).value };
     renderFiles();
     renderInspector();
+  });
+
+  document.querySelector<HTMLElement>("[data-cv-workspace]")?.addEventListener("click", (event) => {
+    const target = event.target as HTMLElement;
+    const viewButton = target.closest<HTMLElement>("[data-cv-workspace-view-button]");
+    if (viewButton) {
+      workspaceView = nextWorkspaceView(workspaceView, viewButton.dataset.cvWorkspaceViewButton);
+      updateWorkspaceView();
+      return;
+    }
+
+    const quickFilter = target.closest<HTMLElement>("[data-cv-quick-filter]");
+    if (!quickFilter || target.closest("[data-cv-file-panel]")) return;
+    const next = quickFilter.dataset.cvQuickFilter || null;
+    filters = {
+      ...filters,
+      quickFilter: next === filters.quickFilter ? null : (next as FileQuickFilter | null),
+    };
+    workspaceView = "library";
+    renderAll();
   });
 
   document.addEventListener("keydown", (event) => {
@@ -527,7 +554,9 @@ function bindEvents(): void {
 
     const tabButton = target.closest<HTMLElement>("[data-cv-inspector-tab]");
     if (tabButton) {
-      inspectorTab = (tabButton.dataset.cvInspectorTab as typeof inspectorTab) || "details";
+      const nextTab = (tabButton.dataset.cvInspectorTab as InspectorTab) || "details";
+      inspectorTabMotion = inspectorTabDirection(inspectorTab, nextTab);
+      inspectorTab = nextTab;
       renderInspector();
       if (inspectorTab === "activity") void loadActivityForSelected();
       return;
@@ -681,9 +710,11 @@ function renderAll(): void {
   renderAccountIdentity();
   renderSidebar();
   renderInsights();
+  renderWorkspaceBoards();
   renderQueue();
   renderFiles();
   renderInspector();
+  updateWorkspaceView();
 }
 
 function renderAccountIdentity(): void {
@@ -891,6 +922,174 @@ function insightCard(label: string, value: string, detail: string, warning = fal
       <small>${escapeHtml(detail)}</small>
     </article>
   `;
+}
+
+function renderWorkspaceBoards(): void {
+  renderFlowBoard();
+  renderInsightsBoard();
+}
+
+function renderFlowBoard(): void {
+  const lanes = document.querySelector<HTMLElement>("[data-cv-flow-lanes]");
+  const timeline = document.querySelector<HTMLElement>("[data-cv-flow-timeline]");
+  if (libraryLoading) {
+    if (lanes) {
+      lanes.innerHTML = [
+        flowLane("Intake", "Loading", "Reading library", 0, "blue"),
+        flowLane("Indexed", "Loading", "Reading D1", 0, "green"),
+        flowLane("Review", "Loading", "Checking uploads", 0, "amber"),
+        flowLane("Released", "Loading", "Checking access", 0, "teal"),
+      ].join("");
+    }
+    if (timeline) timeline.innerHTML = `<li class="flow-empty">Loading activity...</li>`;
+    return;
+  }
+
+  const activeFiles = library.files.filter((entry) => entry.status !== "deleted");
+  const summary = summarizeFiles(activeFiles);
+  const total = Math.max(activeFiles.length, 1);
+  const releasedCount = activeFiles.filter((entry) => entry.visibility === "public" || entry.roleIds.length > 0).length;
+
+  if (lanes) {
+    lanes.innerHTML = [
+      flowLane("Intake", String(activeFiles.length), "Files in vault", (activeFiles.length / total) * 100, "blue"),
+      flowLane("Indexed", String(summary.readyCount), "Ready R2 objects", (summary.readyCount / total) * 100, "green"),
+      flowLane("Needs review", String(summary.failedCount), "Failed or blocked", (summary.failedCount / total) * 100, "amber"),
+      flowLane("Released", String(releasedCount), "Access policy set", (releasedCount / total) * 100, "teal"),
+    ].join("");
+  }
+
+  if (timeline) {
+    const latestFiles = sortFiles(activeFiles, { key: "modified", direction: "desc" }).slice(0, 5);
+    timeline.innerHTML = latestFiles.length
+      ? latestFiles.map((fileRecord) => flowTimelineItem(fileRecord)).join("")
+      : `<li class="flow-empty">No recent file activity.</li>`;
+  }
+}
+
+function flowLane(label: string, value: string, detail: string, progress: number, tone: "blue" | "green" | "amber" | "teal"): string {
+  const width = Math.max(5, Math.min(100, Math.round(progress)));
+  return `
+    <article class="flow-lane flow-lane--${tone}">
+      <span>${escapeHtml(label)}</span>
+      <strong>${escapeHtml(value)}</strong>
+      <small>${escapeHtml(detail)}</small>
+      <div class="flow-lane__meter" aria-hidden="true"><span style="width: ${width}%"></span></div>
+    </article>
+  `;
+}
+
+function flowTimelineItem(fileRecord: FileRecord): string {
+  const isFailed = fileRecord.status === "failed";
+  return `
+    <li class="flow-event${isFailed ? " flow-event--warning" : ""}">
+      <span class="flow-event__dot"></span>
+      <div>
+        <strong>${escapeHtml(fileRecord.displayName)}</strong>
+        <small>${escapeHtml(typeLabel(fileRecord))} · ${formatBytes(fileRecord.sizeBytes)} · ${escapeHtml(formatDate(fileRecord.updatedAt))}</small>
+      </div>
+      <span>${isFailed ? "Review" : "Indexed"}</span>
+    </li>
+  `;
+}
+
+function renderInsightsBoard(): void {
+  const container = document.querySelector<HTMLElement>("[data-cv-insights-board]");
+  if (!container) return;
+  if (libraryLoading) {
+    container.innerHTML = `<div class="insight-board-empty">Loading vault intelligence...</div>`;
+    return;
+  }
+
+  const activeFiles = library.files.filter((entry) => entry.status !== "deleted");
+  const summary = summarizeFiles(activeFiles);
+  const projectRows = projectStorageRows(activeFiles);
+  const tagRows = tagDistributionRows(activeFiles);
+  const readyState = configurationMissing ? "Needs config" : "Ready";
+
+  container.innerHTML = `
+    <section class="storage-map" aria-label="Storage by project">
+      <header>
+        <h3>Project storage</h3>
+        <span>${formatBytes(summary.totalBytes)}</span>
+      </header>
+      <div>${projectRows || `<p class="insight-board-empty">No project storage yet.</p>`}</div>
+    </section>
+    <section class="tag-distribution" aria-label="Tag distribution">
+      <header>
+        <h3>Tag distribution</h3>
+        <span>${tagRows ? "Top tags" : "No tags"}</span>
+      </header>
+      <div>${tagRows || `<p class="insight-board-empty">Tags appear after files are indexed.</p>`}</div>
+    </section>
+    <section class="readiness-grid" aria-label="Vault readiness">
+      ${readinessCard("Access", canReadCurrentAccess() ? "Readable" : "No read", canReadCurrentAccess() ? "green" : "amber")}
+      ${readinessCard("Write policy", canWriteCurrentAccess() ? "Writable" : "Read only", canWriteCurrentAccess() ? "blue" : "amber")}
+      ${readinessCard("Index", readyState, configurationMissing ? "amber" : "green")}
+      ${readinessCard("Review", `${summary.failedCount} flagged`, summary.failedCount > 0 ? "amber" : "teal")}
+    </section>
+  `;
+}
+
+function projectStorageRows(files: FileRecord[]): string {
+  const totalBytes = files.reduce((sum, entry) => sum + entry.sizeBytes, 0);
+  return library.projects
+    .map((projectRecord) => {
+      const projectBytes = files.filter((entry) => entry.projectId === projectRecord.id).reduce((sum, entry) => sum + entry.sizeBytes, 0);
+      return { projectRecord, projectBytes };
+    })
+    .filter((entry) => entry.projectBytes > 0)
+    .sort((a, b) => b.projectBytes - a.projectBytes)
+    .slice(0, 5)
+    .map((entry) => {
+      const width = totalBytes > 0 ? Math.max(3, Math.round((entry.projectBytes / totalBytes) * 100)) : 0;
+      return `
+        <article class="storage-map__row">
+          <div>
+            <strong>${escapeHtml(entry.projectRecord.name)}</strong>
+            <span>${formatBytes(entry.projectBytes)}</span>
+          </div>
+          <div class="meter" aria-hidden="true"><span style="width: ${width}%"></span></div>
+        </article>
+      `;
+    })
+    .join("");
+}
+
+function tagDistributionRows(files: FileRecord[]): string {
+  const counts = new Map<string, number>();
+  files.forEach((fileRecord) => {
+    fileRecord.tags.forEach((tagRecord) => counts.set(tagRecord.name, (counts.get(tagRecord.name) ?? 0) + 1));
+  });
+  return Array.from(counts.entries())
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .slice(0, 10)
+    .map(([name, count]) => `<span class="tag-signal"><strong>${escapeHtml(name)}</strong><em>${count}</em></span>`)
+    .join("");
+}
+
+function readinessCard(label: string, value: string, tone: "blue" | "green" | "amber" | "teal"): string {
+  return `
+    <article class="readiness-card readiness-card--${tone}">
+      <span>${escapeHtml(label)}</span>
+      <strong>${escapeHtml(value)}</strong>
+    </article>
+  `;
+}
+
+function updateWorkspaceView(): void {
+  const workspace = document.querySelector<HTMLElement>("[data-cv-workspace]");
+  workspace?.setAttribute("data-cv-workspace-active", workspaceView);
+  document.querySelectorAll<HTMLElement>("[data-cv-workspace-view-button]").forEach((button) => {
+    const isActive = button.dataset.cvWorkspaceViewButton === workspaceView;
+    button.classList.toggle("is-active", isActive);
+    button.setAttribute("aria-selected", isActive ? "true" : "false");
+  });
+  document.querySelectorAll<HTMLElement>("[data-cv-workspace-view]").forEach((panel) => {
+    const isActive = panel.dataset.cvWorkspaceView === workspaceView;
+    panel.hidden = !isActive;
+    panel.classList.toggle("is-active", isActive);
+  });
 }
 
 function renderSidebar(): void {
@@ -1230,6 +1429,7 @@ function updateInspectorTabs(): void {
   shell?.setAttribute("data-cv-inspector-mode", inspectorTab);
   shell?.setAttribute("data-cv-inspector-collapsed", inspectorCollapsed ? "true" : "false");
   inspector?.setAttribute("data-cv-inspector-mode", inspectorTab);
+  inspector?.setAttribute("data-cv-inspector-tab-motion", inspectorTabMotion);
   inspector?.setAttribute("aria-hidden", inspectorCollapsed ? "true" : "false");
   inspector?.toggleAttribute("inert", inspectorCollapsed);
   document.querySelectorAll<HTMLElement>("[data-cv-inspector-tab]").forEach((button) => {
@@ -1253,7 +1453,7 @@ function renderInspectorBody(fileRecord: FileRecord): string {
   let content = `${renderDetailsPanel(fileRecord)}${renderSharePanel(fileRecord)}`;
   if (inspectorTab === "preview") content = renderPreviewPanel(fileRecord);
   if (inspectorTab === "activity") content = renderActivityPanel(fileRecord);
-  return `<div data-cv-inspector-content>${content}</div>`;
+  return `<div data-cv-inspector-content data-cv-inspector-motion="${inspectorTabMotion}">${content}</div>`;
 }
 
 function renderDetailsPanel(fileRecord: FileRecord): string {

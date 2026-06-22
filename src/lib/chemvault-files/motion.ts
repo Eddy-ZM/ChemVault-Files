@@ -3,6 +3,9 @@ export const MODAL_CLOSE_DURATION_MS = 220;
 export type ModalMotionState = "closed" | "opening" | "open" | "closing";
 export type ModalMotionEvent = "open" | "opened" | "close" | "closed";
 export type InspectorPanelEvent = "close" | "open" | "select-file";
+export type InspectorTab = "details" | "preview" | "activity";
+export type TabMotionDirection = "forward" | "backward" | "none";
+export type WorkspaceView = "library" | "flow" | "insights";
 
 export function nextModalMotionState(current: ModalMotionState, event: ModalMotionEvent): ModalMotionState {
   if (event === "open" && current !== "open") return "opening";
@@ -29,4 +32,19 @@ export function isTreeNodeExpanded(collapsedIds: ReadonlySet<string>, id: string
 
 export function nextInspectorPanelCollapsed(_collapsed: boolean, event: InspectorPanelEvent): boolean {
   return event === "close";
+}
+
+const workspaceViews: ReadonlySet<string> = new Set(["library", "flow", "insights"]);
+
+export function nextWorkspaceView(current: WorkspaceView, requested: string | null | undefined): WorkspaceView {
+  return workspaceViews.has(requested ?? "") ? (requested as WorkspaceView) : current;
+}
+
+const inspectorTabs: readonly InspectorTab[] = ["details", "preview", "activity"];
+
+export function inspectorTabDirection(current: InspectorTab, next: InspectorTab): TabMotionDirection {
+  const currentIndex = inspectorTabs.indexOf(current);
+  const nextIndex = inspectorTabs.indexOf(next);
+  if (currentIndex === nextIndex) return "none";
+  return nextIndex > currentIndex ? "forward" : "backward";
 }

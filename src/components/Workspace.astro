@@ -1,4 +1,36 @@
 <section id="files-workspace" class="workspace" aria-label="Files workspace" data-cv-workspace>
+  <section class="workspace-command panel" aria-label="Workspace views">
+    <div class="workspace-command__summary">
+      <span class="workspace-command__eyebrow">ChemVault workspace</span>
+      <h1>Research file operations</h1>
+      <p>Private spectra, datasets, dossiers, and manuscripts.</p>
+    </div>
+    <nav class="workspace-switcher" aria-label="Workspace view selector" role="tablist">
+      <button id="workspace-tab-library" class="workspace-switcher__button is-active" type="button" role="tab" aria-selected="true" aria-controls="workspace-panel-library" data-cv-workspace-view-button="library">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M5 6.5A2.5 2.5 0 0 1 7.5 4H10l2 2h4.5A2.5 2.5 0 0 1 19 8.5v9A2.5 2.5 0 0 1 16.5 20h-9A2.5 2.5 0 0 1 5 17.5v-11Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
+          <path d="M8 12h8M8 15h5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+        </svg>
+        <span>Library</span>
+        <small>Files table</small>
+      </button>
+      <button id="workspace-tab-flow" class="workspace-switcher__button" type="button" role="tab" aria-selected="false" aria-controls="workspace-panel-flow" data-cv-workspace-view-button="flow">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M4 7h4l2 10h4l2-10h4M8 7c0 6 8 4 8 10M16 7c0 6-8 4-8 10" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+        <span>Review Flow</span>
+        <small>Queue lanes</small>
+      </button>
+      <button id="workspace-tab-insights" class="workspace-switcher__button" type="button" role="tab" aria-selected="false" aria-controls="workspace-panel-insights" data-cv-workspace-view-button="insights">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M4 19V5m0 14h16M8 16v-5m4 5V8m4 8v-7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+        <span>Insights</span>
+        <small>Storage map</small>
+      </button>
+    </nav>
+  </section>
+
   <section class="workspace-overview" aria-label="File library overview">
     <section class="status-band panel" aria-label="System status" data-cv-status-band>
       <div class="status-item">
@@ -46,7 +78,7 @@
     </section>
   </section>
 
-  <section class="file-panel panel" aria-labelledby="files-title" data-cv-file-panel>
+  <section id="workspace-panel-library" class="workspace-view file-panel panel is-active" aria-labelledby="workspace-tab-library" role="tabpanel" data-cv-workspace-view="library" data-cv-file-panel>
     <div class="file-panel__header">
       <div>
         <h2 id="files-title" data-cv-files-title>Files</h2>
@@ -158,5 +190,60 @@
         </button>
       </div>
     </footer>
+  </section>
+
+  <section id="workspace-panel-flow" class="workspace-view flow-panel panel" aria-labelledby="workspace-tab-flow" role="tabpanel" data-cv-workspace-view="flow" hidden>
+    <header class="workspace-panel-header">
+      <div>
+        <h2>Review Flow</h2>
+        <p>Intake, indexing, review, release.</p>
+      </div>
+      <button class="button button--secondary" type="button" data-cv-quick-filter="failed">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M4 5h16l-6 7v5l-4 2v-7L4 5Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
+        </svg>
+        Focus review
+      </button>
+    </header>
+    <div class="flow-lanes" data-cv-flow-lanes>
+      <article class="flow-lane"><span>Intake</span><strong>Loading</strong><small>Reading library</small></article>
+      <article class="flow-lane"><span>Indexed</span><strong>Loading</strong><small>Reading D1</small></article>
+      <article class="flow-lane"><span>Review</span><strong>Loading</strong><small>Checking failed uploads</small></article>
+      <article class="flow-lane"><span>Released</span><strong>Loading</strong><small>Checking visibility</small></article>
+    </div>
+    <div class="flow-grid">
+      <section class="flow-timeline" aria-label="Recent file activity">
+        <h3>Recent activity</h3>
+        <ol data-cv-flow-timeline>
+          <li class="flow-empty">Loading activity...</li>
+        </ol>
+      </section>
+      <section class="flow-checklist" aria-label="Review checklist">
+        <h3>Review checklist</h3>
+        <ul>
+          <li><span class="status-dot"></span><strong>Checksum captured</strong><small>Validate object integrity before release.</small></li>
+          <li><span class="status-dot"></span><strong>Access policy set</strong><small>Confirm role visibility for sensitive results.</small></li>
+          <li><span class="status-dot status-dot--warning"></span><strong>Failed uploads isolated</strong><small>Use the review filter to retry or remove stale objects.</small></li>
+        </ul>
+      </section>
+    </div>
+  </section>
+
+  <section id="workspace-panel-insights" class="workspace-view insights-panel panel" aria-labelledby="workspace-tab-insights" role="tabpanel" data-cv-workspace-view="insights" hidden>
+    <header class="workspace-panel-header">
+      <div>
+        <h2>Vault Insights</h2>
+        <p>Storage distribution, tag concentration, operational readiness.</p>
+      </div>
+      <button class="button button--secondary" type="button" data-cv-quick-filter="large">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M4 18h16M7 18V8m5 10V5m5 13v-7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+        Large objects
+      </button>
+    </header>
+    <div class="insights-board" data-cv-insights-board>
+      <div class="insight-board-empty">Loading vault intelligence...</div>
+    </div>
   </section>
 </section>

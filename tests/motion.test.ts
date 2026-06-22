@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest";
 import {
   MODAL_CLOSE_DURATION_MS,
   closeDelayForMotion,
+  inspectorTabDirection,
   isTreeNodeExpanded,
   nextInspectorPanelCollapsed,
   nextModalMotionState,
+  nextWorkspaceView,
   toggleCollapsedId,
 } from "../src/lib/chemvault-files/motion";
 
@@ -43,5 +45,17 @@ describe("interface motion state", () => {
     expect(nextInspectorPanelCollapsed(true, "close")).toBe(true);
     expect(nextInspectorPanelCollapsed(true, "select-file")).toBe(false);
     expect(nextInspectorPanelCollapsed(true, "open")).toBe(false);
+  });
+
+  it("switches workspace views only for known surfaces", () => {
+    expect(nextWorkspaceView("library", "flow")).toBe("flow");
+    expect(nextWorkspaceView("flow", "insights")).toBe("insights");
+    expect(nextWorkspaceView("insights", "unknown")).toBe("insights");
+  });
+
+  it("reports inspector tab transition direction for richer content animation", () => {
+    expect(inspectorTabDirection("details", "preview")).toBe("forward");
+    expect(inspectorTabDirection("activity", "preview")).toBe("backward");
+    expect(inspectorTabDirection("preview", "preview")).toBe("none");
   });
 });
