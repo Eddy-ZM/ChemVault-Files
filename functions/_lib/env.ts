@@ -7,9 +7,12 @@ export interface Env {
 }
 
 export function getActorEmail(request: Request, env: Env): string {
-  const accessEmail = request.headers.get("Cf-Access-Authenticated-User-Email");
-  const tokenEmail = readAccessJwtEmail(request);
-  return accessEmail || tokenEmail || env.PRIVATE_OWNER_EMAIL || "owner@chemvault.science";
+  return (
+    normalizeEmailCandidate(request.headers.get("Cf-Access-Authenticated-User-Email")) ??
+    readAccessJwtEmail(request) ??
+    normalizeEmailCandidate(env.PRIVATE_OWNER_EMAIL) ??
+    "owner@chemvault.science"
+  );
 }
 
 export function hasRequiredBindings(env: Env): { d1: boolean; r2: boolean } {
@@ -27,10 +30,16 @@ function readAccessJwtEmail(request: Request): string | null {
 
   try {
     const json = JSON.parse(decodeBase64Url(payload)) as { email?: unknown };
-    return typeof json.email === "string" && json.email.includes("@") ? json.email : null;
+    return normalizeEmailCandidate(json.email);
   } catch {
     return null;
   }
+}
+
+function normalizeEmailCandidate(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const email = value.trim().toLowerCase();
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : null;
 }
 
 function readCookie(cookieHeader: string | null, name: string): string | null {

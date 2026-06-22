@@ -30,7 +30,7 @@ describe("HTTP helpers", () => {
     await expect(parseJsonBody(request)).resolves.toEqual({ name: "Compound_14_1H.jdx" });
   });
 
-  it("returns the Cloudflare Access actor email in health responses", async () => {
+  it("returns the normalized Cloudflare Access actor email in health responses", async () => {
     const request = new Request("https://files.chemvault.science/api/health", {
       headers: { "Cf-Access-Authenticated-User-Email": "Scientist@ChemVault.Science" },
     });
@@ -44,7 +44,7 @@ describe("HTTP helpers", () => {
     } as unknown as Parameters<typeof healthGet>[0]);
 
     await expect(response.json()).resolves.toMatchObject({
-      actorEmail: "Scientist@ChemVault.Science",
+      actorEmail: "scientist@chemvault.science",
     });
   });
 
@@ -57,5 +57,25 @@ describe("HTTP helpers", () => {
     });
 
     expect(getActorEmail(request, { PRIVATE_OWNER_EMAIL: "owner@chemvault.science" })).toBe("edward@chemvault.science");
+  });
+
+  it("ignores an invalid Access email header and falls back to the JWT email", () => {
+    const payload = btoa(JSON.stringify({ email: "actual-user@chemvault.science" })).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+    const request = new Request("https://file.chemvault.science/api/health", {
+      headers: {
+        "Cf-Access-Authenticated-User-Email": "not-an-email",
+        "Cf-Access-Jwt-Assertion": `header.${payload}.signature`,
+      },
+    });
+
+    expect(getActorEmail(request, { PRIVATE_OWNER_EMAIL: "owner@chemvault.science" })).toBe("actual-user@chemvault.science");
+  });
+
+  it("normalizes the detected login email before returning it", () => {
+    const request = new Request("https://files.chemvault.science/api/health", {
+      headers: { "Cf-Access-Authenticated-User-Email": " Scientist@ChemVault.Science " },
+    });
+
+    expect(getActorEmail(request, { PRIVATE_OWNER_EMAIL: "owner@chemvault.science" })).toBe("scientist@chemvault.science");
   });
 });
