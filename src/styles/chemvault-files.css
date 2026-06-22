@@ -438,8 +438,8 @@ input:focus-visible {
   min-height: 0;
   display: grid;
   grid-template-columns: var(--cv-sidebar-width) minmax(var(--cv-workspace-min), 1fr) var(--cv-inspector-width);
-  gap: 8px;
-  padding: 8px;
+  gap: 10px;
+  padding: 10px;
   overflow: hidden;
   transition: grid-template-columns var(--motion-expand) var(--motion-ease);
 }
@@ -457,10 +457,10 @@ input:focus-visible {
 
 .panel {
   min-height: 0;
-  border: 1px solid var(--line);
+  border: 1px solid rgba(0, 0, 0, 0.09);
   border-radius: var(--radius);
   background: var(--surface);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+  box-shadow: 0 10px 30px rgba(20, 30, 50, 0.055), 0 1px 2px rgba(0, 0, 0, 0.02);
 }
 
 .sidebar {
@@ -503,6 +503,7 @@ input:focus-visible {
 
 .nav-row,
 .folder-row {
+  position: relative;
   display: grid;
   grid-template-columns: 22px minmax(0, 1fr) auto;
   align-items: center;
@@ -530,7 +531,7 @@ input:focus-visible {
 
 .nav-row:hover,
 .folder-row:hover {
-  background: #f3f6fa;
+  background: #f2f7fd;
 }
 
 .folder-row {
@@ -638,8 +639,9 @@ input:focus-visible {
 }
 
 .folder-row.is-active {
-  background: #eaf3ff;
+  background: linear-gradient(90deg, #e6f2ff, #f4f9ff);
   color: var(--blue-strong);
+  box-shadow: inset 3px 0 0 var(--blue), 0 4px 12px rgba(0, 113, 227, 0.08);
 }
 
 .folder-row--active .row-more {
@@ -1476,10 +1478,13 @@ input:focus-visible {
 .file-panel {
   min-height: 0;
   display: grid;
-  grid-template-rows: auto auto auto 1fr auto;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
   gap: 8px;
   padding-top: 8px;
-  overflow: auto;
+  overflow: hidden;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(249, 251, 254, 0.98)),
+    linear-gradient(90deg, rgba(0, 113, 227, 0.04), transparent 40%);
 }
 
 .file-panel__header {
@@ -1529,13 +1534,12 @@ input:focus-visible {
   grid-template-rows: auto 1fr;
   margin: 0 12px;
   overflow: hidden;
-  border: 1px solid rgba(169, 179, 193, 0.72);
+  border: 1px solid rgba(145, 158, 178, 0.46);
   border-radius: var(--radius);
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(247, 250, 253, 0.96)),
-    radial-gradient(circle at 18% 0%, rgba(255, 214, 102, 0.16), transparent 32%),
-    radial-gradient(circle at 92% 20%, rgba(0, 113, 227, 0.12), transparent 30%);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(247, 250, 253, 0.98)),
+    linear-gradient(90deg, rgba(0, 113, 227, 0.045), transparent 34%);
+  box-shadow: 0 12px 28px rgba(23, 34, 52, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.92);
 }
 
 .file-browser__header {
@@ -1545,7 +1549,9 @@ input:focus-visible {
   gap: 12px;
   min-height: 38px;
   padding: 6px 10px;
-  border-bottom: 1px solid rgba(211, 218, 227, 0.8);
+  border-bottom: 1px solid rgba(220, 226, 235, 0.86);
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(12px);
 }
 
 .file-browser__header > span {
@@ -1587,10 +1593,10 @@ input:focus-visible {
 
 .file-browser__grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(152px, 1fr));
-  gap: 8px;
+  grid-template-columns: repeat(auto-fill, minmax(164px, 1fr));
+  gap: 10px;
   min-height: 0;
-  padding: 10px;
+  padding: 12px;
   overflow: auto;
 }
 
@@ -1625,12 +1631,12 @@ input:focus-visible {
   gap: 3px 10px;
   padding: 10px;
   overflow: hidden;
-  border: 1px solid rgba(213, 220, 230, 0.86);
+  border: 1px solid rgba(204, 214, 228, 0.82);
   border-radius: var(--radius);
-  background: rgba(255, 255, 255, 0.78);
+  background: rgba(255, 255, 255, 0.9);
   color: #242b36;
   text-align: left;
-  box-shadow: 0 1px 2px rgba(22, 29, 39, 0.04);
+  box-shadow: 0 5px 14px rgba(23, 34, 52, 0.055);
   animation: cv-file-os-enter var(--motion-content) var(--motion-ease) both;
   transition:
     border-color var(--motion-fast) ease-out,
@@ -1643,7 +1649,7 @@ input:focus-visible {
 .file-os-item:focus-visible {
   border-color: rgba(0, 113, 227, 0.32);
   background: #fff;
-  box-shadow: 0 10px 22px rgba(32, 45, 66, 0.1);
+  box-shadow: 0 14px 30px rgba(32, 45, 66, 0.12);
   transform: translateY(-2px);
 }
 
@@ -1709,19 +1715,23 @@ input:focus-visible {
 }
 
 .bulk-action-bar {
+  align-self: end;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  min-height: 46px;
-  margin: 0 12px;
-  padding: 6px 8px;
-  border: 1px solid rgba(0, 113, 227, 0.24);
+  min-height: 48px;
+  margin: 0 12px 10px;
+  padding: 6px 8px 6px 12px;
+  border: 1px solid rgba(120, 157, 206, 0.32);
   border-radius: var(--radius);
-  background: #f5faff;
-  color: #24405f;
+  background: rgba(255, 255, 255, 0.88);
+  color: #26384f;
   font-size: 13px;
+  box-shadow: 0 14px 36px rgba(22, 38, 65, 0.12);
+  backdrop-filter: blur(16px);
+  animation: cv-bulk-bar-enter var(--motion-content) var(--motion-ease) both;
 }
 
 .bulk-action-bar[hidden] {
@@ -1735,6 +1745,18 @@ input:focus-visible {
   justify-content: flex-end;
   gap: 8px;
   min-width: 0;
+}
+
+@keyframes cv-bulk-bar-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.99);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 .flow-panel,
@@ -2096,6 +2118,7 @@ input:focus-visible {
   height: 100%;
   overflow: auto;
   contain: paint;
+  background: rgba(255, 255, 255, 0.72);
 }
 
 .file-table {
@@ -2107,7 +2130,7 @@ input:focus-visible {
 
 .file-table th,
 .file-table td {
-  height: 44px;
+  height: 42px;
   padding: 0 10px;
   border-bottom: 1px solid var(--line);
   text-align: left;
@@ -2116,10 +2139,16 @@ input:focus-visible {
 }
 
 .file-table th {
-  height: 38px;
-  color: #2f3743;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  height: 36px;
+  border-bottom-color: rgba(210, 218, 229, 0.82);
+  background: rgba(250, 252, 255, 0.94);
+  color: #475160;
   font-size: 12px;
   font-weight: 650;
+  backdrop-filter: blur(10px);
 }
 
 .table-sort {
@@ -2147,11 +2176,14 @@ input:focus-visible {
 }
 
 .file-table tbody tr {
-  background: var(--surface);
+  background: rgba(255, 255, 255, 0.82);
+  transition:
+    background-color var(--motion-fast) ease-out,
+    box-shadow var(--motion-fast) ease-out;
 }
 
 .file-table tbody tr:hover {
-  background: #f8fbff;
+  background: rgba(242, 248, 255, 0.98);
 }
 
 .file-table tbody tr[tabindex] {
@@ -2159,7 +2191,8 @@ input:focus-visible {
 }
 
 .file-table tbody tr.is-selected {
-  background: #e8f3ff;
+  background: linear-gradient(90deg, rgba(0, 113, 227, 0.14), rgba(234, 246, 255, 0.96));
+  box-shadow: inset 3px 0 0 var(--blue);
 }
 
 .file-table tbody tr.is-failed {
@@ -2168,6 +2201,7 @@ input:focus-visible {
 
 .file-table__row--folder {
   color: #425066;
+  background: rgba(255, 255, 255, 0.68);
 }
 
 .file-table__row--folder td {
@@ -2181,9 +2215,11 @@ input:focus-visible {
 
 .folder-row-icon {
   display: inline-flex;
-  width: 16px;
-  height: 16px;
-  color: #7b6500;
+  width: 20px;
+  height: 20px;
+  align-items: center;
+  justify-content: center;
+  color: #9a6b00;
 }
 
 .folder-row-placeholder {
@@ -2263,7 +2299,7 @@ input:focus-visible {
 .file-name {
   display: inline-flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   min-width: 0;
   color: #202833;
 }
