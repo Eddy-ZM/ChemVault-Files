@@ -109,6 +109,11 @@ interface BrowserUploadSelection {
   relativePath?: string;
 }
 
+interface BrowserLocationState {
+  projectId: string | null;
+  folderId: string | null;
+}
+
 interface BrowserFileEntry {
   isFile: boolean;
   isDirectory: boolean;
@@ -212,6 +217,8 @@ let filters: FileFilters = {
   tagSlug: null,
   quickFilter: null,
 };
+let browserHistory: BrowserLocationState[] = [{ projectId: null, folderId: null }];
+let browserHistoryIndex = 0;
 let collapsedProjectIds = new Set<string>();
 let collapsedFolderIds = new Set<string>();
 let selectedFileId: string | null = null;
@@ -323,31 +330,31 @@ function bindEvents(): void {
       return;
     }
 
+    const historyButton = target.closest<HTMLButtonElement>("[data-cv-browser-history]");
+    if (historyButton) {
+      if (historyButton.disabled) return;
+      navigateBrowserHistory(historyButton.dataset.cvBrowserHistory === "forward" ? 1 : -1);
+      return;
+    }
+
     const rootButton = target.closest<HTMLElement>("[data-cv-browser-root]");
     if (rootButton) {
-      filters = { ...filters, projectId: null, folderId: null };
-      workspaceView = "library";
-      renderAll();
+      navigateToBrowserLocation({ projectId: null, folderId: null });
       return;
     }
 
     const browserFolder = target.closest<HTMLElement>("[data-cv-browser-folder-id]");
     if (browserFolder?.dataset.cvBrowserFolderId) {
-      filters = {
-        ...filters,
+      navigateToBrowserLocation({
         projectId: browserFolder.dataset.cvBrowserProjectId || filters.projectId,
         folderId: browserFolder.dataset.cvBrowserFolderId,
-      };
-      workspaceView = "library";
-      renderAll();
+      });
       return;
     }
 
     const browserProject = target.closest<HTMLElement>("[data-cv-browser-project-id]");
     if (browserProject?.dataset.cvBrowserProjectId) {
-      filters = { ...filters, projectId: browserProject.dataset.cvBrowserProjectId, folderId: null };
-      workspaceView = "library";
-      renderAll();
+      navigateToBrowserLocation({ projectId: browserProject.dataset.cvBrowserProjectId, folderId: null });
       return;
     }
 
@@ -437,6 +444,9 @@ function bindEvents(): void {
     if (!nav) return;
     event.preventDefault();
     filters = { search: filters.search, projectId: null, folderId: null, tagSlug: null, quickFilter: null };
+    recordBrowserHistory({ projectId: null, folderId: null }, "push");
+    selectedFileId = null;
+    selectedFileIds = new Set();
     renderAll();
   });
 
@@ -470,12 +480,10 @@ function bindEvents(): void {
     const target = (event.target as HTMLElement).closest<HTMLElement>("[data-cv-project-id], [data-cv-folder-id]");
     if (!target) return;
     event.preventDefault();
-    filters = {
-      ...filters,
+    navigateToBrowserLocation({
       projectId: target.dataset.cvProjectId || null,
       folderId: target.dataset.cvFolderId || null,
-    };
-    renderAll();
+    });
   });
 
   document.querySelector<HTMLElement>("[data-cv-tags]")?.addEventListener("click", (event) => {
@@ -491,7 +499,7 @@ function bindEvents(): void {
   document.querySelector<HTMLElement>("[data-cv-active-filters]")?.addEventListener("click", (event) => {
     const target = (event.target as HTMLElement).closest<HTMLElement>("[data-cv-clear-filters]");
     if (!target) return;
-    filters = { search: filters.search, projectId: null, folderId: null, tagSlug: null, quickFilter: null };
+    filters = { ...filters, tagSlug: null, quickFilter: null };
     renderAll();
   });
 
@@ -500,15 +508,13 @@ function bindEvents(): void {
     if (!row) return;
     const kind = row.dataset.cvListKind ?? "file";
     if (kind !== "file") {
-      filters = {
-        ...filters,
-        projectId: row.dataset.cvBrowserProjectId || null,
-        folderId: row.dataset.cvBrowserFolderId || null,
-      };
-      workspaceView = "library";
-      selectedFileId = null;
-      selectedFileIds = new Set();
-      renderAll();
+      navigateToBrowserLocation(
+        {
+          projectId: row.dataset.cvBrowserProjectId || null,
+          folderId: row.dataset.cvBrowserFolderId || null,
+        },
+        { clearSelection: true }
+      );
       return;
     }
 
@@ -671,6 +677,59 @@ function bindEvents(): void {
     if (!selectedFileId) return;
     void deleteSelectedFile();
   });
+}
+
+function navigateToBrowserLocation(location: BrowserLocationState, options: { clearSelection?: boolean; history?: "push" | "replace" | "none" } = {}): void {
+  const nextLocation = normalizeBrowserLocation(location);
+  filters = {
+    ...filters,
+    projectId: nextLocation.projectId,
+    folderId: nextLocation.folderId,
+  };
+  if (options.clearSelection ?? true) {
+    selectedFileId = null;
+    selectedFileIds = new Set();
+  }
+  if (options.history !== "none") {
+    recordBrowserHistory(nextLocation, options.history ?? "push");
+  }
+  workspaceView = "library";
+  renderAll();
+}
+
+function navigateBrowserHistory(direction: 1 | -1): void {
+  const nextIndex = browserHistoryIndex + direction;
+  if (nextIndex < 0 || nextIndex >= browserHistory.length) return;
+  browserHistoryIndex = nextIndex;
+  navigateToBrowserLocation(browserHistory[browserHistoryIndex], { history: "none", clearSelection: true });
+}
+
+function recordBrowserHistory(location: BrowserLocationState, mode: "push" | "replace"): void {
+  const nextLocation = normalizeBrowserLocation(location);
+  const currentLocation = browserHistory[browserHistoryIndex] ?? { projectId: null, folderId: null };
+  if (mode === "replace") {
+    browserHistory[browserHistoryIndex] = nextLocation;
+    return;
+  }
+  if (browserLocationsEqual(currentLocation, nextLocation)) return;
+  browserHistory = browserHistory.slice(0, browserHistoryIndex + 1);
+  browserHistory.push(nextLocation);
+  browserHistoryIndex = browserHistory.length - 1;
+}
+
+function normalizeBrowserLocation(location: BrowserLocationState): BrowserLocationState {
+  if (!location.folderId) {
+    return { projectId: location.projectId, folderId: null };
+  }
+  const folderRecord = library.folders.find((entry) => entry.id === location.folderId) ?? null;
+  return {
+    projectId: folderRecord?.projectId ?? location.projectId,
+    folderId: location.folderId,
+  };
+}
+
+function browserLocationsEqual(left: BrowserLocationState, right: BrowserLocationState): boolean {
+  return left.projectId === right.projectId && left.folderId === right.folderId;
 }
 
 async function loadRemoteState(): Promise<void> {
@@ -1338,6 +1397,7 @@ function renderFileBrowser(): void {
   const path = document.querySelector<HTMLElement>("[data-cv-file-browser-path]");
   const summary = document.querySelector<HTMLElement>("[data-cv-file-browser-summary]");
   const grid = document.querySelector<HTMLElement>("[data-cv-file-browser-grid]");
+  updateBrowserHistoryButtons();
   if (path) path.innerHTML = renderFileBrowserPath();
   if (summary) summary.textContent = libraryLoading ? "Loading" : fileBrowserSummary();
   if (!grid) return;
@@ -1351,6 +1411,13 @@ function renderFileBrowser(): void {
   grid.innerHTML = items.length
     ? items.map((item) => renderFileBrowserItem(item)).join("")
     : `<div class="empty-state">${escapeHtml(emptyFilesLabel())}</div>`;
+}
+
+function updateBrowserHistoryButtons(): void {
+  const backButton = document.querySelector<HTMLButtonElement>("[data-cv-browser-history='back']");
+  const forwardButton = document.querySelector<HTMLButtonElement>("[data-cv-browser-history='forward']");
+  if (backButton) backButton.disabled = browserHistoryIndex <= 0;
+  if (forwardButton) forwardButton.disabled = browserHistoryIndex >= browserHistory.length - 1;
 }
 
 function renderFileBrowserPath(): string {
@@ -1526,16 +1593,10 @@ function emptyFilesLabel(): string {
 
 function renderActiveFilters(): string {
   const chips: string[] = [];
-  const projectRecord = filters.projectId ? library.projects.find((entry) => entry.id === filters.projectId) : null;
-  const folderRecord = filters.folderId ? library.folders.find((entry) => entry.id === filters.folderId) : null;
   const tagRecord = filters.tagSlug ? library.tags.find((entry) => entry.slug === filters.tagSlug) : null;
 
-  if (projectRecord) chips.push(filterChip(projectRecord.name));
-  if (folderRecord) chips.push(filterChip(folderRecord.name));
   if (tagRecord) chips.push(filterChip(tagRecord.name));
   if (filters.quickFilter) chips.push(filterChip(quickFilterLabel(filters.quickFilter)));
-  if (previewMode) chips.push(filterChip("Preview data"));
-  if (configurationMissing && !previewMode) chips.push(filterChip("Configuration missing"));
 
   return `${chips.join("")}${chips.length ? `<button class="link-button" type="button" data-cv-clear-filters>Clear filters</button>` : ""}`;
 }
@@ -2283,6 +2344,7 @@ async function deleteFolder(folderId: string): Promise<void> {
     };
     if (filters.folderId && folderIdSet.has(filters.folderId)) {
       filters = { ...filters, folderId: null, projectId: folderRecord.projectId };
+      recordBrowserHistory({ projectId: folderRecord.projectId, folderId: null }, "replace");
     }
     if (selectedFileId && fileIdSet.has(selectedFileId)) {
       selectedFileId = null;
@@ -2300,6 +2362,7 @@ async function deleteFolder(folderId: string): Promise<void> {
     });
     if (filters.folderId && folderIdSet.has(filters.folderId)) {
       filters = { ...filters, folderId: null, projectId: folderRecord.projectId };
+      recordBrowserHistory({ projectId: folderRecord.projectId, folderId: null }, "replace");
     }
     await reloadLibrary();
   } catch (error) {

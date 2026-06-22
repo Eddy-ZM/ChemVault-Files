@@ -1499,6 +1499,10 @@ input:focus-visible {
   margin-top: 8px;
 }
 
+.active-filters:empty {
+  display: none;
+}
+
 .smart-filter-row {
   display: flex;
   align-items: center;
@@ -1554,6 +1558,36 @@ input:focus-visible {
   backdrop-filter: blur(12px);
 }
 
+.file-browser__navigator {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.file-browser__history {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid rgba(190, 201, 217, 0.78);
+  border-radius: 7px;
+  background: rgba(246, 248, 251, 0.9);
+}
+
+.file-browser__history .ghost-icon {
+  width: 26px;
+  height: 24px;
+  border-radius: 5px;
+  color: #3f4855;
+}
+
+.file-browser__history .ghost-icon:disabled {
+  opacity: 0.36;
+}
+
 .file-browser__header > span {
   flex: 0 0 auto;
   color: #65707e;
@@ -1563,19 +1597,30 @@ input:focus-visible {
 
 .file-browser__path {
   min-width: 0;
+  flex: 1;
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 5px;
+  min-height: 30px;
+  padding: 2px 6px;
+  border: 1px solid rgba(205, 214, 227, 0.74);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.82);
   overflow-x: auto;
   color: #7a8491;
   font-size: 12.5px;
 }
 
+.file-browser__path > span {
+  flex: 0 0 auto;
+  color: #a2acba;
+}
+
 .file-browser__path button {
   flex: 0 0 auto;
-  min-height: 26px;
-  padding: 0 8px;
-  border-radius: 6px;
+  min-height: 24px;
+  padding: 0 7px;
+  border-radius: 5px;
   background: transparent;
   color: #3f4855;
   font-size: 12.5px;

@@ -121,9 +121,23 @@
 
     <section class="file-browser" aria-label="Folders and files" data-cv-file-browser>
       <header class="file-browser__header">
-        <nav class="file-browser__path" aria-label="Current folder" data-cv-file-browser-path>
-          <button type="button" data-cv-browser-root>Vault</button>
-        </nav>
+        <div class="file-browser__navigator">
+          <div class="file-browser__history" aria-label="Folder history">
+            <button class="ghost-icon" type="button" aria-label="Back" data-cv-browser-history="back" disabled>
+              <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="m15 18-6-6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </button>
+            <button class="ghost-icon" type="button" aria-label="Forward" data-cv-browser-history="forward" disabled>
+              <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="m9 18 6-6-6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </button>
+          </div>
+          <nav class="file-browser__path" aria-label="Current folder" data-cv-file-browser-path>
+            <button type="button" data-cv-browser-root>Vault</button>
+          </nav>
+        </div>
         <span data-cv-file-browser-summary>Loading</span>
       </header>
       <div class="file-browser__grid" data-cv-file-browser-grid>
