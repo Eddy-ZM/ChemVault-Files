@@ -967,7 +967,7 @@ function renderHealth(health?: HealthResponse): void {
         <div class="status-item${item.end ? " status-item--end" : ""}">
           ${item.icon ? lockIcon() : ""}
           <span class="status-dot ${item.state === "warning" ? "status-dot--warning" : ""}"></span>
-          <span>${escapeHtml(item.label)}</span>
+          <span class="status-item__text">${escapeHtml(item.label)}</span>
         </div>
       `
     )
