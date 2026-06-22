@@ -21,3 +21,7 @@ export function toggleCollapsedId(collapsedIds: ReadonlySet<string>, id: string)
   else next.add(id);
   return next;
 }
+
+export function isTreeNodeExpanded(collapsedIds: ReadonlySet<string>, id: string): boolean {
+  return !collapsedIds.has(id);
+}

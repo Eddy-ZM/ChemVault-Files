@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   MODAL_CLOSE_DURATION_MS,
   closeDelayForMotion,
+  isTreeNodeExpanded,
   nextModalMotionState,
   toggleCollapsedId,
 } from "../src/lib/chemvault-files/motion";
@@ -26,5 +27,13 @@ describe("interface motion state", () => {
     expect(toggleCollapsedId(collapsed, "folder_spectra")).toEqual(new Set());
     expect(toggleCollapsedId(collapsed, "folder_datasets")).toEqual(new Set(["folder_spectra", "folder_datasets"]));
     expect(collapsed).toEqual(new Set(["folder_spectra"]));
+  });
+
+  it("reports project and folder expansion from their independent collapsed sets", () => {
+    const collapsedProjects = toggleCollapsedId(new Set(), "project_spectra");
+    const collapsedFolders = toggleCollapsedId(new Set(), "folder_spectra");
+    expect(isTreeNodeExpanded(collapsedProjects, "project_spectra")).toBe(false);
+    expect(isTreeNodeExpanded(collapsedFolders, "folder_spectra")).toBe(false);
+    expect(isTreeNodeExpanded(collapsedProjects, "project_datasets")).toBe(true);
   });
 });

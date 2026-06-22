@@ -24,7 +24,9 @@ import {
 } from "../lib/chemvault-files/client-state";
 import {
   closeDelayForMotion,
+  isTreeNodeExpanded,
   nextModalMotionState,
+  toggleCollapsedId,
   type ModalMotionState,
 } from "../lib/chemvault-files/motion";
 import type {
@@ -199,6 +201,8 @@ let filters: FileFilters = {
   tagSlug: null,
   quickFilter: null,
 };
+let collapsedProjectIds = new Set<string>();
+let collapsedFolderIds = new Set<string>();
 let selectedFileId: string | null = null;
 let selectedFileIds = new Set<string>();
 let uploadQueue: UploadQueueItem[] = [];
@@ -367,6 +371,24 @@ function bindEvents(): void {
       event.preventDefault();
       event.stopPropagation();
       void deleteFolder(deleteButton.dataset.cvDeleteFolderId || "");
+      return;
+    }
+
+    const projectToggle = (event.target as HTMLElement).closest<HTMLElement>("[data-cv-toggle-project-id]");
+    if (projectToggle?.dataset.cvToggleProjectId) {
+      event.preventDefault();
+      event.stopPropagation();
+      collapsedProjectIds = toggleCollapsedId(collapsedProjectIds, projectToggle.dataset.cvToggleProjectId);
+      renderSidebar();
+      return;
+    }
+
+    const folderToggle = (event.target as HTMLElement).closest<HTMLElement>("[data-cv-toggle-folder-id]");
+    if (folderToggle?.dataset.cvToggleFolderId) {
+      event.preventDefault();
+      event.stopPropagation();
+      collapsedFolderIds = toggleCollapsedId(collapsedFolderIds, folderToggle.dataset.cvToggleFolderId);
+      renderSidebar();
       return;
     }
 
@@ -883,42 +905,64 @@ function renderSidebar(): void {
 function renderProject(projectRecord: ProjectRecord): string {
   const count = library.files.filter((entry) => entry.projectId === projectRecord.id && entry.status !== "deleted").length;
   const isActive = filters.projectId === projectRecord.id && !filters.folderId;
-  const children = buildFolderTree(projectRecord.id, library.folders, library.files).map((node) => renderFolderNode(projectRecord.id, node)).join("");
+  const childNodes = buildFolderTree(projectRecord.id, library.folders, library.files);
+  const hasChildren = childNodes.length > 0;
+  const isExpanded = isTreeNodeExpanded(collapsedProjectIds, projectRecord.id);
+  const children = childNodes.map((node) => renderFolderNode(projectRecord.id, node)).join("");
 
   return `
     <li>
-      <a class="folder-row${isActive ? " is-active" : ""}" href="#" data-cv-project-id="${escapeAttr(projectRecord.id)}">
-        ${chevronIcon(children ? "down" : "right")}
-        ${folderIcon()}
-        <span>${escapeHtml(projectRecord.name)}</span>
-        <strong>${count}</strong>
-      </a>
-      ${children ? `<ul>${children}</ul>` : ""}
+      <div class="folder-row-shell">
+        ${hasChildren ? renderTreeToggle("project", projectRecord.id, projectRecord.name, isExpanded) : renderTreeTogglePlaceholder()}
+        <a class="folder-row${isActive ? " is-active" : ""}" href="#" data-cv-project-id="${escapeAttr(projectRecord.id)}">
+          ${folderIcon()}
+          <span>${escapeHtml(projectRecord.name)}</span>
+          <strong>${count}</strong>
+        </a>
+      </div>
+      ${hasChildren ? `<div class="folder-children" data-cv-expanded="${isExpanded ? "true" : "false"}"><ul>${children}</ul></div>` : ""}
     </li>
   `;
 }
 
 function renderFolderNode(projectId: string, node: ReturnType<typeof buildFolderTree>[number]): string {
   const hasChildren = node.children.length > 0;
+  const isExpanded = isTreeNodeExpanded(collapsedFolderIds, node.folder.id);
   const canDelete = canDeleteFolderNode();
   return `
     <li>
       <div class="folder-row-wrap${canDelete ? " folder-row-wrap--deletable" : ""}">
-        <a class="folder-row folder-row--child${filters.folderId === node.folder.id ? " is-active" : ""}" href="#" data-cv-project-id="${escapeAttr(projectId)}" data-cv-folder-id="${escapeAttr(node.folder.id)}" style="--folder-depth: ${node.depth}">
-          ${chevronIcon(hasChildren ? "down" : "right")}
-          ${folderIcon()}
-          <span>${escapeHtml(node.folder.name)}</span>
-          <strong>${node.totalFileCount}</strong>
-        </a>
+        <div class="folder-row-shell folder-row-shell--child" style="--folder-depth: ${node.depth}">
+          ${hasChildren ? renderTreeToggle("folder", node.folder.id, node.folder.name, isExpanded) : renderTreeTogglePlaceholder()}
+          <a class="folder-row folder-row--child${filters.folderId === node.folder.id ? " is-active" : ""}" href="#" data-cv-project-id="${escapeAttr(projectId)}" data-cv-folder-id="${escapeAttr(node.folder.id)}">
+            ${folderIcon()}
+            <span>${escapeHtml(node.folder.name)}</span>
+            <strong>${node.totalFileCount}</strong>
+          </a>
+        </div>
         ${
           canDelete
             ? `<button class="ghost-icon folder-delete-button" type="button" aria-label="Delete ${escapeAttr(node.folder.name)}" title="Delete empty folder" data-cv-delete-folder-id="${escapeAttr(node.folder.id)}">${trashIcon()}</button>`
             : ""
         }
       </div>
-      ${hasChildren ? `<ul>${node.children.map((child) => renderFolderNode(projectId, child)).join("")}</ul>` : ""}
+      ${hasChildren ? `<div class="folder-children" data-cv-expanded="${isExpanded ? "true" : "false"}"><ul>${node.children.map((child) => renderFolderNode(projectId, child)).join("")}</ul></div>` : ""}
     </li>
   `;
+}
+
+function renderTreeToggle(kind: "project" | "folder", id: string, name: string, isExpanded: boolean): string {
+  const dataAttribute = kind === "project" ? "data-cv-toggle-project-id" : "data-cv-toggle-folder-id";
+  const action = isExpanded ? "Collapse" : "Expand";
+  return `
+    <button class="folder-toggle" type="button" aria-expanded="${isExpanded ? "true" : "false"}" aria-label="${action} ${escapeAttr(name)}" ${dataAttribute}="${escapeAttr(id)}">
+      ${chevronIcon("down")}
+    </button>
+  `;
+}
+
+function renderTreeTogglePlaceholder(): string {
+  return `<span class="folder-toggle folder-toggle--placeholder" aria-hidden="true">${chevronIcon("right")}</span>`;
 }
 
 function canDeleteFolderNode(): boolean {
@@ -1180,9 +1224,10 @@ function updateInspectorTabs(): void {
 }
 
 function renderInspectorBody(fileRecord: FileRecord): string {
-  if (inspectorTab === "preview") return renderPreviewPanel(fileRecord);
-  if (inspectorTab === "activity") return renderActivityPanel(fileRecord);
-  return `${renderDetailsPanel(fileRecord)}${renderSharePanel(fileRecord)}`;
+  let content = `${renderDetailsPanel(fileRecord)}${renderSharePanel(fileRecord)}`;
+  if (inspectorTab === "preview") content = renderPreviewPanel(fileRecord);
+  if (inspectorTab === "activity") content = renderActivityPanel(fileRecord);
+  return `<div data-cv-inspector-content>${content}</div>`;
 }
 
 function renderDetailsPanel(fileRecord: FileRecord): string {
