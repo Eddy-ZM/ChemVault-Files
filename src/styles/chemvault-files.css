@@ -3085,6 +3085,12 @@ input:focus-visible {
   font-weight: 620;
 }
 
+.share-badge--public {
+  border-color: rgba(22, 163, 74, 0.25);
+  background: #ecfdf3;
+  color: #146c43;
+}
+
 .share-preview .preview-frame {
   min-height: min(68vh, 720px);
 }

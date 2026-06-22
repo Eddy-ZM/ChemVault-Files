@@ -65,6 +65,7 @@ function activeState(overrides: Partial<Record<string, unknown>> = {}): FakeStat
       file_id: "file_1",
       created_by_email: "owner@chemvault.science",
       allow_download: 0,
+      is_public: 0,
       expires_at: "2099-01-01T00:00:00.000Z",
       created_at: "2026-06-17T08:00:00.000Z",
       revoked_at: null,
@@ -109,6 +110,7 @@ describe("share API", () => {
       share: {
         token: "sh_active",
         allowDownload: false,
+        isPublic: false,
       },
       previewUrl: "/api/shares/sh_active/preview",
       downloadUrl: null,

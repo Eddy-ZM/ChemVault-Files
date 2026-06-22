@@ -171,9 +171,10 @@ export function previewKindForFile(file: Pick<FileRecord, "displayName" | "mimeT
   return resolvePreviewKind(file);
 }
 
-export function formatShareUrl(currentUrl: string, token: string): string {
+export function formatShareUrl(currentUrl: string, token: string, isPublic = false): string {
   const url = new URL(currentUrl);
-  return `${url.origin}/share?token=${encodeURIComponent(token)}`;
+  const page = isPublic ? "/share-public" : "/share";
+  return `${url.origin}${page}?token=${encodeURIComponent(token)}`;
 }
 
 export function accessLogoutUrl(currentUrl: string): string {

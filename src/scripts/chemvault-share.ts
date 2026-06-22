@@ -44,6 +44,7 @@ function renderShare(share: SharePublicResponse): string {
         <h1>${escapeHtml(share.file.displayName)}</h1>
         <p>${escapeHtml(formatBytes(share.file.sizeBytes))} · expires ${escapeHtml(formatDate(share.share.expiresAt))}</p>
       </div>
+      <span class="share-badge ${share.share.isPublic ? "share-badge--public" : ""}">${share.share.isPublic ? "Public link" : "Cloudflare Access required to open share page"}</span>
       ${
         share.downloadUrl
           ? `<a class="button button--primary" href="${escapeAttr(share.downloadUrl)}">Download</a>`

@@ -1893,6 +1893,10 @@ function renderSharePanel(fileRecord: FileRecord): string {
           <input type="checkbox" name="allowDownload" ${canWrite ? "" : "disabled"} />
           <span>Allow download</span>
         </label>
+        <label class="share-toggle">
+          <input type="checkbox" name="isPublic" ${canWrite ? "" : "disabled"} />
+          <span>Public link (no Cloudflare verification required)</span>
+        </label>
         <button class="button button--primary" type="submit" ${state.loading || !canWrite ? "disabled" : ""}>${state.loading ? "Creating" : "Create link"}</button>
       </form>
       ${canWrite ? "" : `<p class="form-status">Current role can read files but cannot create or edit share links.</p>`}
@@ -1922,14 +1926,15 @@ function renderManagedShares(fileId: string, state: ShareUiState): string {
 }
 
 function renderManagedShareRow(fileId: string, share: FileShareRecord): string {
-  const shareUrl = formatShareUrl(window.location.href, share.token);
+  const shareUrl = formatShareUrl(window.location.href, share.token, share.isPublic);
   const expired = new Date(share.expiresAt).getTime() <= Date.now();
   const canWrite = canWriteCurrentAccess();
+  const accessLabel = share.isPublic ? "Public link" : "Authenticated only";
   return `
     <form class="share-list__item" data-cv-share-update-form data-cv-file-id="${escapeAttr(fileId)}" data-cv-share-token="${escapeAttr(share.token)}">
       <div class="share-list__summary">
         <strong>${escapeHtml(share.token.slice(0, 12))}</strong>
-        <span>${expired ? "Expired" : `Expires ${escapeHtml(formatDate(share.expiresAt))}`} · ${share.accessCount} opens</span>
+        <span>${expired ? "Expired" : `Expires ${escapeHtml(formatDate(share.expiresAt))}`} · ${share.accessCount} opens · ${accessLabel}</span>
         <input type="text" value="${escapeAttr(shareUrl)}" readonly />
       </div>
       <div class="share-list__actions">
@@ -2483,6 +2488,7 @@ async function createShareForSelected(form: HTMLFormElement): Promise<void> {
   const formData = new FormData(form);
   const expiresInDays = Number(formData.get("expiresInDays") || 7);
   const allowDownload = formData.get("allowDownload") === "on";
+  const isPublic = formData.get("isPublic") === "on";
   const previous = getShareState(fileId);
   shareByFileId.set(fileId, { ...previous, loading: true, message: null, error: null });
   renderInspector();
@@ -2501,6 +2507,7 @@ async function createShareForSelected(form: HTMLFormElement): Promise<void> {
           fileId,
           createdByEmail: currentActorEmail,
           allowDownload,
+          isPublic,
           expiresAt: new Date(Date.now() + expiresInDays * 24 * 60 * 60 * 1000).toISOString(),
           createdAt: new Date().toISOString(),
           revokedAt: null,
@@ -2518,7 +2525,7 @@ async function createShareForSelected(form: HTMLFormElement): Promise<void> {
     const response = await fetchJson<ShareCreateResponse>(`/api/files/${encodeURIComponent(fileId)}/share`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ expiresInDays, allowDownload }),
+      body: JSON.stringify({ expiresInDays, allowDownload, isPublic }),
     });
     shareByFileId.set(fileId, {
       ...previous,
@@ -2620,8 +2627,9 @@ async function copyManagedShareLink(token: string): Promise<void> {
   const fileId = selectedFileId;
   if (!fileId) return;
   const state = getShareState(fileId);
+  const share = (state.shares ?? []).find((entry) => entry.token === token);
   try {
-    await navigator.clipboard.writeText(formatShareUrl(window.location.href, token));
+    await navigator.clipboard.writeText(formatShareUrl(window.location.href, token, share?.isPublic ?? false));
     shareByFileId.set(fileId, { ...state, message: "Copied.", error: null });
   } catch {
     shareByFileId.set(fileId, { ...state, message: "Copy failed.", error: null });

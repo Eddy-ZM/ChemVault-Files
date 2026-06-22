@@ -93,12 +93,21 @@ describe("file service", () => {
 
     expect(coerceShareCreatePayload({ expiresInDays: 30, allowDownload: true }, now)).toEqual({
       allowDownload: true,
+      isPublic: false,
       expiresAt: "2026-07-17T08:00:00.000Z",
       expiresInDays: 30,
     });
 
     expect(coerceShareCreatePayload({ expiresInDays: 365, allowDownload: false }, now)).toEqual({
       allowDownload: false,
+      isPublic: false,
+      expiresAt: "2026-06-24T08:00:00.000Z",
+      expiresInDays: 7,
+    });
+
+    expect(coerceShareCreatePayload({ expiresInDays: 7, allowDownload: true, isPublic: true }, now)).toEqual({
+      allowDownload: true,
+      isPublic: true,
       expiresAt: "2026-06-24T08:00:00.000Z",
       expiresInDays: 7,
     });

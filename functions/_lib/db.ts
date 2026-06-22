@@ -159,6 +159,7 @@ export function mapShare(row: Record<string, unknown>): FileShareRecord {
     fileId: String(row.file_id),
     createdByEmail: row.created_by_email === null ? null : String(row.created_by_email),
     allowDownload: Number(row.allow_download) === 1,
+    isPublic: Number(row.is_public ?? 0) === 1,
     expiresAt: String(row.expires_at),
     createdAt: String(row.created_at),
     revokedAt: row.revoked_at === null ? null : String(row.revoked_at),

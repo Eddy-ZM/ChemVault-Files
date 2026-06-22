@@ -50,9 +50,20 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env, params }
 
     await db
       .prepare(
-        "INSERT INTO file_shares (token, file_id, created_by_email, allow_download, expires_at, created_at, revoked_at, access_count, last_accessed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        "INSERT INTO file_shares (token, file_id, created_by_email, allow_download, is_public, expires_at, created_at, revoked_at, access_count, last_accessed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
       )
-      .bind(token, file.id, actorEmail, payload.allowDownload ? 1 : 0, payload.expiresAt, createdAt, null, 0, null)
+      .bind(
+        token,
+        file.id,
+        actorEmail,
+        payload.allowDownload ? 1 : 0,
+        payload.isPublic ? 1 : 0,
+        payload.expiresAt,
+        createdAt,
+        null,
+        0,
+        null
+      )
       .run();
 
     await recordFileActivity(
@@ -64,6 +75,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env, params }
         metadata: {
           token,
           allowDownload: payload.allowDownload,
+          isPublic: payload.isPublic,
           expiresAt: payload.expiresAt,
         },
         now,
@@ -76,13 +88,15 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env, params }
       file_id: file.id,
       created_by_email: actorEmail,
       allow_download: payload.allowDownload ? 1 : 0,
+      is_public: payload.isPublic ? 1 : 0,
       expires_at: payload.expiresAt,
       created_at: createdAt,
       revoked_at: null,
       access_count: 0,
       last_accessed_at: null,
     }) as Record<string, unknown>);
-    const shareUrl = `${new URL(request.url).origin}/share?token=${encodeURIComponent(token)}`;
+    const sharePath = payload.isPublic ? "/share-public" : "/share";
+    const shareUrl = `${new URL(request.url).origin}${sharePath}?token=${encodeURIComponent(token)}`;
 
     return okJson({ share, shareUrl }, { status: 201 });
   } catch (error) {

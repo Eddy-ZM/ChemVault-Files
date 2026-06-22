@@ -119,6 +119,7 @@ export function coercePatchPayload(value: unknown): {
 
 export function coerceShareCreatePayload(value: unknown, now = new Date()): {
   allowDownload: boolean;
+  isPublic: boolean;
   expiresAt: string;
   expiresInDays: number;
 } {
@@ -128,6 +129,7 @@ export function coerceShareCreatePayload(value: unknown, now = new Date()): {
   const expiresAt = new Date(now.getTime() + expiresInDays * 24 * 60 * 60 * 1000).toISOString();
   return {
     allowDownload: input.allowDownload === true,
+    isPublic: input.isPublic === true,
     expiresAt,
     expiresInDays,
   };

@@ -206,6 +206,9 @@ describe("client state", () => {
 
   it("formats copied share links against the current origin", () => {
     expect(formatShareUrl("https://files.chemvault.science/library", "sh_abc123")).toBe("https://files.chemvault.science/share?token=sh_abc123");
+    expect(formatShareUrl("https://files.chemvault.science/library", "sh_abc123", true)).toBe(
+      "https://files.chemvault.science/share-public?token=sh_abc123"
+    );
   });
 
   it("builds a Cloudflare Access logout URL on the current origin", () => {

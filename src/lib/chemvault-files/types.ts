@@ -81,6 +81,7 @@ export interface FileShareRecord {
   fileId: string;
   createdByEmail: string | null;
   allowDownload: boolean;
+  isPublic: boolean;
   expiresAt: string;
   createdAt: string;
   revokedAt: string | null;
@@ -113,6 +114,7 @@ export interface SharePublicResponse {
   share: {
     token: string;
     allowDownload: boolean;
+    isPublic: boolean;
     expiresAt: string;
     createdAt: string;
   };

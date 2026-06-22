@@ -43,6 +43,7 @@ export function buildPublicShareResponse(target: ShareTarget): SharePublicRespon
     share: {
       token: target.share.token,
       allowDownload: target.share.allowDownload,
+      isPublic: target.share.isPublic,
       expiresAt: target.share.expiresAt,
       createdAt: target.share.createdAt,
     },

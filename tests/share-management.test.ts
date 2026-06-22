@@ -10,6 +10,7 @@ interface ShareRow {
   file_id: string;
   created_by_email: string;
   allow_download: number;
+  is_public: number;
   expires_at: string;
   created_at: string;
   revoked_at: string | null;
@@ -92,6 +93,7 @@ function shareRow(overrides: Partial<ShareRow> = {}): ShareRow {
     file_id: "file_1",
     created_by_email: "owner@chemvault.science",
     allow_download: 0,
+    is_public: 0,
     expires_at: "2026-06-25T00:00:00.000Z",
     created_at: "2026-06-18T00:00:00.000Z",
     revoked_at: null,
