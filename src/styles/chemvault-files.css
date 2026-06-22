@@ -1525,6 +1525,8 @@ input:focus-visible {
 .file-browser {
   min-width: 0;
   min-height: 132px;
+  display: grid;
+  grid-template-rows: auto 1fr;
   margin: 0 14px 12px;
   overflow: hidden;
   border: 1px solid rgba(169, 179, 193, 0.72);
@@ -1591,6 +1593,20 @@ input:focus-visible {
   min-height: 84px;
   padding: 10px;
   overflow: auto;
+}
+
+.file-browser__grid[hidden] {
+  display: none;
+}
+
+.file-browser__list {
+  min-height: 132px;
+  display: block;
+  overflow: hidden;
+}
+
+.file-browser__list[hidden] {
+  display: none;
 }
 
 .file-browser__grid > .empty-state {
@@ -2074,7 +2090,7 @@ input:focus-visible {
   color: #1d2733;
 }
 
-.file-table-wrap {
+.file-browser__list .file-table-wrap {
   min-height: 132px;
   max-height: 240px;
   overflow: auto;

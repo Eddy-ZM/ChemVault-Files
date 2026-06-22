@@ -1282,7 +1282,7 @@ function renderFiles(): void {
   const body = document.querySelector<HTMLElement>("[data-cv-file-table-body]");
   const cardGrid = document.querySelector<HTMLElement>("[data-cv-card-grid]");
   const listRegion = document.querySelector<HTMLElement>("[data-cv-list-region]");
-  const filePanel = document.querySelector<HTMLElement>("[data-cv-file-panel]");
+  const fileBrowserGrid = document.querySelector<HTMLElement>("[data-cv-file-browser-grid]");
   const selectionSummary = document.querySelector<HTMLElement>("[data-cv-selection-summary]");
   const pageSummary = document.querySelector<HTMLElement>("[data-cv-page-summary]");
   const bulkBar = document.querySelector<HTMLElement>("[data-cv-bulk-bar]");
@@ -1315,11 +1315,12 @@ function renderFiles(): void {
   updateViewModeButtons();
   renderFileBrowser();
 
-  if (filePanel) filePanel.classList.toggle("is-grid-view", viewMode === "grid");
-  if (listRegion) listRegion.hidden = viewMode !== "list";
-  if (cardGrid) cardGrid.hidden = viewMode !== "grid";
+  const isGridView = viewMode === "grid";
+  if (fileBrowserGrid) fileBrowserGrid.hidden = !isGridView;
+  if (listRegion) listRegion.hidden = isGridView;
+  if (cardGrid) cardGrid.hidden = true;
 
-  if (body) {
+  if (body && !listRegion?.hidden) {
     body.innerHTML = libraryLoading
       ? `<tr><td colspan="8"><div class="empty-state">Loading file index...</div></td></tr>`
       : filteredFiles.length
