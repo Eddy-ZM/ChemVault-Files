@@ -3,6 +3,7 @@ import {
   MODAL_CLOSE_DURATION_MS,
   closeDelayForMotion,
   isTreeNodeExpanded,
+  nextInspectorPanelCollapsed,
   nextModalMotionState,
   toggleCollapsedId,
 } from "../src/lib/chemvault-files/motion";
@@ -35,5 +36,12 @@ describe("interface motion state", () => {
     expect(isTreeNodeExpanded(collapsedProjects, "project_spectra")).toBe(false);
     expect(isTreeNodeExpanded(collapsedFolders, "folder_spectra")).toBe(false);
     expect(isTreeNodeExpanded(collapsedProjects, "project_datasets")).toBe(true);
+  });
+
+  it("keeps the inspector closed until a file selection reopens it", () => {
+    expect(nextInspectorPanelCollapsed(false, "close")).toBe(true);
+    expect(nextInspectorPanelCollapsed(true, "close")).toBe(true);
+    expect(nextInspectorPanelCollapsed(true, "select-file")).toBe(false);
+    expect(nextInspectorPanelCollapsed(true, "open")).toBe(false);
   });
 });

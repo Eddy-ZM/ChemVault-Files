@@ -2,6 +2,7 @@ export const MODAL_CLOSE_DURATION_MS = 220;
 
 export type ModalMotionState = "closed" | "opening" | "open" | "closing";
 export type ModalMotionEvent = "open" | "opened" | "close" | "closed";
+export type InspectorPanelEvent = "close" | "open" | "select-file";
 
 export function nextModalMotionState(current: ModalMotionState, event: ModalMotionEvent): ModalMotionState {
   if (event === "open" && current !== "open") return "opening";
@@ -24,4 +25,8 @@ export function toggleCollapsedId(collapsedIds: ReadonlySet<string>, id: string)
 
 export function isTreeNodeExpanded(collapsedIds: ReadonlySet<string>, id: string): boolean {
   return !collapsedIds.has(id);
+}
+
+export function nextInspectorPanelCollapsed(_collapsed: boolean, event: InspectorPanelEvent): boolean {
+  return event === "close";
 }

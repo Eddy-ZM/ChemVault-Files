@@ -25,6 +25,7 @@ import {
 import {
   closeDelayForMotion,
   isTreeNodeExpanded,
+  nextInspectorPanelCollapsed,
   nextModalMotionState,
   toggleCollapsedId,
   type ModalMotionState,
@@ -225,6 +226,7 @@ let uploadRoleIds = new Set<string>(["role_internal", "role_external"]);
 let fileSort: FileSort = { key: "modified", direction: "desc" };
 let viewMode: "list" | "grid" = "list";
 let inspectorTab: "details" | "preview" | "activity" = "details";
+let inspectorCollapsed = false;
 const activityByFileId = new Map<string, InspectorAsyncState<FileActivityRecord[]>>();
 const shareByFileId = new Map<string, ShareUiState>();
 
@@ -426,12 +428,14 @@ function bindEvents(): void {
     const checkbox = (event.target as HTMLElement).closest<HTMLInputElement>("input[type='checkbox']");
     if (checkbox) {
       toggleSelectedFile(row.dataset.cvFileId || null, checkbox.checked);
+      revealInspectorForSelection();
       renderFiles();
       renderInspector();
       return;
     }
     selectedFileId = row.dataset.cvFileId || null;
     selectedFileIds = selectedFileId ? new Set([selectedFileId]) : new Set();
+    revealInspectorForSelection();
     renderFiles();
     renderInspector();
   });
@@ -446,6 +450,7 @@ function bindEvents(): void {
       selectedFileId = card.dataset.cvFileId || null;
       selectedFileIds = selectedFileId ? new Set([selectedFileId]) : new Set();
     }
+    revealInspectorForSelection();
     renderFiles();
     renderInspector();
   });
@@ -455,6 +460,7 @@ function bindEvents(): void {
     const visibleFileIds = getVisibleFiles().map((entry) => entry.id);
     selectedFileIds = checked ? new Set(visibleFileIds) : new Set();
     selectedFileId = checked ? visibleFileIds[0] ?? null : null;
+    revealInspectorForSelection();
     renderFiles();
     renderInspector();
   });
@@ -514,6 +520,11 @@ function bindEvents(): void {
 
   document.querySelector<HTMLElement>("[data-cv-inspector]")?.addEventListener("click", (event) => {
     const target = event.target as HTMLElement;
+    if (target.closest("[data-cv-inspector-close]")) {
+      closeInspector();
+      return;
+    }
+
     const tabButton = target.closest<HTMLElement>("[data-cv-inspector-tab]");
     if (tabButton) {
       inspectorTab = (tabButton.dataset.cvInspectorTab as typeof inspectorTab) || "details";
@@ -1214,13 +1225,28 @@ function renderInspector(): void {
 }
 
 function updateInspectorTabs(): void {
-  document.querySelector<HTMLElement>("[data-cv-shell]")?.setAttribute("data-cv-inspector-mode", inspectorTab);
-  document.querySelector<HTMLElement>("[data-cv-inspector]")?.setAttribute("data-cv-inspector-mode", inspectorTab);
+  const shell = document.querySelector<HTMLElement>("[data-cv-shell]");
+  const inspector = document.querySelector<HTMLElement>("[data-cv-inspector]");
+  shell?.setAttribute("data-cv-inspector-mode", inspectorTab);
+  shell?.setAttribute("data-cv-inspector-collapsed", inspectorCollapsed ? "true" : "false");
+  inspector?.setAttribute("data-cv-inspector-mode", inspectorTab);
+  inspector?.setAttribute("aria-hidden", inspectorCollapsed ? "true" : "false");
+  inspector?.toggleAttribute("inert", inspectorCollapsed);
   document.querySelectorAll<HTMLElement>("[data-cv-inspector-tab]").forEach((button) => {
     const isActive = button.dataset.cvInspectorTab === inspectorTab;
     button.classList.toggle("is-active", isActive);
     button.setAttribute("aria-selected", isActive ? "true" : "false");
   });
+}
+
+function revealInspectorForSelection(): void {
+  if (!selectedFileId) return;
+  inspectorCollapsed = nextInspectorPanelCollapsed(inspectorCollapsed, "select-file");
+}
+
+function closeInspector(): void {
+  inspectorCollapsed = nextInspectorPanelCollapsed(inspectorCollapsed, "close");
+  updateInspectorTabs();
 }
 
 function renderInspectorBody(fileRecord: FileRecord): string {
@@ -1617,6 +1643,7 @@ async function uploadBrowserFile(
       library = { ...library, files: [localFile, ...library.files] };
       selectedFileId = localFile.id;
       selectedFileIds = new Set([localFile.id]);
+      revealInspectorForSelection();
       renderAll();
       return;
     }
@@ -1648,6 +1675,7 @@ async function uploadBrowserFile(
 
     uploadQueue = reduceUploadQueue(uploadQueue, { type: "complete", id: queueId });
     selectedFileId = init.file.id;
+    revealInspectorForSelection();
     await reloadLibrary();
   } catch (error) {
     uploadQueue = reduceUploadQueue(uploadQueue, { type: "fail", id: queueId, message: errorMessage(error) });
