@@ -33,6 +33,14 @@ export async function ensureFileAccessSchema(db: D1Database, env: Pick<Env, "PRI
   await db.prepare("CREATE INDEX IF NOT EXISTS idx_file_role_access_role ON file_role_access(role_id, file_id)").run();
 }
 
+export async function ensureFileSharesSchema(db: D1Database): Promise<void> {
+  await runIgnoringSqliteError(
+    db,
+    "ALTER TABLE file_shares ADD COLUMN is_public INTEGER NOT NULL DEFAULT 0",
+    "duplicate column name: is_public"
+  );
+}
+
 async function runIgnoringSqliteError(db: D1Database, sql: string, ignoredMessage: string): Promise<void> {
   try {
     await db.prepare(sql).run();

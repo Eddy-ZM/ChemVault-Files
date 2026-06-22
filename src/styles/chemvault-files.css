@@ -2843,6 +2843,7 @@ input:focus-visible {
 }
 
 .share-form select,
+.share-form input[type="datetime-local"],
 .share-link-row input {
   width: 100%;
   min-width: 0;
@@ -2853,6 +2854,15 @@ input:focus-visible {
   background: #fbfcfd;
   color: var(--text);
   font-size: 13px;
+}
+
+.share-expiry-stack {
+  display: grid;
+  gap: 8px;
+}
+
+.share-form input[type="datetime-local"] {
+  color-scheme: light;
 }
 
 .share-toggle {
@@ -2937,7 +2947,8 @@ input:focus-visible {
   gap: 6px;
 }
 
-.share-list__actions select {
+.share-list__actions select,
+.share-list__custom-expiry {
   min-width: 0;
   min-height: 34px;
   padding: 0 8px;
@@ -2946,6 +2957,12 @@ input:focus-visible {
   background: #fff;
   color: var(--text);
   font-size: 12.5px;
+}
+
+.share-list__custom-expiry {
+  grid-column: 1 / -1;
+  width: 100%;
+  color-scheme: light;
 }
 
 .share-list__actions .button {

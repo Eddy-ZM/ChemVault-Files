@@ -655,6 +655,11 @@ function bindEvents(): void {
     }
   });
 
+  document.querySelector<HTMLElement>("[data-cv-inspector]")?.addEventListener("change", (event) => {
+    const expirySelect = (event.target as HTMLElement).closest("[data-cv-share-expiry]") as HTMLSelectElement | null;
+    if (expirySelect) syncShareCustomExpiry(expirySelect);
+  });
+
   document.querySelector<HTMLElement>("[data-cv-role-modal]")?.addEventListener("submit", (event) => {
     const form = (event.target as HTMLElement).closest<HTMLFormElement>("[data-cv-role-form]");
     if (!form) return;
@@ -1874,6 +1879,9 @@ function renderSharePanel(fileRecord: FileRecord): string {
   const state = getShareState(fileRecord.id);
   const shares = state.shares ?? [];
   const canWrite = canWriteCurrentAccess();
+  const customExpiryValue = defaultShareCustomExpiryValue();
+  const customExpiryMin = minShareCustomExpiryValue();
+  const customExpiryMax = maxShareCustomExpiryValue();
   return `
     <section class="share-panel" aria-label="File sharing">
       <header>
@@ -1881,13 +1889,17 @@ function renderSharePanel(fileRecord: FileRecord): string {
         <span>${canWrite ? (shares.length ? `${shares.length} managed` : "Read-only link") : "Read-only role"}</span>
       </header>
       <form class="share-form" data-cv-share-form>
-        <label>
+        <label class="share-expiry-control">
           <span>Expires</span>
-          <select name="expiresInDays" data-cv-share-expiry>
-            <option value="1">1 day</option>
-            <option value="7" selected>7 days</option>
-            <option value="30">30 days</option>
-          </select>
+          <div class="share-expiry-stack">
+            <select name="expiresInDays" data-cv-share-expiry>
+              <option value="1">1 day</option>
+              <option value="7" selected>7 days</option>
+              <option value="30">30 days</option>
+              <option value="custom">Custom date/time</option>
+            </select>
+            <input type="datetime-local" name="expiresAtLocal" value="${escapeAttr(customExpiryValue)}" min="${escapeAttr(customExpiryMin)}" max="${escapeAttr(customExpiryMax)}" data-cv-share-custom-expiry hidden disabled />
+          </div>
         </label>
         <label class="share-toggle">
           <input type="checkbox" name="allowDownload" ${canWrite ? "" : "disabled"} />
@@ -1930,6 +1942,9 @@ function renderManagedShareRow(fileId: string, share: FileShareRecord): string {
   const expired = new Date(share.expiresAt).getTime() <= Date.now();
   const canWrite = canWriteCurrentAccess();
   const accessLabel = share.isPublic ? "Public link" : "Authenticated only";
+  const customExpiryMin = minShareCustomExpiryValue();
+  const customExpiryMax = maxShareCustomExpiryValue();
+  const customExpiryValue = datetimeLocalValue(new Date(share.expiresAt));
   return `
     <form class="share-list__item" data-cv-share-update-form data-cv-file-id="${escapeAttr(fileId)}" data-cv-share-token="${escapeAttr(share.token)}">
       <div class="share-list__summary">
@@ -1938,11 +1953,13 @@ function renderManagedShareRow(fileId: string, share: FileShareRecord): string {
         <input type="text" value="${escapeAttr(shareUrl)}" readonly />
       </div>
       <div class="share-list__actions">
-        <select name="expiresInDays" aria-label="New expiration for ${escapeAttr(share.token)}" ${canWrite ? "" : "disabled"}>
+        <select name="expiresInDays" aria-label="New expiration for ${escapeAttr(share.token)}" data-cv-share-expiry ${canWrite ? "" : "disabled"}>
           <option value="1">1 day</option>
           <option value="7" selected>7 days</option>
           <option value="30">30 days</option>
+          <option value="custom">Custom</option>
         </select>
+        <input class="share-list__custom-expiry" type="datetime-local" name="expiresAtLocal" value="${escapeAttr(customExpiryValue)}" min="${escapeAttr(customExpiryMin)}" max="${escapeAttr(customExpiryMax)}" data-cv-share-custom-expiry hidden disabled />
         <button class="button button--secondary" type="submit" ${canWrite ? "" : "disabled"}>Update</button>
         <button class="button button--secondary" type="button" data-cv-copy-managed-share data-cv-share-token="${escapeAttr(share.token)}">Copy</button>
         <button class="button button--danger" type="button" data-cv-delete-share data-cv-share-token="${escapeAttr(share.token)}" ${canWrite ? "" : "disabled"}>Delete</button>
@@ -2481,20 +2498,82 @@ async function saveRoleSettings(form: HTMLFormElement): Promise<void> {
   renderInspector();
 }
 
+interface ShareExpiryPayload {
+  expiresInDays?: number;
+  expiresAt?: string;
+}
+
+function syncShareCustomExpiry(select: HTMLSelectElement): void {
+  const form = select.closest<HTMLFormElement>("form");
+  const input = form?.querySelector<HTMLInputElement>("[data-cv-share-custom-expiry]");
+  if (!input) return;
+  const custom = select.value === "custom";
+  input.hidden = !custom;
+  input.disabled = !custom;
+  if (custom && !input.value) input.value = defaultShareCustomExpiryValue();
+  if (custom) input.focus();
+}
+
+function shareExpiryPayloadFromForm(form: HTMLFormElement): ShareExpiryPayload {
+  const formData = new FormData(form);
+  const mode = String(formData.get("expiresInDays") || "7");
+  if (mode === "custom") {
+    const rawValue = String(formData.get("expiresAtLocal") || "");
+    const expiresAt = new Date(rawValue);
+    if (!rawValue || !Number.isFinite(expiresAt.getTime())) throw new Error("Choose a valid custom expiration time.");
+    if (expiresAt.getTime() <= Date.now()) throw new Error("Choose a future expiration time.");
+    if (expiresAt.getTime() > Date.now() + 365 * 24 * 60 * 60 * 1000) throw new Error("Choose an expiration within 365 days.");
+    return { expiresAt: expiresAt.toISOString() };
+  }
+
+  const expiresInDays = Number(mode);
+  return { expiresInDays: [1, 7, 30].includes(expiresInDays) ? expiresInDays : 7 };
+}
+
+function expiresAtFromShareExpiryPayload(payload: ShareExpiryPayload): string {
+  if (payload.expiresAt) return payload.expiresAt;
+  const expiresInDays = payload.expiresInDays ?? 7;
+  return new Date(Date.now() + expiresInDays * 24 * 60 * 60 * 1000).toISOString();
+}
+
+function defaultShareCustomExpiryValue(): string {
+  return datetimeLocalValue(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000));
+}
+
+function minShareCustomExpiryValue(): string {
+  return datetimeLocalValue(new Date(Date.now() + 60 * 1000));
+}
+
+function maxShareCustomExpiryValue(): string {
+  return datetimeLocalValue(new Date(Date.now() + 365 * 24 * 60 * 60 * 1000));
+}
+
+function datetimeLocalValue(date: Date): string {
+  const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60 * 1000);
+  return localDate.toISOString().slice(0, 16);
+}
+
 async function createShareForSelected(form: HTMLFormElement): Promise<void> {
   const fileId = selectedFileId;
   if (!fileId) return;
   if (!canWriteCurrentAccess()) return;
   const formData = new FormData(form);
-  const expiresInDays = Number(formData.get("expiresInDays") || 7);
   const allowDownload = formData.get("allowDownload") === "on";
   const isPublic = formData.get("isPublic") === "on";
   const previous = getShareState(fileId);
+  let expiryPayload: ShareExpiryPayload;
+  try {
+    expiryPayload = shareExpiryPayloadFromForm(form);
+  } catch (error) {
+    shareByFileId.set(fileId, { ...previous, loading: false, message: null, error: errorMessage(error) });
+    renderInspector();
+    return;
+  }
   shareByFileId.set(fileId, { ...previous, loading: true, message: null, error: null });
   renderInspector();
 
   if (previewMode) {
-    const link = formatShareUrl(window.location.href, `preview_${fileId}`);
+    const link = formatShareUrl(window.location.href, `preview_${fileId}`, isPublic);
     shareByFileId.set(fileId, {
       ...previous,
       loading: false,
@@ -2508,7 +2587,7 @@ async function createShareForSelected(form: HTMLFormElement): Promise<void> {
           createdByEmail: currentActorEmail,
           allowDownload,
           isPublic,
-          expiresAt: new Date(Date.now() + expiresInDays * 24 * 60 * 60 * 1000).toISOString(),
+          expiresAt: expiresAtFromShareExpiryPayload(expiryPayload),
           createdAt: new Date().toISOString(),
           revokedAt: null,
           accessCount: 0,
@@ -2525,7 +2604,7 @@ async function createShareForSelected(form: HTMLFormElement): Promise<void> {
     const response = await fetchJson<ShareCreateResponse>(`/api/files/${encodeURIComponent(fileId)}/share`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ expiresInDays, allowDownload, isPublic }),
+      body: JSON.stringify({ ...expiryPayload, allowDownload, isPublic }),
     });
     shareByFileId.set(fileId, {
       ...previous,
@@ -2567,13 +2646,20 @@ async function updateManagedShare(form: HTMLFormElement): Promise<void> {
   const token = form.dataset.cvShareToken;
   if (!fileId || !token) return;
   if (!canWriteCurrentAccess()) return;
-  const expiresInDays = Number(new FormData(form).get("expiresInDays") || 7);
   const state = getShareState(fileId);
+  let expiryPayload: ShareExpiryPayload;
+  try {
+    expiryPayload = shareExpiryPayloadFromForm(form);
+  } catch (error) {
+    shareByFileId.set(fileId, { ...state, message: null, error: errorMessage(error) });
+    renderInspector();
+    return;
+  }
   shareByFileId.set(fileId, { ...state, message: "Updating share link...", error: null });
   renderInspector();
 
   if (previewMode || token.startsWith("preview_")) {
-    const expiresAt = new Date(Date.now() + expiresInDays * 24 * 60 * 60 * 1000).toISOString();
+    const expiresAt = expiresAtFromShareExpiryPayload(expiryPayload);
     const nextShares = (getShareState(fileId).shares ?? []).map((share) => (share.token === token ? { ...share, expiresAt } : share));
     shareByFileId.set(fileId, { ...getShareState(fileId), shares: nextShares, message: "Share expiration updated.", error: null });
     renderInspector();
@@ -2586,7 +2672,7 @@ async function updateManagedShare(form: HTMLFormElement): Promise<void> {
       {
         method: "PATCH",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ expiresInDays }),
+        body: JSON.stringify(expiryPayload),
       }
     );
     const nextShares = (getShareState(fileId).shares ?? []).map((share) => (share.token === token ? response.share : share));

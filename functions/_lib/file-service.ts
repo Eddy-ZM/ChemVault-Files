@@ -121,9 +121,19 @@ export function coerceShareCreatePayload(value: unknown, now = new Date()): {
   allowDownload: boolean;
   isPublic: boolean;
   expiresAt: string;
-  expiresInDays: number;
+  expiresInDays: number | null;
 } {
   const input = value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+  const customExpiresAt = coerceCustomShareExpiration(input.expiresAt, now);
+  if (customExpiresAt) {
+    return {
+      allowDownload: input.allowDownload === true,
+      isPublic: input.isPublic === true,
+      expiresAt: customExpiresAt,
+      expiresInDays: null,
+    };
+  }
+
   const rawDays = typeof input.expiresInDays === "number" ? input.expiresInDays : 7;
   const expiresInDays = [1, 7, 30].includes(rawDays) ? rawDays : 7;
   const expiresAt = new Date(now.getTime() + expiresInDays * 24 * 60 * 60 * 1000).toISOString();
@@ -133,6 +143,19 @@ export function coerceShareCreatePayload(value: unknown, now = new Date()): {
     expiresAt,
     expiresInDays,
   };
+}
+
+function coerceCustomShareExpiration(value: unknown, now: Date): string | null {
+  if (value === undefined || value === null || value === "") return null;
+  if (typeof value !== "string") throw new Error("Custom share expiration must be an ISO date string.");
+  const expiresAt = new Date(value);
+  const expiresTime = expiresAt.getTime();
+  if (!Number.isFinite(expiresTime)) throw new Error("Custom share expiration is invalid.");
+  if (expiresTime <= now.getTime()) throw new Error("Custom share expiration must be in the future.");
+
+  const maxExpiresAt = now.getTime() + 365 * 24 * 60 * 60 * 1000;
+  if (expiresTime > maxExpiresAt) throw new Error("Custom share expiration must be within 365 days.");
+  return expiresAt.toISOString();
 }
 
 export function createShareToken(idFactory: () => string = () => crypto.randomUUID()): string {

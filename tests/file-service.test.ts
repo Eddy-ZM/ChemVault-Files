@@ -111,6 +111,17 @@ describe("file service", () => {
       expiresAt: "2026-06-24T08:00:00.000Z",
       expiresInDays: 7,
     });
+
+    expect(coerceShareCreatePayload({ expiresAt: "2026-06-20T10:15:00.000Z", allowDownload: true }, now)).toEqual({
+      allowDownload: true,
+      isPublic: false,
+      expiresAt: "2026-06-20T10:15:00.000Z",
+      expiresInDays: null,
+    });
+
+    expect(() => coerceShareCreatePayload({ expiresAt: "2026-06-17T07:59:00.000Z" }, now)).toThrow("future");
+    expect(() => coerceShareCreatePayload({ expiresAt: "not-a-date" }, now)).toThrow("invalid");
+    expect(() => coerceShareCreatePayload({ expiresAt: "2027-07-01T08:00:00.000Z" }, now)).toThrow("365 days");
   });
 
   it("creates opaque share tokens", () => {

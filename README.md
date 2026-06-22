@@ -80,7 +80,7 @@ The top-right account chip and owner email plumbing are intentionally reserved s
 
 Authenticated users can preview PDF, image, CSV, text, and JCAMP-style files through `/api/files/:id/preview`. Unsupported files stay download-only.
 
-Share links are created from the inspector. They are read-only by default, expire after 1, 7, or 30 days, and only allow downloads when the creator enables the download option. Public share URLs use `/share?token=...`; the page reads metadata from `/api/shares/:token` and streams preview/download content through token-checked API routes.
+Share links are created from the inspector. They are read-only by default, support preset or custom expiration times, and only allow downloads when the creator enables the download option. Public share URLs use `/share?token=...`; the page reads metadata from `/api/shares/:token` and streams preview/download content through token-checked API routes.
 An optional "public link" toggle can generate `/share-public?token=...` for links intended to be opened without Cloudflare Access verification when that route is configured as public.
 
 Preview, download, share creation, share access, and shared downloads are written to the `file_activity` table.
