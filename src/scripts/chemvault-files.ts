@@ -109,6 +109,14 @@ interface BrowserUploadSelection {
   relativePath?: string;
 }
 
+interface PreparedUploadTarget {
+  queueId: string;
+  file: File;
+  displayName: string;
+  queueName: string;
+  pathInfo: UploadPathInfo;
+}
+
 interface BrowserLocationState {
   projectId: string | null;
   folderId: string | null;
@@ -1336,11 +1344,23 @@ function renderQueue(): void {
   uploadList.innerHTML = uploadQueue
     .map((item) => {
       const ext = extensionForName(item.name);
+      const isPending = item.status === "pending";
+      const isQueued = item.status === "queued";
+      const isUploading = item.status === "uploading";
       const isComplete = item.status === "complete";
       const isFailed = item.status === "failed";
-      const statusText = isFailed ? item.message || "Failed" : isComplete ? "Completed" : item.status === "queued" ? "Queued" : `${item.progress}%`;
+      const statusText = isFailed
+        ? item.message || "Failed"
+        : isComplete
+          ? "Completed"
+          : isPending
+            ? "Pending"
+            : isQueued
+              ? "Queued"
+              : `${item.progress}%`;
+      const detailText = item.message || (isPending ? "Waiting to start" : isQueued ? "Preparing" : isUploading ? "Uploading" : "");
       return `
-        <li class="upload-row${isFailed ? " is-failed" : ""}" data-cv-upload-row>
+        <li class="upload-row upload-row--${escapeAttr(item.status)}${isFailed ? " is-failed" : ""}" data-cv-upload-row>
           <span class="file-type-icon" data-ext="${escapeAttr(ext)}">${escapeHtml(ext)}</span>
           <span class="upload-row__name">${escapeHtml(item.name)}</span>
           <span class="upload-row__size">${formatBytes(item.sizeBytes)}</span>
@@ -1350,7 +1370,7 @@ function renderQueue(): void {
               : `<span class="progress" role="progressbar" aria-valuenow="${item.progress}" aria-valuemin="0" aria-valuemax="100"><span style="width: ${item.progress}%"></span></span>`
           }
           <span class="upload-row__progress">${escapeHtml(statusText)}</span>
-          <span class="upload-row__time">${escapeHtml(item.message || "")}</span>
+          <span class="upload-row__time">${escapeHtml(detailText)}</span>
           <button class="ghost-icon" type="button" aria-label="Upload queue item">
             ${isFailed ? warningIcon() : closeIcon()}
           </button>
@@ -2115,17 +2135,40 @@ async function handleFiles(fileList: FileList | BrowserUploadSelection[] | null)
     return;
   }
 
-  for (const selection of files) {
-    const browserFile = selection.file;
-    const pathInfo = splitUploadPath({ name: browserFile.name, webkitRelativePath: browserFile.webkitRelativePath, relativePath: selection.relativePath });
-    const folderId = await ensureUploadFolderPath(activeProjectId, pathInfo.folderParts);
-    await uploadBrowserFile(browserFile, {
-      displayName: pathInfo.name,
-      queueName: pathInfo.relativePath,
-      folderId,
-      pathInfo,
-    });
+  const targets = files.map(prepareUploadTarget);
+  uploadQueue = reduceUploadQueue(uploadQueue, {
+    type: "stage",
+    items: targets.map((target) => ({ id: target.queueId, name: target.queueName, sizeBytes: target.file.size })),
+  });
+  renderQueue();
+
+  for (const target of targets) {
+    try {
+      const folderId = await ensureUploadFolderPath(activeProjectId, target.pathInfo.folderParts);
+      await uploadBrowserFile(target.file, {
+        queueId: target.queueId,
+        displayName: target.displayName,
+        queueName: target.queueName,
+        folderId,
+        pathInfo: target.pathInfo,
+      });
+    } catch (error) {
+      uploadQueue = reduceUploadQueue(uploadQueue, { type: "fail", id: target.queueId, message: errorMessage(error) });
+      renderQueue();
+    }
   }
+}
+
+function prepareUploadTarget(selection: BrowserUploadSelection): PreparedUploadTarget {
+  const browserFile = selection.file;
+  const pathInfo = splitUploadPath({ name: browserFile.name, webkitRelativePath: browserFile.webkitRelativePath, relativePath: selection.relativePath });
+  return {
+    queueId: `local_${Date.now()}_${Math.random().toString(16).slice(2)}`,
+    file: browserFile,
+    displayName: pathInfo.name,
+    queueName: pathInfo.relativePath,
+    pathInfo,
+  };
 }
 
 function normalizeUploadSelections(fileList: FileList | BrowserUploadSelection[] | null): BrowserUploadSelection[] {
@@ -2136,10 +2179,9 @@ function normalizeUploadSelections(fileList: FileList | BrowserUploadSelection[]
 
 async function uploadBrowserFile(
   browserFile: File,
-  target: { displayName: string; queueName: string; folderId: string | null; pathInfo: UploadPathInfo }
+  target: { queueId: string; displayName: string; queueName: string; folderId: string | null; pathInfo: UploadPathInfo }
 ): Promise<void> {
-  const queueId = `local_${Date.now()}_${Math.random().toString(16).slice(2)}`;
-  uploadQueue = reduceUploadQueue(uploadQueue, { type: "add", id: queueId, name: target.queueName, sizeBytes: browserFile.size });
+  uploadQueue = reduceUploadQueue(uploadQueue, { type: "start", id: target.queueId });
   renderQueue();
 
   try {
@@ -2147,8 +2189,8 @@ async function uploadBrowserFile(
     if (!activeProjectId) throw new Error("Project is required before upload");
 
     if (previewMode) {
-      uploadQueue = reduceUploadQueue(uploadQueue, { type: "progress", id: queueId, loadedBytes: browserFile.size });
-      uploadQueue = reduceUploadQueue(uploadQueue, { type: "complete", id: queueId });
+      uploadQueue = reduceUploadQueue(uploadQueue, { type: "progress", id: target.queueId, loadedBytes: browserFile.size });
+      uploadQueue = reduceUploadQueue(uploadQueue, { type: "complete", id: target.queueId });
       const now = new Date().toISOString();
       const localFile: FileRecord = {
         id: `local_file_${Date.now()}_${Math.random().toString(16).slice(2)}`,
@@ -2193,7 +2235,7 @@ async function uploadBrowserFile(
     });
 
     await uploadFileBytes(init.upload.url, browserFile, (loadedBytes) => {
-      uploadQueue = reduceUploadQueue(uploadQueue, { type: "progress", id: queueId, loadedBytes });
+      uploadQueue = reduceUploadQueue(uploadQueue, { type: "progress", id: target.queueId, loadedBytes });
       renderQueue();
     });
 
@@ -2203,12 +2245,12 @@ async function uploadBrowserFile(
       body: JSON.stringify({ fileId: init.file.id, sessionId: init.session.id }),
     });
 
-    uploadQueue = reduceUploadQueue(uploadQueue, { type: "complete", id: queueId });
+    uploadQueue = reduceUploadQueue(uploadQueue, { type: "complete", id: target.queueId });
     selectedFileId = init.file.id;
     revealInspectorForSelection();
     await reloadLibrary();
   } catch (error) {
-    uploadQueue = reduceUploadQueue(uploadQueue, { type: "fail", id: queueId, message: errorMessage(error) });
+    uploadQueue = reduceUploadQueue(uploadQueue, { type: "fail", id: target.queueId, message: errorMessage(error) });
     renderQueue();
   }
 }

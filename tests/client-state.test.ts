@@ -180,6 +180,27 @@ describe("client state", () => {
     expect(progressed[0]).toMatchObject({ progress: 60, status: "uploading" });
   });
 
+  it("stages every selected upload as pending before each file starts", () => {
+    const queue = reduceUploadQueue([], {
+      type: "stage",
+      items: [
+        { id: "local_1", name: "folder/a.csv", sizeBytes: 100 },
+        { id: "local_2", name: "folder/b.csv", sizeBytes: 200 },
+      ],
+    });
+
+    expect(queue).toMatchObject([
+      { id: "local_1", status: "pending", progress: 0, message: "Pending" },
+      { id: "local_2", status: "pending", progress: 0, message: "Pending" },
+    ]);
+
+    expect(reduceUploadQueue(queue, { type: "start", id: "local_1" })[0]).toMatchObject({
+      id: "local_1",
+      status: "queued",
+      message: "Preparing",
+    });
+  });
+
   it("clears upload queue state for a new upload session", () => {
     const queue = reduceUploadQueue([], { type: "add", id: "local_1", name: "raw.zip", sizeBytes: 100 });
     expect(reduceUploadQueue(queue, { type: "clear" })).toEqual([]);

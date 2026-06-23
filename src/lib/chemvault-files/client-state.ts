@@ -9,7 +9,7 @@ export interface FileFilters {
   quickFilter?: FileQuickFilter | null;
 }
 
-export type UploadQueueStatus = "queued" | "uploading" | "complete" | "failed";
+export type UploadQueueStatus = "pending" | "queued" | "uploading" | "complete" | "failed";
 export type FileQuickFilter = "ready" | "failed" | "large";
 export type FileSortKey = "name" | "type" | "size" | "modified";
 export type SortDirection = "asc" | "desc";
@@ -94,6 +94,8 @@ export interface FolderDeletionScope {
 
 export type UploadQueueAction =
   | { type: "add"; id: string; name: string; sizeBytes: number }
+  | { type: "stage"; items: Array<{ id: string; name: string; sizeBytes: number }> }
+  | { type: "start"; id: string; message?: string }
   | { type: "progress"; id: string; loadedBytes: number }
   | { type: "complete"; id: string; message?: string }
   | { type: "fail"; id: string; message: string }
@@ -444,6 +446,31 @@ export function reduceUploadQueue(queue: UploadQueueItem[], action: UploadQueueA
         },
         ...queue,
       ];
+    case "stage":
+      return [
+        ...action.items.map((item) => ({
+          id: item.id,
+          name: item.name,
+          sizeBytes: item.sizeBytes,
+          loadedBytes: 0,
+          progress: 0,
+          status: "pending" as const,
+          message: "Pending",
+        })),
+        ...queue,
+      ];
+    case "start":
+      return queue.map((item) =>
+        item.id === action.id
+          ? {
+              ...item,
+              loadedBytes: 0,
+              progress: 0,
+              status: "queued",
+              message: action.message ?? "Preparing",
+            }
+          : item
+      );
     case "progress":
       return queue.map((item) => {
         if (item.id !== action.id) return item;
@@ -453,6 +480,7 @@ export function reduceUploadQueue(queue: UploadQueueItem[], action: UploadQueueA
           loadedBytes: action.loadedBytes,
           progress,
           status: "uploading",
+          message: null,
         };
       });
     case "complete":

@@ -1062,9 +1062,9 @@ input:focus-visible {
 
 .auth-card.upload-card {
   width: min(980px, calc(100vw - 32px));
-  max-height: min(860px, calc(100vh - 32px));
+  max-height: min(860px, calc(100dvh - 32px));
   display: grid;
-  overflow: auto;
+  overflow: hidden;
 }
 
 @media (min-width: 860px) {
@@ -1174,8 +1174,12 @@ input:focus-visible {
 }
 
 .upload-modal .upload-list {
-  max-height: min(320px, 38vh);
-  overflow: auto;
+  min-height: 150px;
+  max-height: min(420px, 44dvh);
+  overflow-x: auto;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
 }
 
 .upload-access {
@@ -1389,6 +1393,20 @@ input:focus-visible {
 
 .upload-row.is-failed {
   color: var(--red);
+}
+
+.upload-row--pending {
+  color: #667082;
+  background: rgba(247, 249, 252, 0.72);
+}
+
+.upload-row--pending .progress span,
+.upload-row--queued .progress span {
+  background: #9aa6b7;
+}
+
+.upload-row--uploading .progress span {
+  background: var(--blue);
 }
 
 .upload-row--empty {
