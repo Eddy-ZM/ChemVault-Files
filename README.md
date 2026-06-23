@@ -72,7 +72,7 @@ CLOUDFLARE_ACCOUNT_ID=20f69e8d2aebbadbff2b6ffa36efee50 npx wrangler d1 migration
 
 ## Private Access
 
-Protect `files.chemvault.science` with Cloudflare Access before exposing production traffic. Allow only the owner email for now.
+Protect `file.chemvault.science` with Cloudflare Access before exposing production traffic. The Access allow policy should include the primary owner email and every Super administrator email configured in `FILES_ADMIN_EMAILS`.
 
 The top-right account chip and owner email plumbing are intentionally reserved so the app can later connect directly to `mail.chemvault.science`.
 
