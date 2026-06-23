@@ -343,6 +343,12 @@ function bindEvents(): void {
       return;
     }
 
+    const workspaceFolderDelete = target.closest<HTMLElement>("[data-cv-delete-folder-id]");
+    if (workspaceFolderDelete?.dataset.cvDeleteFolderId) {
+      void deleteFolder(workspaceFolderDelete.dataset.cvDeleteFolderId);
+      return;
+    }
+
     const browserFolder = target.closest<HTMLElement>("[data-cv-browser-folder-id]");
     if (browserFolder?.dataset.cvBrowserFolderId) {
       navigateToBrowserLocation({
@@ -504,6 +510,13 @@ function bindEvents(): void {
   });
 
   document.querySelector<HTMLElement>("[data-cv-file-table-body]")?.addEventListener("click", (event) => {
+    const deleteButton = (event.target as HTMLElement).closest<HTMLElement>("[data-cv-delete-folder-id]");
+    if (deleteButton?.dataset.cvDeleteFolderId) {
+      event.stopPropagation();
+      void deleteFolder(deleteButton.dataset.cvDeleteFolderId);
+      return;
+    }
+
     const row = (event.target as HTMLElement).closest<HTMLTableRowElement>("[data-cv-file-row]");
     if (!row) return;
     const kind = row.dataset.cvListKind ?? "file";
@@ -1264,7 +1277,7 @@ function renderFolderNode(projectId: string, node: ReturnType<typeof buildFolder
         </div>
         ${
           canDelete
-            ? `<button class="ghost-icon folder-delete-button" type="button" aria-label="Delete ${escapeAttr(node.folder.name)}" title="Delete empty folder" data-cv-delete-folder-id="${escapeAttr(node.folder.id)}">${trashIcon()}</button>`
+            ? renderFolderDeleteButton(node.folder.id, node.folder.name, "folder-delete-button")
             : ""
         }
       </div>
@@ -1475,12 +1488,16 @@ function renderFileBrowserItem(item: FileBrowserItem): string {
   }
 
   if (item.kind === "folder") {
+    const deleteButton = canDeleteFolderNode() ? renderFolderDeleteButton(item.id, item.name, "file-os-item__delete") : "";
     return `
-      <button class="file-os-item file-os-item--folder" type="button" data-cv-file-os-item data-cv-browser-project-id="${escapeAttr(item.projectId)}" data-cv-browser-folder-id="${escapeAttr(item.id)}">
-        <span class="file-os-item__icon file-os-item__icon--folder">${folderIcon()}</span>
-        <span class="file-os-item__name">${escapeHtml(item.name)}</span>
-        <span class="file-os-item__meta">${escapeHtml(fileCountLabel(item.fileCount))} · ${formatBytes(item.totalBytes)}</span>
-      </button>
+      <div class="file-os-item file-os-item--folder file-os-item--deletable" data-cv-file-os-item>
+        <button class="file-os-item__main" type="button" data-cv-browser-project-id="${escapeAttr(item.projectId)}" data-cv-browser-folder-id="${escapeAttr(item.id)}">
+          <span class="file-os-item__icon file-os-item__icon--folder">${folderIcon()}</span>
+          <span class="file-os-item__name">${escapeHtml(item.name)}</span>
+          <span class="file-os-item__meta">${escapeHtml(fileCountLabel(item.fileCount))} · ${formatBytes(item.totalBytes)}</span>
+        </button>
+        ${deleteButton}
+      </div>
     `;
   }
 
@@ -1563,6 +1580,7 @@ function renderFileListContainerRow(
   fileCount: number,
   totalBytes: number
 ): string {
+  const deleteButton = itemKind === "folder" && folderId && canDeleteFolderNode() ? renderFolderDeleteButton(folderId, name, "file-list-delete-button") : "";
   return `
     <tr class="file-table__row file-table__row--folder" data-cv-file-row data-cv-list-kind="${escapeAttr(itemKind)}" data-cv-browser-project-id="${escapeAttr(projectId)}" ${folderId ? `data-cv-browser-folder-id="${escapeAttr(folderId)}"` : ""} tabindex="0">
       <td class="select-cell">
@@ -1579,9 +1597,13 @@ function renderFileListContainerRow(
       <td>${formatBytes(totalBytes)}</td>
       <td class="date-cell">—</td>
       <td class="icon-cell"><span class="file-list-meta">—</span></td>
-      <td class="icon-cell"></td>
+      <td class="icon-cell">${deleteButton}</td>
     </tr>
   `;
+}
+
+function renderFolderDeleteButton(folderId: string, folderName: string, className: string): string {
+  return `<button class="ghost-icon ${escapeAttr(className)}" type="button" aria-label="Delete ${escapeAttr(folderName)}" title="Delete folder" data-cv-delete-folder-id="${escapeAttr(folderId)}">${trashIcon()}</button>`;
 }
 
 function renderFileListFileRow(fileRecord: FileRecord): string {

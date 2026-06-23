@@ -1717,6 +1717,52 @@ input:focus-visible {
   transform: translateY(-2px);
 }
 
+.file-os-item--deletable {
+  padding: 0;
+}
+
+.file-os-item__main {
+  min-width: 0;
+  min-height: 66px;
+  width: 100%;
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  align-items: center;
+  gap: 3px 10px;
+  padding: 10px 40px 10px 10px;
+  border-radius: inherit;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+}
+
+.file-os-item__main:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--blue) 70%, white);
+  outline-offset: -3px;
+}
+
+.file-os-item__delete {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  width: 28px;
+  height: 28px;
+  color: #7b8494;
+  opacity: 0.68;
+}
+
+.file-os-item:hover .file-os-item__delete,
+.file-os-item__delete:focus-visible {
+  opacity: 1;
+}
+
+.file-os-item__delete:hover,
+.file-list-delete-button:hover {
+  background: #fff0f2;
+  color: #c5162e;
+}
+
 .file-os-item.is-selected {
   border-color: rgba(0, 113, 227, 0.44);
   background: #eef6ff;
@@ -2305,6 +2351,12 @@ input:focus-visible {
 .icon-cell {
   width: 42px;
   text-align: center;
+}
+
+.file-list-delete-button {
+  width: 28px;
+  height: 28px;
+  color: #7b8494;
 }
 
 .sort-icon {
