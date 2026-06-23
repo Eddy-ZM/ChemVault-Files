@@ -29,5 +29,8 @@ describe("folder delete UI", () => {
     const workspaceHandler = between('document.querySelector<HTMLElement>("[data-cv-workspace]")', 'const quickFilter = target.closest<HTMLElement>("[data-cv-quick-filter]")');
     expect(workspaceHandler.indexOf("[data-cv-delete-folder-id]")).toBeGreaterThanOrEqual(0);
     expect(workspaceHandler.indexOf("[data-cv-delete-folder-id]")).toBeLessThan(workspaceHandler.indexOf("[data-cv-browser-folder-id]"));
+    expect(script).toContain("function handleFolderDeleteClick");
+    expect(script).toContain("event.preventDefault()");
+    expect(script).toContain("event.stopPropagation()");
   });
 });

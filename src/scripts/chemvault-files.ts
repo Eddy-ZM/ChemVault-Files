@@ -114,6 +114,11 @@ interface BrowserLocationState {
   folderId: string | null;
 }
 
+interface FileBrowserNotice {
+  message: string;
+  tone: "info" | "error";
+}
+
 interface BrowserFileEntry {
   isFile: boolean;
   isDirectory: boolean;
@@ -224,6 +229,8 @@ let collapsedFolderIds = new Set<string>();
 let selectedFileId: string | null = null;
 let selectedFileIds = new Set<string>();
 let uploadQueue: UploadQueueItem[] = [];
+let deletingFolderIds = new Set<string>();
+let fileBrowserNotice: FileBrowserNotice | null = null;
 let configurationMissing = false;
 let previewMode = false;
 let libraryLoading = true;
@@ -316,6 +323,7 @@ function file(
 function bindEvents(): void {
   document.querySelector<HTMLFormElement>("[data-cv-search-form]")?.addEventListener("submit", (event) => event.preventDefault());
   document.querySelector<HTMLInputElement>("[data-cv-search-input]")?.addEventListener("input", (event) => {
+    fileBrowserNotice = null;
     filters = { ...filters, search: (event.currentTarget as HTMLInputElement).value };
     renderFiles();
     renderInspector();
@@ -343,11 +351,7 @@ function bindEvents(): void {
       return;
     }
 
-    const workspaceFolderDelete = target.closest<HTMLElement>("[data-cv-delete-folder-id]");
-    if (workspaceFolderDelete?.dataset.cvDeleteFolderId) {
-      void deleteFolder(workspaceFolderDelete.dataset.cvDeleteFolderId);
-      return;
-    }
+    if (handleFolderDeleteClick(event, target.closest<HTMLElement>("[data-cv-delete-folder-id]"))) return;
 
     const browserFolder = target.closest<HTMLElement>("[data-cv-browser-folder-id]");
     if (browserFolder?.dataset.cvBrowserFolderId) {
@@ -383,6 +387,7 @@ function bindEvents(): void {
       ...filters,
       quickFilter: next === filters.quickFilter ? null : (next as FileQuickFilter | null),
     };
+    fileBrowserNotice = null;
     workspaceView = "library";
     renderAll();
   });
@@ -449,6 +454,7 @@ function bindEvents(): void {
     const nav = (event.target as HTMLElement).closest<HTMLElement>("[data-cv-nav='all-files']");
     if (!nav) return;
     event.preventDefault();
+    fileBrowserNotice = null;
     filters = { search: filters.search, projectId: null, folderId: null, tagSlug: null, quickFilter: null };
     recordBrowserHistory({ projectId: null, folderId: null }, "push");
     selectedFileId = null;
@@ -457,13 +463,7 @@ function bindEvents(): void {
   });
 
   document.querySelector<HTMLElement>("[data-cv-folder-tree]")?.addEventListener("click", (event) => {
-    const deleteButton = (event.target as HTMLElement).closest<HTMLElement>("[data-cv-delete-folder-id]");
-    if (deleteButton) {
-      event.preventDefault();
-      event.stopPropagation();
-      void deleteFolder(deleteButton.dataset.cvDeleteFolderId || "");
-      return;
-    }
+    if (handleFolderDeleteClick(event, (event.target as HTMLElement).closest<HTMLElement>("[data-cv-delete-folder-id]"))) return;
 
     const projectToggle = (event.target as HTMLElement).closest<HTMLElement>("[data-cv-toggle-project-id]");
     if (projectToggle?.dataset.cvToggleProjectId) {
@@ -499,6 +499,7 @@ function bindEvents(): void {
       ...filters,
       tagSlug: filters.tagSlug === target.dataset.cvTagSlug ? null : target.dataset.cvTagSlug || null,
     };
+    fileBrowserNotice = null;
     renderAll();
   });
 
@@ -506,16 +507,12 @@ function bindEvents(): void {
     const target = (event.target as HTMLElement).closest<HTMLElement>("[data-cv-clear-filters]");
     if (!target) return;
     filters = { ...filters, tagSlug: null, quickFilter: null };
+    fileBrowserNotice = null;
     renderAll();
   });
 
   document.querySelector<HTMLElement>("[data-cv-file-table-body]")?.addEventListener("click", (event) => {
-    const deleteButton = (event.target as HTMLElement).closest<HTMLElement>("[data-cv-delete-folder-id]");
-    if (deleteButton?.dataset.cvDeleteFolderId) {
-      event.stopPropagation();
-      void deleteFolder(deleteButton.dataset.cvDeleteFolderId);
-      return;
-    }
+    if (handleFolderDeleteClick(event, (event.target as HTMLElement).closest<HTMLElement>("[data-cv-delete-folder-id]"))) return;
 
     const row = (event.target as HTMLElement).closest<HTMLTableRowElement>("[data-cv-file-row]");
     if (!row) return;
@@ -576,6 +573,7 @@ function bindEvents(): void {
         ...filters,
         quickFilter: next === filters.quickFilter ? null : (next as FileQuickFilter | null),
       };
+      fileBrowserNotice = null;
       renderAll();
       return;
     }
@@ -697,7 +695,17 @@ function bindEvents(): void {
   });
 }
 
+function handleFolderDeleteClick(event: Event, deleteButton: HTMLElement | null): boolean {
+  const folderId = deleteButton?.dataset.cvDeleteFolderId;
+  if (!folderId) return false;
+  event.preventDefault();
+  event.stopPropagation();
+  void deleteFolder(folderId);
+  return true;
+}
+
 function navigateToBrowserLocation(location: BrowserLocationState, options: { clearSelection?: boolean; history?: "push" | "replace" | "none" } = {}): void {
+  fileBrowserNotice = null;
   const nextLocation = normalizeBrowserLocation(location);
   filters = {
     ...filters,
@@ -1417,7 +1425,12 @@ function renderFileBrowser(): void {
   const grid = document.querySelector<HTMLElement>("[data-cv-file-browser-grid]");
   updateBrowserHistoryButtons();
   if (path) path.innerHTML = renderFileBrowserPath();
-  if (summary) summary.textContent = libraryLoading ? "Loading" : fileBrowserSummary();
+  if (summary) {
+    const notice = libraryLoading ? null : fileBrowserNotice;
+    summary.textContent = libraryLoading ? "Loading" : notice?.message ?? fileBrowserSummary();
+    summary.classList.toggle("file-browser__summary--info", notice?.tone === "info");
+    summary.classList.toggle("file-browser__summary--error", notice?.tone === "error");
+  }
   if (!grid) return;
 
   if (libraryLoading) {
@@ -1603,7 +1616,9 @@ function renderFileListContainerRow(
 }
 
 function renderFolderDeleteButton(folderId: string, folderName: string, className: string): string {
-  return `<button class="ghost-icon ${escapeAttr(className)}" type="button" aria-label="Delete ${escapeAttr(folderName)}" title="Delete folder" data-cv-delete-folder-id="${escapeAttr(folderId)}">${trashIcon()}</button>`;
+  const isDeleting = deletingFolderIds.has(folderId);
+  const label = isDeleting ? `Deleting ${folderName}` : `Delete ${folderName}`;
+  return `<button class="ghost-icon ${escapeAttr(className)}${isDeleting ? " is-deleting" : ""}" type="button" aria-label="${escapeAttr(label)}" title="${escapeAttr(label)}" data-cv-delete-folder-id="${escapeAttr(folderId)}" ${isDeleting ? 'disabled aria-busy="true"' : ""}>${isDeleting ? spinnerIcon() : trashIcon()}</button>`;
 }
 
 function renderFileListFileRow(fileRecord: FileRecord): string {
@@ -2370,7 +2385,12 @@ async function deleteFileIds(fileIds: string[], queueName: string): Promise<void
 }
 
 async function deleteFolder(folderId: string): Promise<void> {
-  if (!folderId || !canWriteCurrentAccess()) return;
+  if (!folderId || deletingFolderIds.has(folderId)) return;
+  if (!canWriteCurrentAccess()) {
+    fileBrowserNotice = { message: "Current role cannot delete folders.", tone: "error" };
+    renderFileBrowser();
+    return;
+  }
   const folderRecord = library.folders.find((entry) => entry.id === folderId);
   if (!folderRecord) return;
   const scope = getFolderDeletionScope(library.folders, library.files, folderId);
@@ -2378,27 +2398,31 @@ async function deleteFolder(folderId: string): Promise<void> {
   if (hasContents && !window.confirm(folderDeleteConfirmationMessage(folderRecord.name, scope.folderIds.length, scope.fileIds.length))) return;
   const folderIdSet = new Set(scope.folderIds);
   const fileIdSet = new Set(scope.fileIds);
-
-  if (previewMode) {
-    const now = new Date().toISOString();
-    library = {
-      ...library,
-      folders: library.folders.filter((entry) => !folderIdSet.has(entry.id)),
-      files: markFilesDeleted(library.files, fileIdSet, now),
-    };
-    if (filters.folderId && folderIdSet.has(filters.folderId)) {
-      filters = { ...filters, folderId: null, projectId: folderRecord.projectId };
-      recordBrowserHistory({ projectId: folderRecord.projectId, folderId: null }, "replace");
-    }
-    if (selectedFileId && fileIdSet.has(selectedFileId)) {
-      selectedFileId = null;
-      selectedFileIds = new Set();
-    }
-    renderAll();
-    return;
-  }
+  setFolderDeleting(folderId, true);
+  fileBrowserNotice = { message: `Deleting "${folderRecord.name}"...`, tone: "info" };
+  renderFiles();
 
   try {
+    if (previewMode) {
+      const now = new Date().toISOString();
+      library = {
+        ...library,
+        folders: library.folders.filter((entry) => !folderIdSet.has(entry.id)),
+        files: markFilesDeleted(library.files, fileIdSet, now),
+      };
+      if (filters.folderId && folderIdSet.has(filters.folderId)) {
+        filters = { ...filters, folderId: null, projectId: folderRecord.projectId };
+        recordBrowserHistory({ projectId: folderRecord.projectId, folderId: null }, "replace");
+      }
+      if (selectedFileId && fileIdSet.has(selectedFileId)) {
+        selectedFileId = null;
+        selectedFileIds = new Set();
+      }
+      fileBrowserNotice = { message: `Deleted "${folderRecord.name}".`, tone: "info" };
+      renderAll();
+      return;
+    }
+
     await fetchJson<{ status: string; folderId: string }>(`/api/folders/${encodeURIComponent(folderId)}`, {
       method: "DELETE",
       headers: hasContents ? { "content-type": "application/json" } : undefined,
@@ -2408,8 +2432,10 @@ async function deleteFolder(folderId: string): Promise<void> {
       filters = { ...filters, folderId: null, projectId: folderRecord.projectId };
       recordBrowserHistory({ projectId: folderRecord.projectId, folderId: null }, "replace");
     }
+    fileBrowserNotice = { message: `Deleted "${folderRecord.name}".`, tone: "info" };
     await reloadLibrary();
   } catch (error) {
+    fileBrowserNotice = { message: `Delete failed: ${errorMessage(error)}`, tone: "error" };
     uploadQueue = reduceUploadQueue(uploadQueue, {
       type: "add",
       id: `delete_folder_${Date.now()}`,
@@ -2421,7 +2447,20 @@ async function deleteFolder(folderId: string): Promise<void> {
       uploadQueue = reduceUploadQueue(uploadQueue, { type: "fail", id: latest.id, message: errorMessage(error) });
     }
     renderQueue();
+    renderFiles();
+    renderSidebar();
+  } finally {
+    setFolderDeleting(folderId, false);
+    renderFiles();
+    renderSidebar();
   }
+}
+
+function setFolderDeleting(folderId: string, isDeleting: boolean): void {
+  const next = new Set(deletingFolderIds);
+  if (isDeleting) next.add(folderId);
+  else next.delete(folderId);
+  deletingFolderIds = next;
 }
 
 function folderDeleteConfirmationMessage(folderName: string, folderCount: number, fileCount: number): string {
@@ -3223,6 +3262,10 @@ function checkIcon(): string {
 
 function warningIcon(): string {
   return `<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m12 4 9 16H3l9-16Zm0 5v5m0 3v.1" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" /></svg>`;
+}
+
+function spinnerIcon(): string {
+  return `<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 1-8.5 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" /></svg>`;
 }
 
 function fileIcon(): string {

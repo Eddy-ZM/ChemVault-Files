@@ -1607,11 +1607,30 @@ input:focus-visible {
   opacity: 0.36;
 }
 
-.file-browser__header > span {
+.file-browser__summary {
   flex: 0 0 auto;
+  max-width: min(320px, 38vw);
+  padding: 3px 8px;
+  border-radius: 999px;
   color: #65707e;
   font-size: 12px;
   font-weight: 570;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition:
+    background-color var(--motion-fast) ease-out,
+    color var(--motion-fast) ease-out;
+}
+
+.file-browser__summary--info {
+  background: rgba(0, 113, 227, 0.08);
+  color: var(--blue-strong);
+}
+
+.file-browser__summary--error {
+  background: rgba(215, 0, 21, 0.08);
+  color: #b00020;
 }
 
 .file-browser__path {
@@ -1763,6 +1782,19 @@ input:focus-visible {
   color: #c5162e;
 }
 
+.file-os-item__delete.is-deleting,
+.file-list-delete-button.is-deleting,
+.folder-delete-button.is-deleting {
+  opacity: 1;
+  color: var(--blue-strong);
+}
+
+.file-os-item__delete.is-deleting .icon,
+.file-list-delete-button.is-deleting .icon,
+.folder-delete-button.is-deleting .icon {
+  animation: cv-spin 0.9s linear infinite;
+}
+
 .file-os-item.is-selected {
   border-color: rgba(0, 113, 227, 0.44);
   background: #eef6ff;
@@ -1821,6 +1853,12 @@ input:focus-visible {
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes cv-spin {
+  to {
+    transform: rotate(360deg);
   }
 }
 
