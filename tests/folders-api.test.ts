@@ -96,8 +96,11 @@ class FakeStatement {
       };
     }
     if (this.sql.includes("DELETE FROM folders WHERE id = ?")) {
-      this.state.deletedIds.push(String(this.args[0]));
-      delete this.state.folders[String(this.args[0])];
+      const folderId = String(this.args[0]);
+      const hasReferencingFiles = Object.values(this.state.files ?? {}).some((fileRecord) => fileRecord.folder_id === folderId);
+      if (hasReferencingFiles) throw new Error("D1_ERROR: FOREIGN KEY constraint failed");
+      this.state.deletedIds.push(folderId);
+      delete this.state.folders[folderId];
     }
     if (this.sql.includes("UPDATE files SET status = 'deleted'")) {
       const fileId = String(this.args[2]);
@@ -109,6 +112,15 @@ class FakeStatement {
         file.folder_id = null;
       }
       this.state.deletedFileIds?.push(fileId);
+    }
+    if (this.sql.includes("UPDATE files SET folder_id = NULL")) {
+      const folderIds = new Set(this.args.slice(1).map(String));
+      for (const fileRecord of Object.values(this.state.files ?? {})) {
+        if (folderIds.has(String(fileRecord.folder_id))) {
+          fileRecord.folder_id = null;
+          fileRecord.updated_at = this.args[0];
+        }
+      }
     }
     return { success: true };
   }
@@ -169,6 +181,14 @@ function file(id: string, folderId: string, r2Key: string) {
     created_at: "2026-06-11T00:00:00.000Z",
     updated_at: "2026-06-11T00:00:00.000Z",
     deleted_at: null,
+  };
+}
+
+function deletedFile(id: string, folderId: string, r2Key: string) {
+  return {
+    ...file(id, folderId, r2Key),
+    status: "deleted",
+    deleted_at: "2026-06-19T07:00:00.000Z",
   };
 }
 
@@ -248,6 +268,26 @@ describe("folders API", () => {
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({ status: "deleted", folderId: "folder_empty" });
+    expect(state.deletedIds).toEqual(["folder_empty"]);
+  });
+
+  it("detaches already-deleted file tombstones before deleting an otherwise empty folder", async () => {
+    const state: FolderState = {
+      folders: { folder_empty: folder("folder_empty", "Empty") },
+      files: {
+        file_deleted: deletedFile("file_deleted", "folder_empty", "files/deleted.pdf"),
+      },
+      childCount: 0,
+      fileCount: 0,
+      inserted: 0,
+      deletedIds: [],
+    };
+
+    const response = await deleteFolder(context(state, request("owner@chemvault.science", { method: "DELETE" }), { id: "folder_empty" }));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ status: "deleted", folderId: "folder_empty" });
+    expect(state.files?.file_deleted.folder_id).toBeNull();
     expect(state.deletedIds).toEqual(["folder_empty"]);
   });
 

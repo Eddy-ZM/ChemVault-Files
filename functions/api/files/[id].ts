@@ -69,7 +69,7 @@ export const onRequestDelete: PagesFunction<Env> = async ({ request, env, params
 
     const now = new Date().toISOString();
     await db
-      .prepare("UPDATE files SET status = 'deleted', deleted_at = ?, updated_at = ? WHERE id = ?")
+      .prepare("UPDATE files SET status = 'deleted', deleted_at = ?, updated_at = ?, folder_id = NULL WHERE id = ?")
       .bind(now, now, fileId)
       .run();
     await env.FILES_BUCKET?.delete(file.r2Key);

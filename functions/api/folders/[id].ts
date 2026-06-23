@@ -27,6 +27,7 @@ export const onRequestDelete: PagesFunction<Env> = async ({ request, env, params
     }
 
     if (!options.recursive) {
+      await detachFilesFromFolders(db, [folderId], new Date().toISOString());
       await db.prepare("DELETE FROM folders WHERE id = ?").bind(folderId).run();
       return okJson({ status: "deleted", folderId });
     }
@@ -49,6 +50,8 @@ export const onRequestDelete: PagesFunction<Env> = async ({ request, env, params
         .run();
       await env.FILES_BUCKET?.delete(file.r2Key);
     }
+
+    await detachFilesFromFolders(db, folderIds, now);
 
     for (const id of [...folderIds].reverse()) {
       await db.prepare("DELETE FROM folders WHERE id = ?").bind(id).run();
@@ -90,4 +93,13 @@ async function listActiveFilesInFolders(db: D1Database, folderIds: string[]): Pr
     .bind(...folderIds)
     .all();
   return result.results as Record<string, unknown>[];
+}
+
+async function detachFilesFromFolders(db: D1Database, folderIds: string[], timestamp: string): Promise<void> {
+  if (folderIds.length === 0) return;
+  const placeholders = folderIds.map(() => "?").join(",");
+  await db
+    .prepare(`UPDATE files SET folder_id = NULL, updated_at = ? WHERE folder_id IN (${placeholders})`)
+    .bind(timestamp, ...folderIds)
+    .run();
 }
