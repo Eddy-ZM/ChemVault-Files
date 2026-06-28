@@ -277,7 +277,7 @@ export function bootChemVaultFiles(): void {
 
   shell.dataset.cvBooted = "true";
   setShellAuthState("checking");
-  setAuthGateMessage("Checking ChemVault User sign-in...");
+  setAuthGateMessage("loading");
   bindEvents();
   renderAccountIdentity();
   void loadRemoteState();
@@ -778,7 +778,7 @@ function browserLocationsEqual(left: BrowserLocationState, right: BrowserLocatio
 
 async function loadRemoteState(): Promise<void> {
   setShellAuthState("checking");
-  setAuthGateMessage("Checking ChemVault User sign-in...");
+  setAuthGateMessage("loading");
 
   try {
     const health = await fetchJson<HealthResponse>("/api/health");
@@ -791,7 +791,7 @@ async function loadRemoteState(): Promise<void> {
     renderAccountIdentity();
     renderHealth(health);
     if (authStatus === "unauthenticated" && healthEnvironment === "production" && currentLoginUrl) {
-      setAuthGateMessage("Redirecting to ChemVault User...");
+      setAuthGateMessage("loading");
       setShellAuthState("redirecting");
       window.location.replace(currentLoginUrl);
       return;
@@ -801,7 +801,7 @@ async function loadRemoteState(): Promise<void> {
     authStatus = "unauthenticated";
     currentLoginUrl = userLoginUrl(window.location.href);
     previewMode = true;
-    setAuthGateMessage("Unable to verify ChemVault User sign-in.");
+    setAuthGateMessage("loading");
     renderHealth();
   }
 

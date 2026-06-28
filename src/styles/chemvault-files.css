@@ -154,9 +154,8 @@ input:focus-visible {
   min-height: 100vh;
   place-items: center;
   padding: 24px;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.74), rgba(245, 245, 247, 0.92)),
-    var(--bg);
+  background: rgba(241, 247, 252, 0.66);
+  backdrop-filter: blur(16px);
 }
 
 .files-shell[data-cv-auth-state="checking"] .auth-gate,
@@ -164,35 +163,206 @@ input:focus-visible {
   display: grid;
 }
 
-.auth-gate__inner {
-  width: min(360px, 100%);
+.auth-gate__panel {
+  width: min(360px, calc(100vw - 40px));
+  padding: 24px;
+  border: 1px solid rgba(0, 113, 227, 0.18);
+  border-radius: var(--radius);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(248, 252, 255, 0.86)),
+    var(--surface);
+  box-shadow:
+    0 24px 70px rgba(24, 87, 140, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+.auth-gate__visual {
+  position: relative;
   display: grid;
-  justify-items: center;
-  gap: 18px;
-  color: var(--text);
+  place-items: center;
+  height: 116px;
+  overflow: hidden;
+  border-radius: var(--radius);
+  background-image:
+    linear-gradient(rgba(0, 113, 227, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 113, 227, 0.08) 1px, transparent 1px);
+  background-size: 22px 22px;
 }
 
-.auth-gate__status {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  color: var(--muted);
-  font-size: 14px;
-  font-weight: 650;
-}
-
-.auth-gate__spinner {
-  width: 18px;
-  height: 18px;
-  border: 2px solid rgba(0, 113, 227, 0.18);
-  border-top-color: var(--blue);
+.auth-gate__ring {
+  width: 74px;
+  height: 74px;
+  border: 1px solid rgba(0, 113, 227, 0.26);
   border-radius: 50%;
-  animation: cv-auth-gate-spin 760ms linear infinite;
+  animation: auth-gate-ring-pulse 1.8s var(--motion-ease) infinite;
 }
 
-@keyframes cv-auth-gate-spin {
-  to {
-    transform: rotate(360deg);
+.auth-gate__mail {
+  position: absolute;
+  width: 36px;
+  height: 36px;
+  color: var(--blue);
+  filter: drop-shadow(0 10px 18px rgba(0, 113, 227, 0.22));
+  animation: auth-gate-mail-flight 2.2s var(--motion-ease) infinite;
+}
+
+.auth-gate__key {
+  position: absolute;
+  right: calc(50% - 44px);
+  top: 44px;
+  width: 24px;
+  height: 24px;
+  color: #13a8a8;
+  animation: auth-gate-key-unlock 2.2s var(--motion-ease) infinite;
+}
+
+.auth-gate__dots {
+  position: absolute;
+  bottom: 14px;
+  display: flex;
+  gap: 6px;
+}
+
+.auth-gate__dots span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--blue);
+  opacity: 0.35;
+  animation: auth-gate-dot-step 1.2s ease-in-out infinite;
+}
+
+.auth-gate__dots span:nth-child(2) {
+  animation-delay: 120ms;
+}
+
+.auth-gate__dots span:nth-child(3) {
+  animation-delay: 240ms;
+}
+
+.auth-gate__copy {
+  display: grid;
+  gap: 4px;
+  margin-top: 18px;
+  text-align: center;
+}
+
+.auth-gate__title {
+  color: var(--text);
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.auth-gate__progress {
+  position: relative;
+  height: 4px;
+  margin-top: 18px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(0, 113, 227, 0.14);
+}
+
+.auth-gate__progress span {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 42%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--blue), #13a8a8);
+  animation: auth-gate-progress 1.35s ease-in-out infinite;
+}
+
+@keyframes auth-gate-mail-flight {
+  0% {
+    opacity: 0;
+    transform: translate3d(-110px, 4px, 0) scale(0.78) rotate(-10deg);
+  }
+
+  22% {
+    opacity: 1;
+  }
+
+  52% {
+    transform: translate3d(0, -2px, 0) scale(1) rotate(0deg);
+  }
+
+  78% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate3d(110px, -4px, 0) scale(0.82) rotate(10deg);
+  }
+}
+
+@keyframes auth-gate-key-unlock {
+  0%,
+  42% {
+    opacity: 0;
+    transform: translate3d(0, 6px, 0) rotate(-18deg) scale(0.82);
+  }
+
+  58%,
+  82% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) rotate(0deg) scale(1);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate3d(0, -4px, 0) rotate(8deg) scale(0.88);
+  }
+}
+
+@keyframes auth-gate-ring-pulse {
+  0%,
+  100% {
+    transform: scale(0.9);
+    opacity: 0.5;
+  }
+
+  50% {
+    transform: scale(1.1);
+    opacity: 1;
+  }
+}
+
+@keyframes auth-gate-dot-step {
+  0%,
+  100% {
+    opacity: 0.28;
+    transform: translateY(0);
+  }
+
+  45% {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
+}
+
+@keyframes auth-gate-progress {
+  0% {
+    transform: translateX(-105%);
+  }
+
+  55% {
+    transform: translateX(72%);
+  }
+
+  100% {
+    transform: translateX(245%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-gate__ring,
+  .auth-gate__mail,
+  .auth-gate__key,
+  .auth-gate__dots span,
+  .auth-gate__progress span {
+    animation-duration: 1ms;
+    animation-iteration-count: 1;
   }
 }
 
