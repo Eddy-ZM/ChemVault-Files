@@ -197,13 +197,13 @@ input:focus-visible {
   animation: auth-gate-ring-pulse 1.8s var(--motion-ease) infinite;
 }
 
-.auth-gate__mail {
+.auth-gate__folder {
   position: absolute;
   width: 36px;
   height: 36px;
   color: var(--blue);
   filter: drop-shadow(0 10px 18px rgba(0, 113, 227, 0.22));
-  animation: auth-gate-mail-flight 2.2s var(--motion-ease) infinite;
+  animation: auth-gate-folder-scan 2.2s var(--motion-ease) infinite;
 }
 
 .auth-gate__key {
@@ -272,10 +272,10 @@ input:focus-visible {
   animation: auth-gate-progress 1.35s ease-in-out infinite;
 }
 
-@keyframes auth-gate-mail-flight {
+@keyframes auth-gate-folder-scan {
   0% {
     opacity: 0;
-    transform: translate3d(-110px, 4px, 0) scale(0.78) rotate(-10deg);
+    transform: translate3d(0, 12px, 0) scale(0.86);
   }
 
   22% {
@@ -283,16 +283,17 @@ input:focus-visible {
   }
 
   52% {
-    transform: translate3d(0, -2px, 0) scale(1) rotate(0deg);
+    transform: translate3d(0, -2px, 0) scale(1);
   }
 
   78% {
     opacity: 1;
+    transform: translate3d(0, -2px, 0) scale(1);
   }
 
   100% {
     opacity: 0;
-    transform: translate3d(110px, -4px, 0) scale(0.82) rotate(10deg);
+    transform: translate3d(0, -12px, 0) scale(0.9);
   }
 }
 
@@ -357,7 +358,7 @@ input:focus-visible {
 
 @media (prefers-reduced-motion: reduce) {
   .auth-gate__ring,
-  .auth-gate__mail,
+  .auth-gate__folder,
   .auth-gate__key,
   .auth-gate__dots span,
   .auth-gate__progress span {

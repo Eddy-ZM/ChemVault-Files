@@ -9,11 +9,11 @@ describe("authenticated startup", () => {
   it("keeps the file workbench hidden until ChemVault User auth is checked", () => {
     expect(appShellSource).toContain('data-cv-auth-state="checking"');
     expect(appShellSource).toContain("data-cv-auth-gate");
-    expect(appShellSource).toContain("auth-gate__mail");
+    expect(appShellSource).toContain("auth-gate__folder");
     expect(appShellSource).toContain("auth-gate__key");
     expect(appShellSource).toContain(">loading</span>");
     expect(stylesSource).toContain('.files-shell[data-cv-auth-state="checking"] .files-workbench');
-    expect(stylesSource).toContain("@keyframes auth-gate-mail-flight");
+    expect(stylesSource).toContain("@keyframes auth-gate-folder-scan");
     expect(stylesSource).toContain("@keyframes auth-gate-key-unlock");
     expect(clientSource).toContain('setShellAuthState("checking")');
     expect(clientSource).toContain('setAuthGateMessage("loading")');
