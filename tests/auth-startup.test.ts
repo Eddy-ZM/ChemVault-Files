@@ -17,6 +17,7 @@ describe("authenticated startup", () => {
     expect(stylesSource).toContain("@keyframes auth-gate-key-unlock");
     expect(clientSource).toContain('setShellAuthState("checking")');
     expect(clientSource).toContain('setAuthGateMessage("loading")');
+    expect(clientSource).toContain('authAwareApiUrl("/api/health")');
     expect(clientSource).toContain("window.location.replace(currentLoginUrl)");
     expect(clientSource).not.toContain("Checking ChemVault User sign-in");
     expect(clientSource).not.toMatch(/renderAll\(\);\s*void loadRemoteState\(\);/);

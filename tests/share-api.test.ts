@@ -43,9 +43,9 @@ class FakeD1 {
   }
 }
 
-function context(state: FakeState, token = "sh_active") {
+function context(state: FakeState, token = "sh_active", requestUrl?: string) {
   return {
-    request: new Request(`https://files.chemvault.science/api/shares/${token}`),
+    request: new Request(requestUrl ?? `https://files.chemvault.science/api/shares/${token}`),
     params: { token },
     env: {
       FILES_DB: new FakeD1(state),
@@ -147,12 +147,19 @@ describe("share API", () => {
   });
 
   it("requires ChemVault User auth for non-public share metadata", async () => {
-    const response = await shareGet(context(activeState({ is_public: 0 })));
+    const response = await shareGet(
+      context(
+        activeState({ is_public: 0 }),
+        "sh_active",
+        "https://files.chemvault.science/api/shares/sh_active?returnTo=https%3A%2F%2Ffiles.chemvault.science%2Fshare%3Ftoken%3Dsh_active"
+      )
+    );
 
     expect(response.status).toBe(401);
     await expect(response.json()).resolves.toMatchObject({
       error: {
         code: "AUTH_REQUIRED",
+        loginUrl: "https://user.chemvault.science/login?returnTo=https%3A%2F%2Ffiles.chemvault.science%2Fshare%3Ftoken%3Dsh_active",
       },
     });
   });

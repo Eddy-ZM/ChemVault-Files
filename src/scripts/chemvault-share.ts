@@ -23,7 +23,7 @@ async function loadShare(): Promise<void> {
   }
 
   try {
-    const response = await fetch(`/api/shares/${encodeURIComponent(token)}`);
+    const response = await fetch(authAwareShareApiUrl(token));
     const payload = (await response.json()) as SharePublicResponse | { error?: { message?: string; loginUrl?: string } };
     const errorPayload = "error" in payload ? payload.error : null;
     if (response.status === 401 && errorPayload?.loginUrl) {
@@ -38,6 +38,12 @@ async function loadShare(): Promise<void> {
     setProtectedPreviewMode(false);
     container.innerHTML = renderShareError(error instanceof Error ? error.message : "Share link failed.");
   }
+}
+
+function authAwareShareApiUrl(token: string): string {
+  const url = new URL(`/api/shares/${encodeURIComponent(token)}`, window.location.origin);
+  url.searchParams.set("returnTo", window.location.href);
+  return `${url.pathname}${url.search}`;
 }
 
 function renderShare(share: SharePublicResponse): string {

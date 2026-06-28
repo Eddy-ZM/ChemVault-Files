@@ -781,7 +781,7 @@ async function loadRemoteState(): Promise<void> {
   setAuthGateMessage("loading");
 
   try {
-    const health = await fetchJson<HealthResponse>("/api/health");
+    const health = await fetchJson<HealthResponse>(authAwareApiUrl("/api/health"));
     configurationMissing = health.status !== "ready";
     healthEnvironment = health.environment || "local";
     authStatus = health.authStatus || (health.actorAccess ? "authenticated" : "unauthenticated");
@@ -865,6 +865,12 @@ async function fetchJson<T>(input: string, init?: RequestInit): Promise<T> {
     throw new Error(readErrorMessage(payload) || "Request failed");
   }
   return payload as T;
+}
+
+function authAwareApiUrl(path: string): string {
+  const url = new URL(path, window.location.origin);
+  url.searchParams.set("returnTo", window.location.href);
+  return `${url.pathname}${url.search}`;
 }
 
 function readErrorMessage(payload: unknown): string | null {

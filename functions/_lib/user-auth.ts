@@ -47,8 +47,31 @@ export function getUserAuthOrigin(env: Pick<Env, "USER_AUTH_ORIGIN">): string {
 
 export function getUserLoginUrl(request: Request, env: Pick<Env, "USER_AUTH_ORIGIN" | "USER_LOGIN_URL">): string {
   const url = new URL(env.USER_LOGIN_URL || "/login", getUserAuthOrigin(env));
-  url.searchParams.set("returnTo", request.url);
+  url.searchParams.set("returnTo", resolveLoginReturnTo(request));
   return url.toString();
+}
+
+function resolveLoginReturnTo(request: Request): string {
+  const requestUrl = new URL(request.url);
+  const explicitReturnTo = normalizeReturnToCandidate(requestUrl, requestUrl.searchParams.get("returnTo"));
+  if (explicitReturnTo) return explicitReturnTo;
+  if (isApiPath(requestUrl.pathname)) return `${requestUrl.origin}/`;
+  return requestUrl.toString();
+}
+
+function normalizeReturnToCandidate(requestUrl: URL, value: string | null): string | null {
+  if (!value) return null;
+  try {
+    const candidate = new URL(value, requestUrl.origin);
+    if (candidate.origin !== requestUrl.origin || isApiPath(candidate.pathname)) return null;
+    return candidate.toString();
+  } catch {
+    return null;
+  }
+}
+
+function isApiPath(pathname: string): boolean {
+  return pathname === "/api" || pathname.startsWith("/api/");
 }
 
 export function getUserLogoutCookie(env: Pick<Env, "COOKIE_NAME" | "COOKIE_DOMAIN">, request: Request): string {

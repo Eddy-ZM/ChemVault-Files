@@ -64,7 +64,61 @@ describe("HTTP helpers", () => {
     await expect(response.json()).resolves.toMatchObject({
       authStatus: "unauthenticated",
       actorEmail: null,
-      loginUrl: "https://user.chemvault.science/login?returnTo=https%3A%2F%2Ffile.chemvault.science%2Fapi%2Fhealth",
+      loginUrl: "https://user.chemvault.science/login?returnTo=https%3A%2F%2Ffile.chemvault.science%2F",
+    });
+  });
+
+  it("honors a same-origin page returnTo for unauthenticated health checks", async () => {
+    const request = new Request(
+      "https://file.chemvault.science/api/health?returnTo=https%3A%2F%2Ffile.chemvault.science%2F%3Fproject%3Dspectra"
+    );
+
+    const response = await healthGet({
+      request,
+      env: {
+        ENVIRONMENT: "production",
+        PRIVATE_OWNER_EMAIL: "owner@chemvault.science",
+      },
+    } as unknown as Parameters<typeof healthGet>[0]);
+
+    await expect(response.json()).resolves.toMatchObject({
+      authStatus: "unauthenticated",
+      loginUrl: "https://user.chemvault.science/login?returnTo=https%3A%2F%2Ffile.chemvault.science%2F%3Fproject%3Dspectra",
+    });
+  });
+
+  it("does not use API or cross-origin returnTo values for login redirects", async () => {
+    const request = new Request(
+      "https://file.chemvault.science/api/health?returnTo=https%3A%2F%2Ffile.chemvault.science%2Fapi%2Flibrary"
+    );
+
+    const response = await healthGet({
+      request,
+      env: {
+        ENVIRONMENT: "production",
+        PRIVATE_OWNER_EMAIL: "owner@chemvault.science",
+      },
+    } as unknown as Parameters<typeof healthGet>[0]);
+
+    await expect(response.json()).resolves.toMatchObject({
+      authStatus: "unauthenticated",
+      loginUrl: "https://user.chemvault.science/login?returnTo=https%3A%2F%2Ffile.chemvault.science%2F",
+    });
+
+    const crossOriginRequest = new Request(
+      "https://file.chemvault.science/api/health?returnTo=https%3A%2F%2Fexample.com%2F"
+    );
+    const crossOriginResponse = await healthGet({
+      request: crossOriginRequest,
+      env: {
+        ENVIRONMENT: "production",
+        PRIVATE_OWNER_EMAIL: "owner@chemvault.science",
+      },
+    } as unknown as Parameters<typeof healthGet>[0]);
+
+    await expect(crossOriginResponse.json()).resolves.toMatchObject({
+      authStatus: "unauthenticated",
+      loginUrl: "https://user.chemvault.science/login?returnTo=https%3A%2F%2Ffile.chemvault.science%2F",
     });
   });
 });
