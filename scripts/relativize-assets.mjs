@@ -2,7 +2,7 @@ import { readdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join, relative, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 
-const ROOT_ASSET_RE = /\b(href|src)="\/((?:_astro|brand)\/[^"]+|favicon\.(?:ico|svg))"/g;
+const ROOT_ASSET_RE = /\b(href|src)="\/((?:_astro|assets|brand)\/[^"]+|favicon\.(?:ico|svg))"/g;
 const ROOT_HOME_RE = /\bhref="\/"/g;
 
 export function relativePrefixForHtmlFile(htmlFile, rootDir) {
