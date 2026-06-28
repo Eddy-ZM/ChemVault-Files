@@ -74,7 +74,7 @@ CLOUDFLARE_ACCOUNT_ID=20f69e8d2aebbadbff2b6ffa36efee50 npx wrangler d1 migration
 
 Protect `file.chemvault.science` with Cloudflare Access before exposing production traffic. The Access allow policy should include the primary owner email and every Super administrator email configured in `FILES_ADMIN_EMAILS`.
 
-External approval policies should send approval requests to a real administrator login email, not a forwarding alias, so Cloudflare approval links can be opened by the same identity that received the request.
+External approval policies can use an administrator mailbox such as `it.access@chemvault.science`. If approval links appear invalid, generate a fresh request and make sure mail security tooling does not pre-open or rewrite links from `noreply@notify.cloudflare.com`.
 
 The top-right account chip and owner email plumbing are intentionally reserved so the app can later connect directly to `mail.chemvault.science`.
 
