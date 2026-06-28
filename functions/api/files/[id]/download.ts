@@ -1,5 +1,4 @@
 import type { Env } from "../../../_lib/env";
-import { getActorEmail } from "../../../_lib/env";
 import { listFileRoleIds, mapFile, requireDb } from "../../../_lib/db";
 import { buildDownloadHeaders, createActivityDraft, recordFileActivity } from "../../../_lib/file-service";
 import { canReadFiles, canViewFile, permissionDeniedJson, resolveActorAccess } from "../../../_lib/permissions";
@@ -24,7 +23,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env, params })
       db,
       createActivityDraft({
         fileId,
-        actorEmail: getActorEmail(request, env),
+        actorEmail: access.actorEmail,
         eventType: "download",
         metadata: { mimeType: file.mimeType, name: file.displayName },
       })

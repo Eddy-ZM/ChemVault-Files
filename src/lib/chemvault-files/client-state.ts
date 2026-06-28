@@ -179,8 +179,10 @@ export function formatShareUrl(currentUrl: string, token: string, isPublic = fal
   return `${url.origin}${page}?token=${encodeURIComponent(token)}`;
 }
 
-export function accessLogoutUrl(currentUrl: string): string {
-  return new URL("/cdn-cgi/access/logout", currentUrl).toString();
+export function userLoginUrl(currentUrl: string, configuredUrl = "https://user.chemvault.science/login"): string {
+  const url = new URL(configuredUrl);
+  url.searchParams.set("returnTo", currentUrl);
+  return url.toString();
 }
 
 export function splitUploadPath(file: UploadPathInput): UploadPathInfo {

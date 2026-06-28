@@ -4,8 +4,12 @@
   "compatibility_date": "2026-06-11",
   "pages_build_output_dir": "dist",
   "vars": {
-    "PRIVATE_OWNER_EMAIL": "owner@chemvault.science",
-    "FILES_ADMIN_EMAILS": "owner@chemvault.science,ziwen.mu@chemvault.science",
+    "PRIVATE_OWNER_EMAIL": "ziwen.mu@chemvault.science",
+    "FILES_ADMIN_EMAILS": "ziwen.mu@chemvault.science",
+    "USER_AUTH_ORIGIN": "https://user.chemvault.science",
+    "USER_LOGIN_URL": "https://user.chemvault.science/login",
+    "COOKIE_NAME": "chemvault_session",
+    "COOKIE_DOMAIN": ".chemvault.science",
     "ENVIRONMENT": "production"
   },
   "r2_buckets": [

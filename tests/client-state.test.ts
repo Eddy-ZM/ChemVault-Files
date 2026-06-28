@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  accessLogoutUrl,
   buildFileBrowserItems,
   buildFolderTree,
   filterFiles,
@@ -15,6 +14,7 @@ import {
   splitUploadPath,
   sortFiles,
   summarizeFiles,
+  userLoginUrl,
 } from "../src/lib/chemvault-files/client-state";
 import * as clientState from "../src/lib/chemvault-files/client-state";
 import type { FileRecord, FolderRecord, LibraryResponse } from "../src/lib/chemvault-files/types";
@@ -232,8 +232,10 @@ describe("client state", () => {
     );
   });
 
-  it("builds a Cloudflare Access logout URL on the current origin", () => {
-    expect(accessLogoutUrl("https://file.chemvault.science/library?project=spectra")).toBe("https://file.chemvault.science/cdn-cgi/access/logout");
+  it("builds a ChemVault User login URL with returnTo", () => {
+    expect(userLoginUrl("https://file.chemvault.science/library?project=spectra")).toBe(
+      "https://user.chemvault.science/login?returnTo=https%3A%2F%2Ffile.chemvault.science%2Flibrary%3Fproject%3Dspectra"
+    );
   });
 
   it("extracts upload folder paths from directory selections", () => {

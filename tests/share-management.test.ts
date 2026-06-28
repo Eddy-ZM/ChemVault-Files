@@ -114,10 +114,20 @@ function context(state: { shares: ShareRow[] }, request: Request, token = "sh_ac
   } as unknown as Parameters<typeof listShares>[0];
 }
 
+function authedRequest(url: string, init?: RequestInit): Request {
+  return new Request(url, {
+    ...init,
+    headers: {
+      "Cf-Access-Authenticated-User-Email": "owner@chemvault.science",
+      ...(init?.headers ?? {}),
+    },
+  });
+}
+
 describe("share management API", () => {
   it("lists non-revoked shares for a file", async () => {
     const state = { shares: [shareRow(), shareRow({ token: "sh_revoked", revoked_at: "2026-06-18T00:00:00.000Z" })] };
-    const response = await listShares(context(state, new Request("https://file.chemvault.science/api/files/file_1/share")));
+    const response = await listShares(context(state, authedRequest("https://file.chemvault.science/api/files/file_1/share")));
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({
@@ -130,7 +140,7 @@ describe("share management API", () => {
     const response = await updateShare(
       context(
         state,
-        new Request("https://file.chemvault.science/api/files/file_1/shares/sh_active", {
+        authedRequest("https://file.chemvault.science/api/files/file_1/shares/sh_active", {
           method: "PATCH",
           body: JSON.stringify({ expiresInDays: 30 }),
         })
@@ -149,7 +159,7 @@ describe("share management API", () => {
   it("revokes a share instead of deleting the row", async () => {
     const state = { shares: [shareRow()] };
     const response = await deleteShare(
-      context(state, new Request("https://file.chemvault.science/api/files/file_1/shares/sh_active", { method: "DELETE" })) as unknown as Parameters<typeof deleteShare>[0]
+      context(state, authedRequest("https://file.chemvault.science/api/files/file_1/shares/sh_active", { method: "DELETE" })) as unknown as Parameters<typeof deleteShare>[0]
     );
 
     expect(response.status).toBe(200);

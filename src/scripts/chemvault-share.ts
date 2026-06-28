@@ -24,8 +24,12 @@ async function loadShare(): Promise<void> {
 
   try {
     const response = await fetch(`/api/shares/${encodeURIComponent(token)}`);
-    const payload = (await response.json()) as SharePublicResponse | { error?: { message?: string } };
+    const payload = (await response.json()) as SharePublicResponse | { error?: { message?: string; loginUrl?: string } };
     const errorPayload = "error" in payload ? payload.error : null;
+    if (response.status === 401 && errorPayload?.loginUrl) {
+      window.location.assign(errorPayload.loginUrl);
+      return;
+    }
     if (!response.ok || errorPayload) throw new Error(errorPayload?.message || `${response.status} ${response.statusText}`);
     const share = payload as SharePublicResponse;
     setProtectedPreviewMode(!share.downloadUrl);
@@ -44,7 +48,7 @@ function renderShare(share: SharePublicResponse): string {
         <h1>${escapeHtml(share.file.displayName)}</h1>
         <p>${escapeHtml(formatBytes(share.file.sizeBytes))} · expires ${escapeHtml(formatDate(share.share.expiresAt))}</p>
       </div>
-      <span class="share-badge ${share.share.isPublic ? "share-badge--public" : ""}">${share.share.isPublic ? "Public link" : "Cloudflare Access required to open share page"}</span>
+      <span class="share-badge ${share.share.isPublic ? "share-badge--public" : ""}">${share.share.isPublic ? "Public link" : "ChemVault User sign-in required"}</span>
       ${
         share.downloadUrl
           ? `<a class="button button--primary" href="${escapeAttr(share.downloadUrl)}">Download</a>`

@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { getActorEmail } from "../functions/_lib/env";
 import { errorJson, okJson, parseJsonBody } from "../functions/_lib/http";
 import { onRequestGet as healthGet } from "../functions/api/health";
 
@@ -30,9 +29,28 @@ describe("HTTP helpers", () => {
     await expect(parseJsonBody(request)).resolves.toEqual({ name: "Compound_14_1H.jdx" });
   });
 
-  it("returns the normalized Cloudflare Access actor email in health responses", async () => {
+  it("returns a normalized development actor email in health responses", async () => {
     const request = new Request("https://files.chemvault.science/api/health", {
-      headers: { "Cf-Access-Authenticated-User-Email": "Scientist@ChemVault.Science" },
+      headers: { "X-ChemVault-User-Email": "Scientist@ChemVault.Science" },
+    });
+
+    const response = await healthGet({
+      request,
+      env: {
+        ENVIRONMENT: "test",
+        PRIVATE_OWNER_EMAIL: "owner@chemvault.science",
+      },
+    } as unknown as Parameters<typeof healthGet>[0]);
+
+    await expect(response.json()).resolves.toMatchObject({
+      authStatus: "authenticated",
+      actorEmail: "scientist@chemvault.science",
+    });
+  });
+
+  it("returns a User Center login URL when production requests are unauthenticated", async () => {
+    const request = new Request("https://file.chemvault.science/api/health", {
+      headers: { "Cf-Access-Authenticated-User-Email": "ignored@chemvault.science" },
     });
 
     const response = await healthGet({
@@ -44,38 +62,9 @@ describe("HTTP helpers", () => {
     } as unknown as Parameters<typeof healthGet>[0]);
 
     await expect(response.json()).resolves.toMatchObject({
-      actorEmail: "scientist@chemvault.science",
+      authStatus: "unauthenticated",
+      actorEmail: null,
+      loginUrl: "https://user.chemvault.science/login?returnTo=https%3A%2F%2Ffile.chemvault.science%2Fapi%2Fhealth",
     });
-  });
-
-  it("falls back to the Cloudflare Access JWT email when the email header is unavailable", () => {
-    const payload = btoa(JSON.stringify({ email: "edward@chemvault.science" })).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-    const request = new Request("https://file.chemvault.science/api/health", {
-      headers: {
-        cookie: `CF_Authorization=header.${payload}.signature`,
-      },
-    });
-
-    expect(getActorEmail(request, { PRIVATE_OWNER_EMAIL: "owner@chemvault.science" })).toBe("edward@chemvault.science");
-  });
-
-  it("ignores an invalid Access email header and falls back to the JWT email", () => {
-    const payload = btoa(JSON.stringify({ email: "actual-user@chemvault.science" })).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-    const request = new Request("https://file.chemvault.science/api/health", {
-      headers: {
-        "Cf-Access-Authenticated-User-Email": "not-an-email",
-        "Cf-Access-Jwt-Assertion": `header.${payload}.signature`,
-      },
-    });
-
-    expect(getActorEmail(request, { PRIVATE_OWNER_EMAIL: "owner@chemvault.science" })).toBe("actual-user@chemvault.science");
-  });
-
-  it("normalizes the detected login email before returning it", () => {
-    const request = new Request("https://files.chemvault.science/api/health", {
-      headers: { "Cf-Access-Authenticated-User-Email": " Scientist@ChemVault.Science " },
-    });
-
-    expect(getActorEmail(request, { PRIVATE_OWNER_EMAIL: "owner@chemvault.science" })).toBe("scientist@chemvault.science");
   });
 });

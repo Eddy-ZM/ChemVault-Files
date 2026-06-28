@@ -1,5 +1,4 @@
 import type { Env } from "../../../_lib/env";
-import { getActorEmail } from "../../../_lib/env";
 import { listFileRoleIds, mapFile, mapShare, requireDb } from "../../../_lib/db";
 import {
   coerceShareCreatePayload,
@@ -48,7 +47,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env, params }
     const now = new Date();
     const payload = coerceShareCreatePayload(await parseJsonBody(request), now);
     const token = createShareToken();
-    const actorEmail = getActorEmail(request, env);
+    const actorEmail = access.actorEmail;
     const createdAt = now.toISOString();
 
     await db

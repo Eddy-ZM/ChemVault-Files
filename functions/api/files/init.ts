@@ -1,5 +1,4 @@
 import type { Env } from "../../_lib/env";
-import { getActorEmail } from "../../_lib/env";
 import { requireDb } from "../../_lib/db";
 import { createFileInitDraft } from "../../_lib/file-service";
 import { canWriteFiles, listRolePolicies, permissionDeniedJson, resolveActorAccess } from "../../_lib/permissions";
@@ -24,7 +23,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     const draft = createFileInitDraft({
       payload: restrictUploadAccessPayload(body, access, roles),
       projectSlug: project.slug,
-      actorEmail: getActorEmail(request, env),
+      actorEmail: access.actorEmail,
     });
 
     await db

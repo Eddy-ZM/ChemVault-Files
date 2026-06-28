@@ -1,5 +1,4 @@
 import {
-  accessLogoutUrl,
   buildFileBrowserItems,
   buildFolderTree,
   createInitialLibrary,
@@ -16,6 +15,7 @@ import {
   splitUploadPath,
   sortFiles,
   summarizeFiles,
+  userLoginUrl,
   type FileFilters,
   type FileBrowserItem,
   type FileQuickFilter,
@@ -58,6 +58,8 @@ interface HealthResponse {
   d1: "online" | "missing";
   r2: "online" | "missing";
   environment: string;
+  authStatus?: "authenticated" | "unauthenticated" | "forbidden";
+  loginUrl?: string;
   actorEmail?: string | null;
   actorAccess?: ActorAccess | null;
 }
@@ -243,13 +245,15 @@ let configurationMissing = false;
 let previewMode = false;
 let libraryLoading = true;
 let healthEnvironment = "local";
-let currentActorEmail = "owner@chemvault.science";
+let authStatus: HealthResponse["authStatus"] = "unauthenticated";
+let currentLoginUrl = "https://user.chemvault.science/login";
+let currentActorEmail = "";
 let currentActorAccess: ActorAccess = {
   actorEmail: currentActorEmail,
-  roleId: "role_super",
-  roleName: "Super",
-  permission: "write",
-  canManageRoles: true,
+  roleId: "role_external",
+  roleName: "Common_Out",
+  permission: "none",
+  canManageRoles: false,
 };
 let rolePolicies: FileRolePolicy[] = [];
 let roleSettingsState: RoleSettingsState = { loading: false, saving: false, error: null, message: null };
@@ -688,6 +692,9 @@ function bindEvents(): void {
 
   document.querySelector<HTMLElement>("[data-cv-account-button]")?.addEventListener("click", openAuthModal);
   document.querySelector<HTMLElement>("[data-cv-role-button]")?.addEventListener("click", openRoleModal);
+  document.querySelector<HTMLButtonElement>("[data-cv-logout-button]")?.addEventListener("click", () => {
+    void signOutCurrentUser();
+  });
   document.querySelectorAll<HTMLElement>("[data-cv-auth-close]").forEach((element) => element.addEventListener("click", closeAuthModal));
   document.querySelectorAll<HTMLElement>("[data-cv-role-close]").forEach((element) => element.addEventListener("click", closeRoleModal));
   document.querySelectorAll<HTMLElement>("[data-cv-upload-close]").forEach((element) => element.addEventListener("click", closeUploadModal));
@@ -771,12 +778,20 @@ async function loadRemoteState(): Promise<void> {
     const health = await fetchJson<HealthResponse>("/api/health");
     configurationMissing = health.status !== "ready";
     healthEnvironment = health.environment || "local";
-    currentActorEmail = normalizeActorEmail(health.actorEmail);
+    authStatus = health.authStatus || (health.actorAccess ? "authenticated" : "unauthenticated");
+    currentLoginUrl = health.loginUrl || userLoginUrl(window.location.href);
+    currentActorEmail = normalizeActorEmail(health.actorEmail, "");
     currentActorAccess = normalizeActorAccess(health.actorAccess, currentActorEmail);
     renderAccountIdentity();
     renderHealth(health);
+    if (authStatus === "unauthenticated" && healthEnvironment === "production" && currentLoginUrl) {
+      window.location.assign(currentLoginUrl);
+      return;
+    }
   } catch {
     configurationMissing = true;
+    authStatus = "unauthenticated";
+    currentLoginUrl = userLoginUrl(window.location.href);
     previewMode = true;
     renderHealth();
   }
@@ -859,20 +874,28 @@ function renderAll(): void {
 }
 
 function renderAccountIdentity(): void {
-  const email = normalizeActorEmail(currentActorEmail);
-  const initials = initialsForEmail(email);
+  const authenticated = authStatus === "authenticated" || authStatus === "forbidden";
+  const email = authenticated ? normalizeActorEmail(currentActorEmail, "") : "";
+  const label = email || (authStatus === "forbidden" ? "No file access" : "Sign in required");
+  const initials = email ? initialsForEmail(email) : "CV";
   document.querySelectorAll<HTMLElement>("[data-cv-account-avatar], [data-cv-auth-avatar]").forEach((element) => {
     element.textContent = initials;
   });
   document.querySelectorAll<HTMLElement>("[data-cv-account-email]").forEach((element) => {
-    element.textContent = email;
-    element.title = email;
+    element.textContent = label;
+    element.title = email || label;
   });
   document.querySelectorAll<HTMLInputElement>("[data-cv-auth-email]").forEach((element) => {
     element.value = email;
   });
-  document.querySelectorAll<HTMLAnchorElement>("[data-cv-logout-link]").forEach((element) => {
-    element.href = accessLogoutUrl(window.location.href);
+  document.querySelectorAll<HTMLAnchorElement>("[data-cv-login-link]").forEach((element) => {
+    element.href = currentLoginUrl || userLoginUrl(window.location.href);
+  });
+  document.querySelectorAll<HTMLElement>("[data-cv-authenticated-only]").forEach((element) => {
+    element.hidden = !authenticated;
+  });
+  document.querySelectorAll<HTMLElement>("[data-cv-unauthenticated-only]").forEach((element) => {
+    element.hidden = authenticated;
   });
   document.querySelectorAll<HTMLElement>("[data-cv-role-nav-permission]").forEach((element) => {
     element.textContent = permissionLabel(currentActorAccess.permission);
@@ -988,8 +1011,15 @@ function renderHealth(health?: HealthResponse): void {
   if (!band) return;
 
   const isReady = health?.status === "ready";
+  const authLabel =
+    health?.authStatus === "authenticated"
+      ? "User signed in"
+      : health?.authStatus === "forbidden"
+        ? "No file access"
+        : "Sign in required";
+  const authState = health?.authStatus === "authenticated" ? "online" : "warning";
   const items = [
-    { label: "Private Access", state: "online", icon: true },
+    { label: authLabel, state: authState, icon: true },
     { label: health?.r2 === "online" ? "R2 online" : "R2 missing", state: health?.r2 === "online" ? "online" : "warning" },
     { label: health?.d1 === "online" ? "D1 index" : "D1 missing", state: health?.d1 === "online" ? "online" : "warning" },
     { label: isReady ? "Ready" : "Configuration missing", state: isReady ? "online" : "warning", end: true },
@@ -2885,14 +2915,14 @@ function normalizeActorAccess(value: ActorAccess | null | undefined, actorEmail:
   if (!value) {
     return {
       actorEmail,
-      roleId: "role_super",
-      roleName: "Super",
-      permission: "write",
-      canManageRoles: true,
+      roleId: "role_external",
+      roleName: "Common_Out",
+      permission: "none",
+      canManageRoles: false,
     };
   }
   return {
-    actorEmail: normalizeActorEmail(value.actorEmail || actorEmail),
+    actorEmail: normalizeActorEmail(value.actorEmail || actorEmail, actorEmail || ""),
     roleId: value.roleId || "role_external",
     roleName: value.roleName || "Common_Out",
     permission: normalizePermission(value.permission),
@@ -2929,8 +2959,8 @@ function permissionLabel(permission: FilePermissionLevel): string {
 
 function roleDescription(role: FileRolePolicy): string {
   if (role.scope === "owner") return "Owner / Super";
-  if (role.scope === "domain") return `${role.domain || "domain"} Cloudflare Access`;
-  return "External Cloudflare Access";
+  if (role.scope === "domain") return `${role.domain || "domain"} ChemVault User`;
+  return "External ChemVault User";
 }
 
 function fileVisibilityLabel(fileRecord: Pick<FileRecord, "visibility" | "roleIds">): string {
@@ -2967,7 +2997,7 @@ function currentActorRolePolicy(): FileRolePolicy {
   return {
     id: currentActorAccess.roleId,
     name: currentActorAccess.roleName,
-    description: "Current Cloudflare Access role.",
+    description: "Current ChemVault User file role.",
     scope: "external",
     domain: null,
     permission: currentActorAccess.permission,
@@ -2994,7 +3024,7 @@ function fallbackRolePolicies(): FileRolePolicy[] {
     {
       id: "role_internal",
       name: "Common_In",
-      description: "Cloudflare Access users from the ChemVault domain.",
+      description: "ChemVault User accounts from the ChemVault domain.",
       scope: "domain",
       domain: "chemvault.science",
       permission: "read",
@@ -3005,7 +3035,7 @@ function fallbackRolePolicies(): FileRolePolicy[] {
     {
       id: "role_external",
       name: "Common_Out",
-      description: "External Cloudflare Access users.",
+      description: "External ChemVault User accounts.",
       scope: "external",
       domain: null,
       permission: "read",
@@ -3185,6 +3215,15 @@ function openAuthModal(): void {
 function closeAuthModal(): void {
   const modal = document.querySelector<HTMLElement>("[data-cv-auth-modal]");
   if (modal) closeModal(modal);
+}
+
+async function signOutCurrentUser(): Promise<void> {
+  try {
+    const response = await fetchJson<{ loginUrl?: string }>("/api/auth/logout", { method: "POST" });
+    window.location.assign(response.loginUrl || currentLoginUrl || userLoginUrl(window.location.href));
+  } catch {
+    window.location.assign(currentLoginUrl || userLoginUrl(window.location.href));
+  }
 }
 
 function openRoleModal(): void {

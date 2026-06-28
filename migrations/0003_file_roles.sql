@@ -17,5 +17,5 @@ CREATE INDEX IF NOT EXISTS idx_file_roles_scope_domain ON file_roles(scope, doma
 
 INSERT OR IGNORE INTO file_roles (id, name, description, scope, domain, permission, is_default, sort_order, created_at, updated_at) VALUES
   ('role_super', 'Super', 'Owner role with full file access.', 'owner', NULL, 'write', 0, 10, '2026-06-18T00:00:00.000Z', '2026-06-18T00:00:00.000Z'),
-  ('role_internal', 'Common_In', 'Cloudflare Access users from the ChemVault domain.', 'domain', 'chemvault.science', 'read', 0, 20, '2026-06-18T00:00:00.000Z', '2026-06-18T00:00:00.000Z'),
-  ('role_external', 'Common_Out', 'External Cloudflare Access users.', 'external', NULL, 'read', 1, 30, '2026-06-18T00:00:00.000Z', '2026-06-18T00:00:00.000Z');
+  ('role_internal', 'Common_In', 'ChemVault User accounts from the ChemVault domain.', 'domain', 'chemvault.science', 'read', 0, 20, '2026-06-18T00:00:00.000Z', '2026-06-18T00:00:00.000Z'),
+  ('role_external', 'Common_Out', 'External ChemVault User accounts.', 'external', NULL, 'read', 1, 30, '2026-06-18T00:00:00.000Z', '2026-06-18T00:00:00.000Z');

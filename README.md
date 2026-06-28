@@ -2,7 +2,7 @@
 
 Private ChemVault-style file-management workbench for research dossiers, spectra, datasets, methods, and manuscripts.
 
-The app is built with Astro, Cloudflare Pages Functions, D1 metadata, and R2 object storage. It is designed for owner-only use now, with a reserved login/account surface for a future identity handoff to `mail.chemvault.science`.
+The app is built with Astro, Cloudflare Pages Functions, D1 metadata, and R2 object storage. Production authentication is delegated to ChemVault User at `user.chemvault.science`.
 
 The file inspector supports metadata, inline previews for safe file types, read-only share links, optional shared-download access, and a per-file activity timeline.
 
@@ -72,18 +72,15 @@ CLOUDFLARE_ACCOUNT_ID=20f69e8d2aebbadbff2b6ffa36efee50 npx wrangler d1 migration
 
 ## Private Access
 
-Protect `file.chemvault.science` with Cloudflare Access before exposing production traffic. The Access allow policy should include the primary owner email and every Super administrator email configured in `FILES_ADMIN_EMAILS`.
+`file.chemvault.science` should be reachable without a Cloudflare Access challenge. File APIs authenticate through the ChemVault User shared `chemvault_session` cookie and validate the session by calling `https://user.chemvault.science/api/auth/me`.
 
-External approval policies can use an administrator mailbox such as `it.access@chemvault.science`. If approval links appear invalid, generate a fresh request and make sure mail security tooling does not pre-open or rewrite links from `noreply@notify.cloudflare.com`.
-
-The top-right account chip and owner email plumbing are intentionally reserved so the app can later connect directly to `mail.chemvault.science`.
+Configure ChemVault User with `COOKIE_DOMAIN=.chemvault.science` so the same login session is sent to both `user.chemvault.science` and `file.chemvault.science`. The Files project uses `USER_AUTH_ORIGIN`, `USER_LOGIN_URL`, `COOKIE_NAME`, and `COOKIE_DOMAIN` from `wrangler.jsonc`.
 
 ## Preview And Sharing
 
 Authenticated users can preview PDF, image, CSV, text, and JCAMP-style files through `/api/files/:id/preview`. Unsupported files stay download-only.
 
-Share links are created from the inspector. They are read-only by default, support preset or custom expiration times, and only allow downloads when the creator enables the download option. Public share URLs use `/share?token=...`; the page reads metadata from `/api/shares/:token` and streams preview/download content through token-checked API routes.
-An optional "public link" toggle can generate `/share-public?token=...` for links intended to be opened without Cloudflare Access verification when that route is configured as public.
+Share links are created from the inspector. They are read-only by default, support preset or custom expiration times, and only allow downloads when the creator enables the download option. Authenticated share URLs use `/share?token=...`; public share URLs use `/share-public?token=...`. Both pages read metadata from `/api/shares/:token` and stream preview/download content through token-checked API routes. Non-public share tokens require a ChemVault User login; public tokens do not.
 
 Preview, download, share creation, share access, and shared downloads are written to the `file_activity` table.
 
@@ -93,10 +90,10 @@ Preview, download, share creation, share access, and shared downloads are writte
 2. Set the output directory to `dist`.
 3. Bind `FILES_BUCKET` to the `chemvault-files` R2 bucket.
 4. Bind `FILES_DB` to the `chemvault-files` D1 database.
-5. Set `PRIVATE_OWNER_EMAIL` to the primary owner email.
-6. Set `FILES_ADMIN_EMAILS` to every Super administrator email that should manage file roles, separated by commas.
+5. Set `PRIVATE_OWNER_EMAIL` and `FILES_ADMIN_EMAILS` to the Super administrator email addresses used by ChemVault User.
+6. Set `USER_AUTH_ORIGIN=https://user.chemvault.science`, `USER_LOGIN_URL=https://user.chemvault.science/login`, `COOKIE_NAME=chemvault_session`, and `COOKIE_DOMAIN=.chemvault.science`.
 7. Apply D1 migrations before first upload. The upload API also repairs the file visibility columns and role-access table if an older D1 schema is missing them.
-8. Keep Cloudflare Access enabled for the main app; public share API routes still validate opaque share tokens before reading R2 objects.
+8. Disable the Cloudflare Access application or policy for `file.chemvault.science`; the app now performs its own user-system authentication before file APIs read or write R2 objects.
 
 ## Scripts
 

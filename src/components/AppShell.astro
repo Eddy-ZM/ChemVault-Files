@@ -63,18 +63,19 @@ import Inspector from "./Inspector.astro";
         </button>
       </header>
       <h2 id="auth-title">ChemVault Files</h2>
-      <p>Signed in through Cloudflare Access. File actions are recorded with this email.</p>
+      <p>Signed in through ChemVault User. File actions are recorded with this account.</p>
       <div class="auth-form">
         <label>
           <span>Email</span>
           <input data-cv-auth-email type="email" value="owner@chemvault.science" autocomplete="email" readonly />
         </label>
         <div class="auth-actions">
-          <button class="button button--primary button--wide" type="button" data-cv-auth-close>Continue as current user</button>
-          <a class="button button--secondary button--wide" href="/cdn-cgi/access/logout" data-cv-logout-link>Sign out</a>
+          <a class="button button--primary button--wide" href="https://user.chemvault.science/login" data-cv-login-link data-cv-unauthenticated-only>Sign in through User Center</a>
+          <button class="button button--primary button--wide" type="button" data-cv-auth-close data-cv-authenticated-only>Continue as current user</button>
+          <button class="button button--secondary button--wide" type="button" data-cv-logout-button data-cv-authenticated-only>Sign out</button>
         </div>
       </div>
-      <small>Cloudflare Access supplies the login email. Uploaded files will use it as the owner.</small>
+      <small>ChemVault User supplies the login email and file permissions.</small>
     </div>
   </section>
 
@@ -90,7 +91,7 @@ import Inspector from "./Inspector.astro";
         </button>
       </header>
       <h2 id="role-title">Role</h2>
-      <p>Set file access separately for Cloudflare Access email roles.</p>
+      <p>Set file visibility roles for ChemVault User accounts.</p>
       <section class="role-settings" aria-label="File role permissions" data-cv-role-settings>
         <div class="role-settings__empty">Loading role permissions...</div>
       </section>

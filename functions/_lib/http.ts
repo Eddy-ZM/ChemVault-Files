@@ -1,3 +1,14 @@
+export class HttpError extends Error {
+  constructor(
+    message: string,
+    readonly status = 400,
+    readonly code = "BAD_REQUEST",
+    readonly details?: Record<string, unknown>
+  ) {
+    super(message);
+  }
+}
+
 export function okJson(data: unknown, init: ResponseInit = {}): Response {
   return new Response(JSON.stringify(data), {
     ...init,
@@ -8,8 +19,8 @@ export function okJson(data: unknown, init: ResponseInit = {}): Response {
   });
 }
 
-export function errorJson(message: string, status = 400, code = "BAD_REQUEST"): Response {
-  return okJson({ error: { code, message } }, { status });
+export function errorJson(message: string, status = 400, code = "BAD_REQUEST", details?: Record<string, unknown>): Response {
+  return okJson({ error: { code, message, ...(details ?? {}) } }, { status });
 }
 
 export async function parseJsonBody(request: Request): Promise<unknown> {
@@ -21,6 +32,9 @@ export async function parseJsonBody(request: Request): Promise<unknown> {
 }
 
 export function routeError(error: unknown): Response {
+  if (error instanceof HttpError) {
+    return errorJson(error.message, error.status, error.code, error.details);
+  }
   const message = error instanceof Error ? error.message : "Unexpected server error";
   const status = message.includes("not configured") ? 503 : 400;
   const code = status === 503 ? "CONFIGURATION_MISSING" : "BAD_REQUEST";

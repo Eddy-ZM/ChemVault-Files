@@ -65,7 +65,7 @@ function activeState(overrides: Partial<Record<string, unknown>> = {}): FakeStat
       file_id: "file_1",
       created_by_email: "owner@chemvault.science",
       allow_download: 0,
-      is_public: 0,
+      is_public: 1,
       expires_at: "2099-01-01T00:00:00.000Z",
       created_at: "2026-06-17T08:00:00.000Z",
       revoked_at: null,
@@ -110,7 +110,7 @@ describe("share API", () => {
       share: {
         token: "sh_active",
         allowDownload: false,
-        isPublic: false,
+        isPublic: true,
       },
       previewUrl: "/api/shares/sh_active/preview",
       downloadUrl: null,
@@ -142,6 +142,17 @@ describe("share API", () => {
     await expect(response.json()).resolves.toMatchObject({
       error: {
         code: "SHARE_INACTIVE",
+      },
+    });
+  });
+
+  it("requires ChemVault User auth for non-public share metadata", async () => {
+    const response = await shareGet(context(activeState({ is_public: 0 })));
+
+    expect(response.status).toBe(401);
+    await expect(response.json()).resolves.toMatchObject({
+      error: {
+        code: "AUTH_REQUIRED",
       },
     });
   });

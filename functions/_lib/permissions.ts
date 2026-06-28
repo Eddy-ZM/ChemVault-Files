@@ -1,7 +1,14 @@
 import type { ActorAccess, FilePermissionLevel, FileRecord, FileRolePolicy, FileRoleScope } from "../../src/lib/chemvault-files/types";
 import type { Env } from "./env";
-import { getActorEmail } from "./env";
 import { errorJson } from "./http";
+import {
+  getDevelopmentActorEmail,
+  loadUserAuthProfile,
+  requireUserAuthProfile,
+  userCanManageFiles,
+  userFilePermissionLevel,
+  type UserAuthProfile,
+} from "./user-auth";
 
 const PERMISSION_LEVELS = new Set<FilePermissionLevel>(["none", "read", "write"]);
 const ROLE_SCOPES = new Set<FileRoleScope>(["owner", "domain", "external"]);
@@ -87,8 +94,35 @@ export function resolveActorAccessFromRoles(
 }
 
 export async function resolveActorAccess(request: Request, env: Env, db: D1Database): Promise<ActorAccess> {
-  const actorEmail = getActorEmail(request, env);
-  return resolveActorAccessFromRoles(actorEmail, env.PRIVATE_OWNER_EMAIL, await listRolePolicies(db, env), env.FILES_ADMIN_EMAILS);
+  const user = await loadUserAuthProfile(request, env);
+  if (user) {
+    const roles = await listRolePolicies(db, env);
+    return resolveActorAccessForUserAuth(user, env.PRIVATE_OWNER_EMAIL, roles, env.FILES_ADMIN_EMAILS);
+  }
+
+  const developmentEmail = getDevelopmentActorEmail(request, env);
+  if (developmentEmail) {
+    const roles = await listRolePolicies(db, env);
+    return resolveActorAccessFromRoles(developmentEmail, env.PRIVATE_OWNER_EMAIL, roles, env.FILES_ADMIN_EMAILS);
+  }
+
+  return resolveActorAccessForUserAuth(requireUserAuthProfile(null, request, env), env.PRIVATE_OWNER_EMAIL, [], env.FILES_ADMIN_EMAILS);
+}
+
+export function resolveActorAccessForUserAuth(
+  user: UserAuthProfile,
+  ownerEmail: string | undefined,
+  roles: FileRolePolicy[],
+  adminEmails?: string
+): ActorAccess {
+  const roleAccess = resolveActorAccessFromRoles(user.email, ownerEmail, roles, adminEmails);
+  const canManageRoles = roleAccess.canManageRoles || userCanManageFiles(user);
+  return {
+    ...roleAccess,
+    actorEmail: user.email,
+    permission: canManageRoles ? "write" : userFilePermissionLevel(user),
+    canManageRoles,
+  };
 }
 
 export function canReadFiles(access: Pick<ActorAccess, "permission">): boolean {
@@ -115,8 +149,8 @@ export function defaultRolePolicies(env: Pick<Env, "PRIVATE_OWNER_EMAIL">): File
   const ownerDomain = normalizeEmail(env.PRIVATE_OWNER_EMAIL || "owner@chemvault.science").split("@")[1] || "chemvault.science";
   return [
     rolePolicy("role_super", "Super", "Owner role with full file access.", "owner", null, "write", false, timestamp),
-    rolePolicy("role_internal", "Common_In", "Cloudflare Access users from the ChemVault domain.", "domain", ownerDomain, "write", false, timestamp),
-    rolePolicy("role_external", "Common_Out", "External Cloudflare Access users.", "external", null, "read", true, timestamp),
+    rolePolicy("role_internal", "Common_In", "ChemVault User accounts from the ChemVault domain.", "domain", ownerDomain, "write", false, timestamp),
+    rolePolicy("role_external", "Common_Out", "External ChemVault User accounts.", "external", null, "read", true, timestamp),
   ];
 }
 

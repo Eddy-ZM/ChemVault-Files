@@ -17,7 +17,7 @@ describe("build asset path rewriting", () => {
       '<script type="module" src="/_astro/app.js"></script>',
       '<img src="/brand/chemvault-logo-light.png">',
       '<a href="/">Home</a>',
-      '<a href="/cdn-cgi/access/logout">Sign out</a>',
+      '<form action="/api/auth/logout" method="post"></form>',
       '<script>fetch("/api/health")</script>',
     ].join("");
 
@@ -27,7 +27,7 @@ describe("build asset path rewriting", () => {
         '<script type="module" src="../_astro/app.js"></script>',
         '<img src="../brand/chemvault-logo-light.png">',
         '<a href="../">Home</a>',
-        '<a href="/cdn-cgi/access/logout">Sign out</a>',
+        '<form action="/api/auth/logout" method="post"></form>',
         '<script>fetch("/api/health")</script>',
       ].join(""),
     );
