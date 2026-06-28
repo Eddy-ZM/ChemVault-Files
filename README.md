@@ -1,117 +1,59 @@
 # ChemVault Files
 
-Private ChemVault-style file-management workbench for research dossiers, spectra, datasets, methods, and manuscripts.
+ChemVault Files is the private file system for the ChemVault research workspace. It provides a secure web interface for organizing, previewing, sharing, and reviewing research files such as spectra, datasets, dossiers, methods, manuscripts, and supporting documents.
 
-The app is built with Astro, Cloudflare Pages Functions, D1 metadata, and R2 object storage. Production authentication is delegated to ChemVault User at `user.chemvault.science`.
+## Web Features
 
-The file inspector supports metadata, inline previews for safe file types, read-only share links, optional shared-download access, and a per-file activity timeline.
+### Secure Sign-In
 
-## Local Development
+ChemVault Files uses ChemVault User sign-in for account access. Users who open the file system without an active session are sent through ChemVault SSO and returned to the file workspace after login.
 
-Install dependencies:
+### File Workspace
 
-```sh
-npm install
-```
+The main workspace presents research files in a searchable file system view. Users can browse projects and folders, switch between table and browser-style views, inspect file status, and quickly identify recently changed or review-needed items.
 
-Run the static Astro UI:
+### Upload Management
 
-```sh
-npm run dev
-```
+Users with upload permission can add individual files or entire folders. Uploads appear in a queue with progress, status, and completion feedback so large research batches can be tracked without losing context.
 
-Run checks:
+### Folder And Project Navigation
 
-```sh
-npm run check
-```
+Files can be organized by project and folder. The sidebar and browser panels support moving through the research file hierarchy, returning to the root library, and keeping the current folder context visible while reviewing contents.
 
-Build production assets:
+### Search, Filter, And Tags
 
-```sh
-npm run build
-```
+The workspace supports searching across files, folders, and tags. Quick filters help users focus on key working sets such as active uploads, review items, or shared materials.
 
-## Cloudflare Pages Local Dev
+### File Preview
 
-Apply the local D1 migration:
+Supported file types can be previewed directly in the browser, including PDFs, images, CSV/text files, and common spectroscopy text formats. Unsupported files remain available for download or metadata review.
 
-```sh
-npx wrangler d1 migrations apply chemvault-files --local
-```
+### File Inspector
 
-Start Pages with Functions:
+Selecting a file opens an inspector with file metadata, preview access, sharing controls, and activity history. The inspector is designed for reviewing a file without leaving the main workspace.
 
-```sh
-npm run pages:dev
-```
+### Sharing
 
-The app will use local simulated D1 and R2 bindings through Wrangler. If bindings are missing, the UI falls back to a readable preview state and clearly marks configuration as missing.
+Users can create read-only share links from the file inspector. Share links can be private or public, can expire at a chosen time, and can optionally allow downloads when the creator enables download access.
 
-## Cloudflare Resources
+### Access Control
 
-Enable R2 in the Cloudflare dashboard before creating the production R2 bucket. Cloudflare returns `10042: Please enable R2 through the Cloudflare Dashboard` until the account has R2 enabled.
+File visibility can be managed through ChemVault roles. Administrators and authorized users can control whether files are public within the workspace or limited to selected roles.
 
-After R2 is enabled, create the production R2 bucket:
+### Activity History
 
-```sh
-npx wrangler r2 bucket create chemvault-files
-```
+Important file events are recorded in an activity timeline, including uploads, preview access, downloads, share creation, share access, and share downloads. This gives reviewers a clear history of how each file has been used.
 
-The production D1 database ID is configured in `wrangler.jsonc`. Apply migrations remotely before the first deploy:
+### Account And Role Tools
 
-```sh
-npx wrangler d1 migrations apply chemvault-files --remote
-```
+The account panel shows the current ChemVault identity and available file permissions. Authorized administrators can manage role-based file access from the role settings panel.
 
-Cloudflare Pages does not accept `account_id` inside `wrangler.jsonc`. If local Wrangler commands cannot infer the account, provide it as an environment variable instead:
+## Website Status
 
-```sh
-CLOUDFLARE_ACCOUNT_ID=20f69e8d2aebbadbff2b6ffa36efee50 npx wrangler d1 migrations apply chemvault-files --remote
-```
-
-## Private Access
-
-`file.chemvault.science` should be reachable without a Cloudflare Access challenge. File APIs authenticate through the ChemVault User shared `chemvault_session` cookie and validate the session by calling `https://user.chemvault.science/api/auth/me`.
-
-Configure ChemVault User with `COOKIE_DOMAIN=.chemvault.science` so the same login session is sent to both `user.chemvault.science` and `file.chemvault.science`. The Files project uses `USER_AUTH_ORIGIN`, `USER_LOGIN_URL`, `COOKIE_NAME`, and `COOKIE_DOMAIN` from `wrangler.jsonc`.
-
-## Preview And Sharing
-
-Authenticated users can preview PDF, image, CSV, text, and JCAMP-style files through `/api/files/:id/preview`. Unsupported files stay download-only.
-
-Share links are created from the inspector. They are read-only by default, support preset or custom expiration times, and only allow downloads when the creator enables the download option. Authenticated share URLs use `/share?token=...`; public share URLs use `/share-public?token=...`. Both pages read metadata from `/api/shares/:token` and stream preview/download content through token-checked API routes. Non-public share tokens require a ChemVault User login; public tokens do not.
-
-Preview, download, share creation, share access, and shared downloads are written to the `file_activity` table.
-
-## Deployment
-
-1. Configure the Pages project to build with `npm run build`.
-2. Set the output directory to `dist`.
-3. Bind `FILES_BUCKET` to the `chemvault-files` R2 bucket.
-4. Bind `FILES_DB` to the `chemvault-files` D1 database.
-5. Set `PRIVATE_OWNER_EMAIL` and `FILES_ADMIN_EMAILS` to the Super administrator email addresses used by ChemVault User.
-6. Set `USER_AUTH_ORIGIN=https://user.chemvault.science`, `USER_LOGIN_URL=https://user.chemvault.science/login`, `COOKIE_NAME=chemvault_session`, and `COOKIE_DOMAIN=.chemvault.science`.
-7. Apply D1 migrations before first upload. The upload API also repairs the file visibility columns and role-access table if an older D1 schema is missing them.
-8. Disable the Cloudflare Access application or policy for `file.chemvault.science`; the app now performs its own user-system authentication before file APIs read or write R2 objects.
-
-## Scripts
-
-| Command | Purpose |
-| --- | --- |
-| `npm run dev` | Astro static UI development |
-| `npm run build` | Production Astro build |
-| `npm run preview` | Preview built Astro output |
-| `npm test` | Vitest unit tests |
-| `npm run check` | Astro check plus unit tests |
-| `npm run pages:dev` | Build and run Cloudflare Pages Functions locally |
-| `npm run types:cf` | Generate Cloudflare binding types |
+ChemVault Files is available as a web application for ChemVault users. This repository does not currently include a separate mobile or desktop app.
 
 ## License
 
-This repository is source-available but not open source. Public visibility is
-for review and reference only; no rights are granted to use, copy, modify,
-distribute, host, deploy, or create derivative works without prior written
-permission from Ziwen Mu or the repository owner.
+This repository is source-available but not open source. Public visibility is for review and reference only; no rights are granted to use, copy, modify, distribute, host, deploy, or create derivative works without prior written permission from Ziwen Mu or the repository owner.
 
 See [LICENSE](./LICENSE). All rights reserved.
