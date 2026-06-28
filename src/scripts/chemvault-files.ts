@@ -64,6 +64,8 @@ interface HealthResponse {
   actorAccess?: ActorAccess | null;
 }
 
+type ShellAuthState = "checking" | "redirecting" | "ready";
+
 interface InitUploadResponse {
   file: FileRecord;
   session: { id: string };
@@ -274,9 +276,10 @@ export function bootChemVaultFiles(): void {
   if (!shell || shell.dataset.cvBooted === "true") return;
 
   shell.dataset.cvBooted = "true";
+  setShellAuthState("checking");
+  setAuthGateMessage("Checking ChemVault User sign-in...");
   bindEvents();
   renderAccountIdentity();
-  renderAll();
   void loadRemoteState();
 }
 
@@ -774,6 +777,9 @@ function browserLocationsEqual(left: BrowserLocationState, right: BrowserLocatio
 }
 
 async function loadRemoteState(): Promise<void> {
+  setShellAuthState("checking");
+  setAuthGateMessage("Checking ChemVault User sign-in...");
+
   try {
     const health = await fetchJson<HealthResponse>("/api/health");
     configurationMissing = health.status !== "ready";
@@ -785,7 +791,9 @@ async function loadRemoteState(): Promise<void> {
     renderAccountIdentity();
     renderHealth(health);
     if (authStatus === "unauthenticated" && healthEnvironment === "production" && currentLoginUrl) {
-      window.location.assign(currentLoginUrl);
+      setAuthGateMessage("Redirecting to ChemVault User...");
+      setShellAuthState("redirecting");
+      window.location.replace(currentLoginUrl);
       return;
     }
   } catch {
@@ -793,6 +801,7 @@ async function loadRemoteState(): Promise<void> {
     authStatus = "unauthenticated";
     currentLoginUrl = userLoginUrl(window.location.href);
     previewMode = true;
+    setAuthGateMessage("Unable to verify ChemVault User sign-in.");
     renderHealth();
   }
 
@@ -803,6 +812,7 @@ async function loadRemoteState(): Promise<void> {
     selectedFileId = null;
     selectedFileIds = new Set();
     renderAll();
+    setShellAuthState("ready");
     return;
   }
 
@@ -827,6 +837,7 @@ async function loadRemoteState(): Promise<void> {
   selectedFileId = pickSelectedFileId();
   selectedFileIds = selectedFileId ? new Set([selectedFileId]) : new Set();
   renderAll();
+  setShellAuthState("ready");
 }
 
 function applyPreviewActorEmail(source: LibraryResponse): LibraryResponse {
@@ -871,6 +882,19 @@ function renderAll(): void {
   renderFiles();
   renderInspector();
   updateWorkspaceView();
+}
+
+function setShellAuthState(state: ShellAuthState): void {
+  const shell = document.querySelector<HTMLElement>("[data-cv-shell]");
+  if (!shell) return;
+  shell.dataset.cvAuthState = state;
+  shell.setAttribute("aria-busy", state === "ready" ? "false" : "true");
+}
+
+function setAuthGateMessage(message: string): void {
+  document.querySelectorAll<HTMLElement>("[data-cv-auth-gate-message]").forEach((element) => {
+    element.textContent = message;
+  });
 }
 
 function renderAccountIdentity(): void {

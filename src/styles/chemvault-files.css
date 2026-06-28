@@ -137,6 +137,65 @@ input:focus-visible {
   overflow: hidden;
 }
 
+.files-shell[data-cv-auth-state="checking"],
+.files-shell[data-cv-auth-state="redirecting"] {
+  grid-template-rows: minmax(0, 1fr);
+}
+
+.files-shell[data-cv-auth-state="checking"] .files-topbar,
+.files-shell[data-cv-auth-state="checking"] .files-workbench,
+.files-shell[data-cv-auth-state="redirecting"] .files-topbar,
+.files-shell[data-cv-auth-state="redirecting"] .files-workbench {
+  display: none;
+}
+
+.auth-gate {
+  display: none;
+  min-height: 100vh;
+  place-items: center;
+  padding: 24px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.74), rgba(245, 245, 247, 0.92)),
+    var(--bg);
+}
+
+.files-shell[data-cv-auth-state="checking"] .auth-gate,
+.files-shell[data-cv-auth-state="redirecting"] .auth-gate {
+  display: grid;
+}
+
+.auth-gate__inner {
+  width: min(360px, 100%);
+  display: grid;
+  justify-items: center;
+  gap: 18px;
+  color: var(--text);
+}
+
+.auth-gate__status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.auth-gate__spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(0, 113, 227, 0.18);
+  border-top-color: var(--blue);
+  border-radius: 50%;
+  animation: cv-auth-gate-spin 760ms linear infinite;
+}
+
+@keyframes cv-auth-gate-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .files-topbar {
   display: grid;
   grid-template-columns: minmax(0, auto) minmax(220px, 1fr) minmax(0, auto);

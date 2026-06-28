@@ -5,8 +5,18 @@ import Workspace from "./Workspace.astro";
 import Inspector from "./Inspector.astro";
 ---
 
-<div class="files-shell" data-cv-shell>
+<div class="files-shell" data-cv-shell data-cv-auth-state="checking" aria-busy="true">
   <a class="skip-link" href="#files-workspace">Skip to files</a>
+
+  <section class="auth-gate" aria-label="Checking ChemVault account" aria-live="polite" data-cv-auth-gate>
+    <div class="auth-gate__inner">
+      <BrandMark />
+      <div class="auth-gate__status">
+        <span class="auth-gate__spinner" aria-hidden="true"></span>
+        <span data-cv-auth-gate-message>Checking ChemVault User sign-in...</span>
+      </div>
+    </div>
+  </section>
 
   <header class="files-topbar" aria-label="ChemVault Files">
     <div class="files-topbar__brand">
