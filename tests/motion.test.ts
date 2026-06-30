@@ -7,6 +7,7 @@ import {
   nextInspectorTabMotion,
   nextInspectorPanelCollapsed,
   nextModalMotionState,
+  nextSidePanelCollapsed,
   nextWorkspaceView,
   toggleCollapsedId,
 } from "../src/lib/chemvault-files/motion";
@@ -46,6 +47,13 @@ describe("interface motion state", () => {
     expect(nextInspectorPanelCollapsed(true, "close")).toBe(true);
     expect(nextInspectorPanelCollapsed(true, "select-file")).toBe(false);
     expect(nextInspectorPanelCollapsed(true, "open")).toBe(false);
+  });
+
+  it("toggles docked side panels between rail and expanded states", () => {
+    expect(nextSidePanelCollapsed(true, "open")).toBe(false);
+    expect(nextSidePanelCollapsed(false, "close")).toBe(true);
+    expect(nextSidePanelCollapsed(true, "toggle")).toBe(false);
+    expect(nextSidePanelCollapsed(false, "toggle")).toBe(true);
   });
 
   it("switches workspace views only for known surfaces", () => {

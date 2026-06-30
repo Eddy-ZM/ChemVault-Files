@@ -29,6 +29,7 @@ import {
   nextInspectorTabMotion,
   nextInspectorPanelCollapsed,
   nextModalMotionState,
+  nextSidePanelCollapsed,
   nextWorkspaceView,
   toggleCollapsedId,
   type InspectorTab,
@@ -226,6 +227,9 @@ const seedUploadQueue: UploadQueueItem[] = [
   },
 ];
 
+const sidebarCollapsedStorageKey = "chemvault-files:sidebar-collapsed";
+const inspectorCollapsedStorageKey = "chemvault-files:inspector-collapsed";
+
 let library: LibraryResponse = createInitialLibrary(seedLibrary);
 let filters: FileFilters = {
   search: "",
@@ -267,7 +271,8 @@ let workspaceView: WorkspaceView = "library";
 let inspectorTab: InspectorTab = "details";
 let inspectorTabMotion: TabMotionDirection = "none";
 let inspectorTabMotionSequence = 0;
-let inspectorCollapsed = false;
+let sidebarCollapsed = readStoredBoolean(sidebarCollapsedStorageKey, true);
+let inspectorCollapsed = readStoredBoolean(inspectorCollapsedStorageKey, true);
 const activityByFileId = new Map<string, InspectorAsyncState<FileActivityRecord[]>>();
 const shareByFileId = new Map<string, ShareUiState>();
 
@@ -279,8 +284,28 @@ export function bootChemVaultFiles(): void {
   setShellAuthState("checking");
   setAuthGateMessage("loading");
   bindEvents();
+  updateSidePanels();
   renderAccountIdentity();
   void loadRemoteState();
+}
+
+function readStoredBoolean(key: string, fallback: boolean): boolean {
+  try {
+    const value = window.localStorage.getItem(key);
+    if (value === "true") return true;
+    if (value === "false") return false;
+  } catch {
+    return fallback;
+  }
+  return fallback;
+}
+
+function writeStoredBoolean(key: string, value: boolean): void {
+  try {
+    window.localStorage.setItem(key, value ? "true" : "false");
+  } catch {
+    // State persistence is optional.
+  }
 }
 
 function project(id: string, name: string, slug: string, sortOrder: number): ProjectRecord {
@@ -336,6 +361,11 @@ function file(
 }
 
 function bindEvents(): void {
+  document.querySelector<HTMLButtonElement>("[data-cv-sidebar-toggle]")?.addEventListener("click", () => toggleSidebar());
+  document.querySelector<HTMLButtonElement>("[data-cv-inspector-toggle]")?.addEventListener("click", () => toggleInspector());
+  document.querySelector<HTMLButtonElement>("[data-cv-sidepanel-scrim]")?.addEventListener("click", () => closeFloatingSidePanels());
+  window.addEventListener("resize", updateSidePanels);
+
   document.querySelector<HTMLFormElement>("[data-cv-search-form]")?.addEventListener("submit", (event) => event.preventDefault());
   document.querySelector<HTMLInputElement>("[data-cv-search-input]")?.addEventListener("input", (event) => {
     fileBrowserNotice = null;
@@ -417,6 +447,7 @@ function bindEvents(): void {
       closeAuthModal();
       closeRoleModal();
       closeUploadModal();
+      closeFloatingSidePanels();
     }
   });
 
@@ -474,6 +505,7 @@ function bindEvents(): void {
     recordBrowserHistory({ projectId: null, folderId: null }, "push");
     selectedFileId = null;
     selectedFileIds = new Set();
+    closeSidebarAfterCompactAction();
     renderAll();
   });
 
@@ -515,6 +547,7 @@ function bindEvents(): void {
       tagSlug: filters.tagSlug === target.dataset.cvTagSlug ? null : target.dataset.cvTagSlug || null,
     };
     fileBrowserNotice = null;
+    closeSidebarAfterCompactAction();
     renderAll();
   });
 
@@ -738,6 +771,7 @@ function navigateToBrowserLocation(location: BrowserLocationState, options: { cl
     recordBrowserHistory(nextLocation, options.history ?? "push");
   }
   workspaceView = "library";
+  closeSidebarAfterCompactAction();
   renderAll();
 }
 
@@ -880,6 +914,7 @@ function readErrorMessage(payload: unknown): string | null {
 }
 
 function renderAll(): void {
+  updateSidePanels();
   renderAccountIdentity();
   renderSidebar();
   renderInsights();
@@ -888,6 +923,77 @@ function renderAll(): void {
   renderFiles();
   renderInspector();
   updateWorkspaceView();
+}
+
+function toggleSidebar(): void {
+  sidebarCollapsed = nextSidePanelCollapsed(sidebarCollapsed, "toggle");
+  writeStoredBoolean(sidebarCollapsedStorageKey, sidebarCollapsed);
+  updateSidePanels();
+}
+
+function toggleInspector(): void {
+  inspectorCollapsed = nextSidePanelCollapsed(inspectorCollapsed, "toggle");
+  writeStoredBoolean(inspectorCollapsedStorageKey, inspectorCollapsed);
+  updateSidePanels();
+}
+
+function closeFloatingSidePanels(): void {
+  let changed = false;
+  if (!sidebarCollapsed) {
+    sidebarCollapsed = nextSidePanelCollapsed(sidebarCollapsed, "close");
+    writeStoredBoolean(sidebarCollapsedStorageKey, sidebarCollapsed);
+    changed = true;
+  }
+  if (!inspectorCollapsed) {
+    inspectorCollapsed = nextSidePanelCollapsed(inspectorCollapsed, "close");
+    writeStoredBoolean(inspectorCollapsedStorageKey, inspectorCollapsed);
+    changed = true;
+  }
+  if (changed) updateSidePanels();
+}
+
+function closeSidebarAfterCompactAction(): void {
+  if (!isFloatingSidePanelLayout() || sidebarCollapsed) return;
+  sidebarCollapsed = nextSidePanelCollapsed(sidebarCollapsed, "close");
+  writeStoredBoolean(sidebarCollapsedStorageKey, sidebarCollapsed);
+}
+
+function isFloatingSidePanelLayout(): boolean {
+  return window.matchMedia?.("(max-width: 1100px)").matches ?? false;
+}
+
+function updateSidePanels(): void {
+  const shell = document.querySelector<HTMLElement>("[data-cv-shell]");
+  const sidebar = document.querySelector<HTMLElement>("[data-cv-sidebar]");
+  const inspector = document.querySelector<HTMLElement>("[data-cv-inspector]");
+  const sidebarToggle = document.querySelector<HTMLButtonElement>("[data-cv-sidebar-toggle]");
+  const inspectorToggle = document.querySelector<HTMLButtonElement>("[data-cv-inspector-toggle]");
+  const scrim = document.querySelector<HTMLButtonElement>("[data-cv-sidepanel-scrim]");
+  const floating = isFloatingSidePanelLayout();
+
+  shell?.setAttribute("data-cv-sidebar-collapsed", sidebarCollapsed ? "true" : "false");
+  shell?.setAttribute("data-cv-inspector-collapsed", inspectorCollapsed ? "true" : "false");
+  shell?.setAttribute("data-cv-sidepanel-layout", floating ? "floating" : "docked");
+
+  sidebar?.setAttribute("aria-expanded", sidebarCollapsed ? "false" : "true");
+  sidebar?.setAttribute("data-cv-sidebar-state", sidebarCollapsed ? "collapsed" : "expanded");
+
+  inspector?.setAttribute("aria-hidden", inspectorCollapsed ? "true" : "false");
+  inspector?.toggleAttribute("inert", inspectorCollapsed);
+
+  if (sidebarToggle) {
+    sidebarToggle.setAttribute("aria-expanded", sidebarCollapsed ? "false" : "true");
+    sidebarToggle.setAttribute("aria-label", sidebarCollapsed ? "Open Library sidebar" : "Close Library sidebar");
+    sidebarToggle.classList.toggle("is-active", !sidebarCollapsed);
+  }
+  if (inspectorToggle) {
+    inspectorToggle.setAttribute("aria-expanded", inspectorCollapsed ? "false" : "true");
+    inspectorToggle.setAttribute("aria-label", inspectorCollapsed ? "Open file inspector" : "Close file inspector");
+    inspectorToggle.classList.toggle("is-active", !inspectorCollapsed);
+  }
+  if (scrim) {
+    scrim.hidden = !floating || (sidebarCollapsed && inspectorCollapsed);
+  }
 }
 
 function setShellAuthState(state: ShellAuthState): void {
@@ -1820,11 +1926,9 @@ function updateInspectorTabs(): void {
   const shell = document.querySelector<HTMLElement>("[data-cv-shell]");
   const inspector = document.querySelector<HTMLElement>("[data-cv-inspector]");
   shell?.setAttribute("data-cv-inspector-mode", inspectorTab);
-  shell?.setAttribute("data-cv-inspector-collapsed", inspectorCollapsed ? "true" : "false");
   inspector?.setAttribute("data-cv-inspector-mode", inspectorTab);
   inspector?.setAttribute("data-cv-inspector-tab-motion", inspectorTabMotion);
-  inspector?.setAttribute("aria-hidden", inspectorCollapsed ? "true" : "false");
-  inspector?.toggleAttribute("inert", inspectorCollapsed);
+  updateSidePanels();
   document.querySelectorAll<HTMLElement>("[data-cv-inspector-tab]").forEach((button) => {
     const isActive = button.dataset.cvInspectorTab === inspectorTab;
     button.classList.toggle("is-active", isActive);
@@ -1839,6 +1943,7 @@ function revealInspectorForSelection(): void {
 
 function closeInspector(): void {
   inspectorCollapsed = nextInspectorPanelCollapsed(inspectorCollapsed, "close");
+  writeStoredBoolean(inspectorCollapsedStorageKey, inspectorCollapsed);
   updateInspectorTabs();
 }
 

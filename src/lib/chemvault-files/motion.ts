@@ -3,6 +3,7 @@ export const MODAL_CLOSE_DURATION_MS = 220;
 export type ModalMotionState = "closed" | "opening" | "open" | "closing";
 export type ModalMotionEvent = "open" | "opened" | "close" | "closed";
 export type InspectorPanelEvent = "close" | "open" | "select-file";
+export type SidePanelEvent = "close" | "open" | "toggle";
 export type InspectorTab = "details" | "preview" | "activity";
 export type TabMotionDirection = "forward" | "backward" | "none";
 export type WorkspaceView = "library" | "flow" | "insights";
@@ -38,6 +39,12 @@ export function isTreeNodeExpanded(collapsedIds: ReadonlySet<string>, id: string
 
 export function nextInspectorPanelCollapsed(_collapsed: boolean, event: InspectorPanelEvent): boolean {
   return event === "close";
+}
+
+export function nextSidePanelCollapsed(collapsed: boolean, event: SidePanelEvent): boolean {
+  if (event === "open") return false;
+  if (event === "close") return true;
+  return !collapsed;
 }
 
 const workspaceViews: ReadonlySet<string> = new Set(["library", "flow", "insights"]);
