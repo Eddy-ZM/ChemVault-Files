@@ -32,7 +32,7 @@ async function loadShare(): Promise<void> {
     }
     if (!response.ok || errorPayload) throw new Error(errorPayload?.message || `${response.status} ${response.statusText}`);
     const share = payload as SharePublicResponse;
-    setProtectedPreviewMode(!share.downloadUrl);
+    setProtectedPreviewMode(isProtectedSharePreview(share));
     container.innerHTML = renderShare(share);
   } catch (error) {
     setProtectedPreviewMode(false);
@@ -72,7 +72,7 @@ function renderPreview(share: SharePublicResponse): string {
   if (share.file.previewKind === "unsupported") {
     return `<div class="preview-empty">${fileIcon()}<strong>No inline preview</strong><span>${escapeHtml(share.file.mimeType || "file")}</span></div>`;
   }
-  const protectedMode = !share.downloadUrl;
+  const protectedMode = isProtectedSharePreview(share);
   const protectedOverlay = protectedMode
     ? `<div class="protected-preview__overlay" aria-hidden="true"><span>Read-only preview · ${escapeHtml(share.share.token.slice(0, 12))}</span></div>`
     : "";
@@ -80,9 +80,13 @@ function renderPreview(share: SharePublicResponse): string {
   if (share.file.previewKind === "image") {
     return `<figure class="preview-pane share-preview${protectedClass}" data-cv-protected-preview="${protectedMode ? "true" : "false"}"><img class="preview-image" src="${escapeAttr(share.previewUrl)}" alt="${escapeAttr(share.file.displayName)}" draggable="false" />${protectedOverlay}</figure>`;
   }
-  const sandbox = protectedMode ? ` sandbox="allow-scripts" referrerpolicy="no-referrer"` : "";
+  const sandbox = protectedMode ? ` sandbox="allow-scripts allow-same-origin" referrerpolicy="no-referrer"` : "";
   const previewUrl = protectedMode && share.file.previewKind === "pdf" ? `${share.previewUrl}#toolbar=0&navpanes=0&view=FitH` : share.previewUrl;
   return `<section class="preview-pane share-preview${protectedClass}" data-cv-protected-preview="${protectedMode ? "true" : "false"}"><iframe class="preview-frame" src="${escapeAttr(previewUrl)}" title="${escapeAttr(share.file.displayName)} preview"${sandbox}></iframe>${protectedOverlay}</section>`;
+}
+
+export function isProtectedSharePreview(share: SharePublicResponse): boolean {
+  return !share.share.isPublic && !share.downloadUrl;
 }
 
 function setProtectedPreviewMode(enabled: boolean): void {
