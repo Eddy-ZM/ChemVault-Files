@@ -2,6 +2,11 @@ import type { Env } from "../../_lib/env";
 import { requireDb } from "../../_lib/db";
 import { canWriteFiles, permissionDeniedJson, resolveActorAccess } from "../../_lib/permissions";
 import { okJson, routeError } from "../../_lib/http";
+import { checkInMemoryRateLimit, rateLimitClientId } from "../../_lib/rate-limit";
+import {
+  assertUploadFileAllowed,
+  normalizeUploadMimeType,
+} from "../../../src/lib/chemvault-files/validation";
 
 export const onRequestPut: PagesFunction<Env> = async ({ request, env }) => {
   try {
@@ -9,6 +14,12 @@ export const onRequestPut: PagesFunction<Env> = async ({ request, env }) => {
     const db = requireDb(env.FILES_DB);
     const access = await resolveActorAccess(request, env, db);
     if (!canWriteFiles(access)) return permissionDeniedJson(access, "write");
+    const limited = checkInMemoryRateLimit({
+      key: `files:upload:${rateLimitClientId(request, access.actorEmail)}`,
+      limit: 10,
+      windowMs: 60 * 1000,
+    });
+    if (limited) return limited;
     const url = new URL(request.url);
     const fileId = url.searchParams.get("fileId") || "";
     const sessionId = url.searchParams.get("sessionId") || "";
@@ -16,14 +27,21 @@ export const onRequestPut: PagesFunction<Env> = async ({ request, env }) => {
     if (!request.body) throw new Error("Upload body is required");
 
     const row = await db
-      .prepare("SELECT r2_key, size_bytes FROM files WHERE id = ? AND upload_session_id = ? AND deleted_at IS NULL")
+      .prepare("SELECT r2_key, original_name, mime_type, size_bytes FROM files WHERE id = ? AND upload_session_id = ? AND deleted_at IS NULL")
       .bind(fileId, sessionId)
-      .first<{ r2_key: string; size_bytes: number }>();
+      .first<{ r2_key: string; original_name: string; mime_type: string | null; size_bytes: number }>();
     if (!row) throw new Error("Upload session was not found");
+
+    const contentLength = Number(request.headers.get("content-length"));
+    if (Number.isFinite(contentLength) && contentLength > row.size_bytes) {
+      throw new Error("Upload payload is larger than the registered file size");
+    }
+    const uploadContentType = normalizeUploadMimeType(request.headers.get("content-type")) || row.mime_type;
+    assertUploadFileAllowed({ name: row.original_name, size: row.size_bytes, mimeType: uploadContentType });
 
     await env.FILES_BUCKET.put(row.r2_key, request.body, {
       httpMetadata: {
-        contentType: request.headers.get("content-type") || "application/octet-stream",
+        contentType: uploadContentType || "application/octet-stream",
       },
     });
 

@@ -14,6 +14,9 @@ describe("collapsible side panel layout", () => {
     expect(appShellSource).toContain("data-cv-inspector-toggle");
     expect(appShellSource).toContain("data-cv-sidepanel-scrim");
     expect(appShellSource).toContain("data-cv-toast-region");
+    expect(appShellSource).toContain("© 2026 ChemVault. All rights reserved.");
+    expect(appShellSource).toContain("data-cv-footer-account");
+    expect(appShellSource).toContain("data-cv-footer-access");
     expect(sidebarSource).toContain('id="file-sidebar"');
     expect(sidebarSource).toContain("data-cv-rail-label");
   });
@@ -28,6 +31,9 @@ describe("collapsible side panel layout", () => {
     expect(stylesSource).toContain(".folder-children");
     expect(stylesSource).toContain("border-left: 1px solid #dbe5f0");
     expect(stylesSource).toContain(".nav-row[aria-current=\"page\"]");
+    expect(stylesSource).toContain("grid-template-rows: 60px minmax(0, 1fr) 34px");
+    expect(stylesSource).toContain(".files-footer");
+    expect(stylesSource).toContain("font-size: 11px");
   });
 
   it("persists side panel state and reopens the inspector on file selection", () => {
@@ -38,5 +44,7 @@ describe("collapsible side panel layout", () => {
     expect(clientSource).toContain("function toggleInspector");
     expect(clientSource).toContain('nextInspectorPanelCollapsed(inspectorCollapsed, "select-file")');
     expect(clientSource).toContain("function showToast");
+    expect(clientSource).toContain("footerAccountLabel");
+    expect(clientSource).toContain("[data-cv-footer-access]");
   });
 });

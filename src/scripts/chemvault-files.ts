@@ -1040,6 +1040,22 @@ function renderAccountIdentity(): void {
     element.textContent = label;
     element.title = email || label;
   });
+  const footerAccountLabel = authenticated
+    ? email || (authStatus === "forbidden" ? "ChemVault User verified" : "Signed in")
+    : "Sign in required";
+  const footerAccessLabel = authenticated
+    ? authStatus === "forbidden"
+      ? "No file access"
+      : `${currentActorAccess.roleName} · ${permissionLabel(currentActorAccess.permission)}`
+    : "ChemVault User required";
+  document.querySelectorAll<HTMLElement>("[data-cv-footer-account]").forEach((element) => {
+    element.textContent = footerAccountLabel;
+    element.title = email || footerAccountLabel;
+  });
+  document.querySelectorAll<HTMLElement>("[data-cv-footer-access]").forEach((element) => {
+    element.textContent = footerAccessLabel;
+    element.title = footerAccessLabel;
+  });
   document.querySelectorAll<HTMLInputElement>("[data-cv-auth-email]").forEach((element) => {
     element.value = email;
   });

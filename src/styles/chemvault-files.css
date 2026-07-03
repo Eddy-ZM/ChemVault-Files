@@ -133,7 +133,7 @@ input:focus-visible {
   height: 100vh;
   min-height: 100vh;
   display: grid;
-  grid-template-rows: 60px minmax(0, 1fr);
+  grid-template-rows: 60px minmax(0, 1fr) 34px;
   overflow: hidden;
 }
 
@@ -144,8 +144,10 @@ input:focus-visible {
 
 .files-shell[data-cv-auth-state="checking"] .files-topbar,
 .files-shell[data-cv-auth-state="checking"] .files-workbench,
+.files-shell[data-cv-auth-state="checking"] .files-footer,
 .files-shell[data-cv-auth-state="redirecting"] .files-topbar,
-.files-shell[data-cv-auth-state="redirecting"] .files-workbench {
+.files-shell[data-cv-auth-state="redirecting"] .files-workbench,
+.files-shell[data-cv-auth-state="redirecting"] .files-footer {
   display: none;
 }
 
@@ -728,6 +730,50 @@ input:focus-visible {
 
 .toast[data-cv-toast-state="closing"] {
   animation: toast-exit var(--motion-fast) ease-in both;
+}
+
+.files-footer {
+  min-width: 0;
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 0 18px;
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+  background: rgba(255, 255, 255, 0.78);
+  color: #77808d;
+  font-size: 11px;
+  font-weight: 560;
+  letter-spacing: 0;
+  backdrop-filter: blur(14px);
+}
+
+.files-footer__item {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.files-footer__item + .files-footer__item::before {
+  content: "";
+  width: 3px;
+  height: 3px;
+  margin-right: 10px;
+  border-radius: 999px;
+  background: #aab2bd;
+}
+
+.files-footer strong {
+  min-width: 0;
+  max-width: min(260px, 34vw);
+  overflow: hidden;
+  color: #525c6a;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .files-workbench {
@@ -4398,6 +4444,23 @@ input:focus-visible {
   .files-topbar__actions .button--primary {
     width: auto;
     padding-inline: 12px;
+  }
+
+  .files-footer {
+    min-height: 42px;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    gap: 4px 10px;
+    padding: 7px 12px;
+    line-height: 1.25;
+  }
+
+  .files-footer__item + .files-footer__item::before {
+    display: none;
+  }
+
+  .files-footer strong {
+    max-width: 54vw;
   }
 
   .account-chip__email {
