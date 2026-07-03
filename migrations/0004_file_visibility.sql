@@ -1,6 +1,6 @@
 PRAGMA foreign_keys = ON;
 
-ALTER TABLE files ADD COLUMN visibility TEXT NOT NULL DEFAULT 'public' CHECK (visibility IN ('public', 'roles'));
+ALTER TABLE files ADD COLUMN visibility TEXT NOT NULL DEFAULT 'private' CHECK (visibility IN ('private', 'public', 'roles'));
 
 CREATE TABLE IF NOT EXISTS file_role_access (
   file_id TEXT NOT NULL,

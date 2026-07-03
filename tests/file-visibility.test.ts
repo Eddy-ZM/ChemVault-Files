@@ -26,6 +26,14 @@ const internalWriteAccess: ActorAccess = {
   canManageRoles: false,
 };
 
+const uploaderAccess: ActorAccess = {
+  actorEmail: "uploader@chemvault.science",
+  roleId: "role_internal",
+  roleName: "Common_In",
+  permission: "write",
+  canManageRoles: false,
+};
+
 class VisibilityStatement {
   constructor(private readonly sql: string) {}
 
@@ -52,6 +60,7 @@ class VisibilityStatement {
       return {
         results: [
           file("file_public", "public.pdf", "public"),
+          file("file_private", "private.pdf", "private", "uploader@chemvault.science"),
           file("file_internal", "internal.pdf", "roles"),
           file("file_external", "external.pdf", "roles"),
         ],
@@ -69,7 +78,7 @@ class VisibilityD1 {
 
 const now = "2026-06-18T00:00:00.000Z";
 
-function file(id: string, name: string, visibility: string): Record<string, unknown> {
+function file(id: string, name: string, visibility: string, actorEmail = "owner@chemvault.science"): Record<string, unknown> {
   return {
     id,
     project_id: "project_spectra",
@@ -82,7 +91,7 @@ function file(id: string, name: string, visibility: string): Record<string, unkn
     status: "ready",
     checksum: null,
     upload_session_id: null,
-    actor_email: "owner@chemvault.science",
+    actor_email: actorEmail,
     download_count: 0,
     visibility,
     created_at: now,
@@ -102,12 +111,18 @@ describe("file visibility", () => {
   it("lets administrators see every file regardless of file role assignment", async () => {
     const library = await listLibrary(new VisibilityD1() as unknown as D1Database, ownerAccess);
 
-    expect(library.files.map((entry) => entry.displayName)).toEqual(["public.pdf", "internal.pdf", "external.pdf"]);
+    expect(library.files.map((entry) => entry.displayName)).toEqual(["public.pdf", "private.pdf", "internal.pdf", "external.pdf"]);
   });
 
   it("keeps write-capable role users limited to public files and files assigned to their role", async () => {
     const library = await listLibrary(new VisibilityD1() as unknown as D1Database, internalWriteAccess);
 
     expect(library.files.map((entry) => entry.displayName)).toEqual(["public.pdf", "internal.pdf"]);
+  });
+
+  it("shows private files only to the uploader or administrators", async () => {
+    const library = await listLibrary(new VisibilityD1() as unknown as D1Database, uploaderAccess);
+
+    expect(library.files.map((entry) => entry.displayName)).toEqual(["public.pdf", "private.pdf", "internal.pdf"]);
   });
 });

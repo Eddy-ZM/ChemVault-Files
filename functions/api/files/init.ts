@@ -3,6 +3,7 @@ import { requireDb } from "../../_lib/db";
 import { createFileInitDraft } from "../../_lib/file-service";
 import { canWriteFiles, listRolePolicies, permissionDeniedJson, resolveActorAccess } from "../../_lib/permissions";
 import { okJson, parseJsonBody, routeError } from "../../_lib/http";
+import { checkInMemoryRateLimit, rateLimitClientId } from "../../_lib/rate-limit";
 import { ensureFileAccessSchema } from "../../_lib/schema";
 import { normalizeRoleIds, normalizeSlug, normalizeTags } from "../../../src/lib/chemvault-files/validation";
 import type { ActorAccess, FileRolePolicy } from "../../../src/lib/chemvault-files/types";
@@ -13,6 +14,12 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
     await ensureFileAccessSchema(db, env);
     const access = await resolveActorAccess(request, env, db);
     if (!canWriteFiles(access)) return permissionDeniedJson(access, "write");
+    const limited = checkInMemoryRateLimit({
+      key: `files:init:${rateLimitClientId(request, access.actorEmail)}`,
+      limit: 10,
+      windowMs: 60 * 1000,
+    });
+    if (limited) return limited;
     const body = await parseJsonBody(request);
     const input = body as Record<string, unknown>;
     const projectId = typeof input.projectId === "string" ? input.projectId : "";
@@ -100,6 +107,14 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
 
 function restrictUploadAccessPayload(payload: unknown, access: ActorAccess, roles: FileRolePolicy[]): unknown {
   const input = payload as Record<string, unknown>;
+  if (input.visibility === "public" && !access.canManageRoles) {
+    return {
+      ...input,
+      visibility: "private",
+      roleIds: [],
+    };
+  }
+
   if (input.visibility !== "roles") return payload;
 
   const validRoleIds = new Set(roles.filter((role) => role.scope !== "owner").map((role) => role.id));

@@ -21,7 +21,7 @@ export async function ensureFileAccessSchema(db: D1Database, env: Pick<Env, "PRI
 
   await runIgnoringSqliteError(
     db,
-    "ALTER TABLE files ADD COLUMN visibility TEXT NOT NULL DEFAULT 'public' CHECK (visibility IN ('public', 'roles'))",
+    "ALTER TABLE files ADD COLUMN visibility TEXT NOT NULL DEFAULT 'private' CHECK (visibility IN ('private', 'public', 'roles'))",
     "duplicate column name: visibility"
   );
   await db

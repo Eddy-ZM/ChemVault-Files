@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  MAX_UPLOAD_FILE_SIZE_BYTES,
   assertFileInitPayload,
   normalizeSlug,
   sanitizeVisibleName,
@@ -28,11 +29,32 @@ describe("ChemVault Files validation", () => {
 
     expect(payload.name).toBe("Compound_14_1H.jdx");
     expect(payload.tags).toEqual(["NMR", "1H", "CDCl3"]);
+    expect(payload.visibility).toBe("private");
+    expect(payload.roleIds).toEqual([]);
+  });
+
+  it("keeps uploads private by default unless a supported visibility is explicit", () => {
+    expect(assertFileInitPayload({ name: "report.pdf", size: 10, mimeType: "application/pdf", projectId: "p" }).visibility).toBe("private");
+    expect(assertFileInitPayload({ name: "report.pdf", size: 10, mimeType: "application/pdf", projectId: "p", visibility: "private" }).visibility).toBe("private");
+    expect(assertFileInitPayload({ name: "report.pdf", size: 10, mimeType: "application/pdf", projectId: "p", visibility: "public" }).visibility).toBe("public");
+    expect(assertFileInitPayload({ name: "report.pdf", size: 10, mimeType: "application/pdf", projectId: "p", visibility: "unexpected" }).visibility).toBe("private");
   });
 
   it("rejects invalid file init payloads with clear messages", () => {
     expect(() => assertFileInitPayload({ name: "", size: 1, projectId: "p" })).toThrow("File name is required");
     expect(() => assertFileInitPayload({ name: "a.pdf", size: 0, projectId: "p" })).toThrow("File size must be greater than zero");
     expect(() => assertFileInitPayload({ name: "a.pdf", size: 1 })).toThrow("Project is required");
+  });
+
+  it("rejects blocked or oversized uploads before storage", () => {
+    expect(() => assertFileInitPayload({ name: "archive.zip", size: 10, mimeType: "application/zip", projectId: "p" })).toThrow(
+      "File type is not allowed for upload"
+    );
+    expect(() => assertFileInitPayload({ name: "script.js", size: 10, mimeType: "text/javascript", projectId: "p" })).toThrow(
+      "File type is not allowed for upload"
+    );
+    expect(() => assertFileInitPayload({ name: "large.pdf", size: MAX_UPLOAD_FILE_SIZE_BYTES + 1, mimeType: "application/pdf", projectId: "p" })).toThrow(
+      "File is larger than the 100 MB upload limit"
+    );
   });
 });

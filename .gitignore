@@ -9,3 +9,39 @@ docs/superpowers/
 .env
 .env.*
 !.env.example
+
+# Secrets and credentials
+*.p8
+*.p12
+*.pem
+*.key
+*.cer
+*AuthKey*
+*private*
+*secret*
+*token*
+*password*
+
+# Apple signing / provisioning
+*.mobileprovision
+*.provisionprofile
+*.xcarchive
+*.ipa
+
+# Local build output
+build/
+.cache/
+# ChemVault local secrets and build output
+.env
+.env.*
+!.env.example
+*.p8
+AuthKey_*.p8
+*.p12
+*.cer
+*.mobileprovision
+node_modules/
+dist/
+build/
+.wrangler/
+.DS_Store

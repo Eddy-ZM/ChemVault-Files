@@ -138,7 +138,7 @@ export function mapFile(row: Record<string, unknown>): Omit<FileRecord, "tags"> 
     uploadSessionId: row.upload_session_id === null ? null : String(row.upload_session_id),
     actorEmail: row.actor_email === null ? null : String(row.actor_email),
     downloadCount: Number(row.download_count),
-    visibility: row.visibility === "roles" ? "roles" : "public",
+    visibility: row.visibility === "public" ? "public" : row.visibility === "roles" ? "roles" : "private",
     roleIds: [],
     createdAt: String(row.created_at),
     updatedAt: String(row.updated_at),
@@ -146,10 +146,16 @@ export function mapFile(row: Record<string, unknown>): Omit<FileRecord, "tags"> 
   };
 }
 
-function isFileVisibleToAccess(file: Pick<FileRecord, "visibility" | "roleIds">, access: ActorAccess): boolean {
+function isSameActorEmail(left: string | null | undefined, right: string | null | undefined): boolean {
+  return Boolean(left && right && left.trim().toLowerCase() === right.trim().toLowerCase());
+}
+
+function isFileVisibleToAccess(file: Pick<FileRecord, "visibility" | "roleIds" | "actorEmail">, access: ActorAccess): boolean {
   if (access.canManageRoles) return true;
   if (access.permission === "none") return false;
+  if (isSameActorEmail(file.actorEmail, access.actorEmail)) return true;
   if (file.visibility === "public") return true;
+  if (file.visibility === "private") return false;
   return file.roleIds.includes(access.roleId);
 }
 

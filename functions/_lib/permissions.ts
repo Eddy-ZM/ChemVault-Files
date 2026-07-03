@@ -133,10 +133,16 @@ export function canWriteFiles(access: Pick<ActorAccess, "permission">): boolean 
   return access.permission === "write";
 }
 
-export function canViewFile(access: ActorAccess, file: Pick<FileRecord, "visibility" | "roleIds">): boolean {
+function isSameActorEmail(left: string | null | undefined, right: string | null | undefined): boolean {
+  return Boolean(left && right && left.trim().toLowerCase() === right.trim().toLowerCase());
+}
+
+export function canViewFile(access: ActorAccess, file: Pick<FileRecord, "visibility" | "roleIds" | "actorEmail">): boolean {
   if (access.canManageRoles) return true;
   if (!canReadFiles(access)) return false;
+  if (isSameActorEmail(file.actorEmail, access.actorEmail)) return true;
   if (file.visibility === "public") return true;
+  if (file.visibility === "private") return false;
   return file.roleIds.includes(access.roleId);
 }
 

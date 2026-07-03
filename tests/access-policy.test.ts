@@ -42,6 +42,7 @@ class FakeStatement {
         upload_session_id: null,
         actor_email: "owner@chemvault.science",
         download_count: 0,
+        visibility: "public",
         created_at: "2026-06-18T00:00:00.000Z",
         updated_at: "2026-06-18T00:00:00.000Z",
         deleted_at: null,

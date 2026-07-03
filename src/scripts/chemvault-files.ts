@@ -37,6 +37,9 @@ import {
   type TabMotionDirection,
   type WorkspaceView,
 } from "../lib/chemvault-files/motion";
+import {
+  assertUploadFileAllowed,
+} from "../lib/chemvault-files/validation";
 import type {
   ActorAccess,
   FileActivityRecord,
@@ -229,6 +232,7 @@ const seedUploadQueue: UploadQueueItem[] = [
 
 const sidebarCollapsedStorageKey = "chemvault-files:sidebar-collapsed";
 const inspectorCollapsedStorageKey = "chemvault-files:inspector-collapsed";
+const toastDurationMs = 2200;
 
 let library: LibraryResponse = createInitialLibrary(seedLibrary);
 let filters: FileFilters = {
@@ -263,7 +267,7 @@ let currentActorAccess: ActorAccess = {
 };
 let rolePolicies: FileRolePolicy[] = [];
 let roleSettingsState: RoleSettingsState = { loading: false, saving: false, error: null, message: null };
-let uploadVisibility: FileVisibility = "public";
+let uploadVisibility: FileVisibility = "private";
 let uploadRoleIds = new Set<string>(["role_internal", "role_external"]);
 let fileSort: FileSort = { key: "modified", direction: "desc" };
 let viewMode: "list" | "grid" = "list";
@@ -275,6 +279,7 @@ let sidebarCollapsed = readStoredBoolean(sidebarCollapsedStorageKey, true);
 let inspectorCollapsed = readStoredBoolean(inspectorCollapsedStorageKey, true);
 const activityByFileId = new Map<string, InspectorAsyncState<FileActivityRecord[]>>();
 const shareByFileId = new Map<string, ShareUiState>();
+let toastTimer: number | null = null;
 
 export function bootChemVaultFiles(): void {
   const shell = document.querySelector<HTMLElement>("[data-cv-shell]");
@@ -464,7 +469,7 @@ function bindEvents(): void {
     const target = event.target as HTMLInputElement | null;
     if (!target) return;
     if (target.matches("[data-cv-upload-visibility]")) {
-      uploadVisibility = target.value === "roles" ? "roles" : "public";
+      uploadVisibility = target.value === "public" && currentActorAccess.canManageRoles ? "public" : target.value === "roles" ? "roles" : "private";
       renderUploadAccessControls();
       return;
     }
@@ -996,6 +1001,20 @@ function updateSidePanels(): void {
   }
 }
 
+function showToast(message: string, tone: "success" | "error" = "success"): void {
+  const region = document.querySelector<HTMLElement>("[data-cv-toast-region]");
+  if (!region) return;
+  if (toastTimer !== null) window.clearTimeout(toastTimer);
+  region.innerHTML = `<div class="toast toast--${tone}" role="status">${escapeHtml(message)}</div>`;
+  toastTimer = window.setTimeout(() => {
+    region.querySelector<HTMLElement>(".toast")?.setAttribute("data-cv-toast-state", "closing");
+    toastTimer = window.setTimeout(() => {
+      region.innerHTML = "";
+      toastTimer = null;
+    }, 180);
+  }, toastDurationMs);
+}
+
 function setShellAuthState(state: ShellAuthState): void {
   const shell = document.querySelector<HTMLElement>("[data-cv-shell]");
   if (!shell) return;
@@ -1125,14 +1144,22 @@ function renderUploadAccessControls(): void {
     <header>
       <div>
         <strong>File access</strong>
-        <span>${currentActorAccess.canManageRoles ? "Admins can choose any file role." : "Your uploads can be public or limited to your current role."}</span>
+        <span>${currentActorAccess.canManageRoles ? "Files are private by default. Admins can publish files or choose any file role." : "Files are private by default. You can keep uploads private or limit them to your current role."}</span>
       </div>
     </header>
     <div class="upload-access-modes">
       <label>
+        <input type="radio" name="uploadVisibility" value="private" data-cv-upload-visibility ${uploadVisibility === "private" ? "checked" : ""} />
+        <span>Private</span>
+      </label>
+      ${
+        currentActorAccess.canManageRoles
+          ? `<label>
         <input type="radio" name="uploadVisibility" value="public" data-cv-upload-visibility ${uploadVisibility === "public" ? "checked" : ""} />
         <span>Public</span>
-      </label>
+      </label>`
+          : ""
+      }
       <label>
         <input type="radio" name="uploadVisibility" value="roles" data-cv-upload-visibility ${uploadVisibility === "roles" ? "checked" : ""} />
         <span>Selected roles</span>
@@ -2350,6 +2377,7 @@ async function uploadBrowserFile(
   renderQueue();
 
   try {
+    assertUploadFileAllowed({ name: target.displayName, size: browserFile.size, mimeType: browserFile.type || null });
     const activeProjectId = filters.projectId || library.projects[0]?.id;
     if (!activeProjectId) throw new Error("Project is required before upload");
 
@@ -2865,6 +2893,7 @@ async function createShareForSelected(form: HTMLFormElement): Promise<void> {
     });
     activityByFileId.delete(fileId);
     renderInspector();
+    showToast("链接已创建");
     return;
   }
 
@@ -2885,8 +2914,10 @@ async function createShareForSelected(form: HTMLFormElement): Promise<void> {
       listError: null,
     });
     activityByFileId.delete(fileId);
+    showToast("链接已创建");
   } catch (error) {
     shareByFileId.set(fileId, { ...previous, loading: false, link: null, message: null, error: errorMessage(error) });
+    showToast("创建失败", "error");
   }
   renderInspector();
   if (inspectorTab === "activity") void loadActivityForSelected();
@@ -2931,6 +2962,7 @@ async function updateManagedShare(form: HTMLFormElement): Promise<void> {
     const nextShares = (getShareState(fileId).shares ?? []).map((share) => (share.token === token ? { ...share, expiresAt } : share));
     shareByFileId.set(fileId, { ...getShareState(fileId), shares: nextShares, message: "Share expiration updated.", error: null });
     renderInspector();
+    showToast("已更新");
     return;
   }
 
@@ -2945,8 +2977,10 @@ async function updateManagedShare(form: HTMLFormElement): Promise<void> {
     );
     const nextShares = (getShareState(fileId).shares ?? []).map((share) => (share.token === token ? response.share : share));
     shareByFileId.set(fileId, { ...getShareState(fileId), shares: nextShares, message: "Share expiration updated.", error: null });
+    showToast("已更新");
   } catch (error) {
     shareByFileId.set(fileId, { ...getShareState(fileId), message: null, error: errorMessage(error) });
+    showToast("更新失败", "error");
   }
   renderInspector();
 }
@@ -2962,6 +2996,7 @@ async function deleteManagedShare(token: string): Promise<void> {
   if (previewMode || token.startsWith("preview_")) {
     shareByFileId.set(fileId, { ...getShareState(fileId), shares: [], link: null, message: "Share link deleted.", error: null });
     renderInspector();
+    showToast("已删除");
     return;
   }
 
@@ -2971,8 +3006,10 @@ async function deleteManagedShare(token: string): Promise<void> {
     });
     const nextShares = (getShareState(fileId).shares ?? []).filter((share) => share.token !== token);
     shareByFileId.set(fileId, { ...getShareState(fileId), shares: nextShares, message: "Share link deleted.", error: null });
+    showToast("已删除");
   } catch (error) {
     shareByFileId.set(fileId, { ...getShareState(fileId), message: null, error: errorMessage(error) });
+    showToast("删除失败", "error");
   }
   renderInspector();
 }
@@ -2985,8 +3022,10 @@ async function copyManagedShareLink(token: string): Promise<void> {
   try {
     await navigator.clipboard.writeText(formatShareUrl(window.location.href, token, share?.isPublic ?? false));
     shareByFileId.set(fileId, { ...state, message: "Copied.", error: null });
+    showToast("已复制");
   } catch {
     shareByFileId.set(fileId, { ...state, message: "Copy failed.", error: null });
+    showToast("复制失败", "error");
   }
   renderInspector();
 }
@@ -3013,9 +3052,11 @@ async function copySelectedShareLink(): Promise<void> {
   try {
     await navigator.clipboard.writeText(state.link);
     shareByFileId.set(fileId, { ...state, message: "Copied.", error: null });
+    showToast("已复制");
   } catch {
     document.querySelector<HTMLInputElement>("[data-cv-share-link]")?.select();
     shareByFileId.set(fileId, { ...state, message: "Link selected.", error: null });
+    showToast("已选中链接");
   }
   renderInspector();
 }
@@ -3080,6 +3121,9 @@ function canWriteCurrentAccess(): boolean {
 function uploadAccessPayload(): { visibility: FileVisibility; roleIds: string[] } {
   const allowedRoleIds = new Set(selectableUploadRolePolicies().map((role) => role.id));
   const roleIds = Array.from(uploadRoleIds).filter((roleId) => allowedRoleIds.has(roleId));
+  if (uploadVisibility === "public" && !currentActorAccess.canManageRoles) {
+    return { visibility: "private", roleIds: [] };
+  }
   return {
     visibility: uploadVisibility,
     roleIds: uploadVisibility === "roles" ? roleIds : [],
@@ -3099,6 +3143,7 @@ function roleDescription(role: FileRolePolicy): string {
 }
 
 function fileVisibilityLabel(fileRecord: Pick<FileRecord, "visibility" | "roleIds">): string {
+  if (fileRecord.visibility === "private") return "Private";
   if (fileRecord.visibility === "public") return "Public";
   const names = fileRecord.roleIds
     .map((roleId) => rolePolicies.find((role) => role.id === roleId)?.name || fallbackRolePolicies().find((role) => role.id === roleId)?.name || roleId)
@@ -3118,6 +3163,9 @@ function selectableUploadRolePolicies(): FileRolePolicy[] {
 }
 
 function syncUploadRoleSelection(): void {
+  if (uploadVisibility === "public" && !currentActorAccess.canManageRoles) {
+    uploadVisibility = "private";
+  }
   const selectableRoles = selectableUploadRolePolicies();
   const selectableRoleIds = new Set(selectableRoles.map((role) => role.id));
   uploadRoleIds = new Set(Array.from(uploadRoleIds).filter((roleId) => selectableRoleIds.has(roleId)));
@@ -3386,7 +3434,7 @@ function openUploadModal(options: { reset?: boolean } = {}): void {
 
 function resetUploadModalState(modal: HTMLElement): void {
   uploadQueue = reduceUploadQueue(uploadQueue, { type: "clear" });
-  uploadVisibility = "public";
+  uploadVisibility = "private";
   uploadRoleIds = new Set(selectableUploadRolePolicies().map((role) => role.id));
   modal.querySelectorAll<HTMLInputElement>("[data-cv-file-input], [data-cv-folder-input]").forEach((input) => {
     input.value = "";

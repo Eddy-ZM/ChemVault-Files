@@ -3,6 +3,60 @@ import type { FileInitPayload } from "./types";
 const MAX_NAME_LENGTH = 160;
 const MAX_TAG_LENGTH = 40;
 const MAX_ROLE_IDS = 20;
+export const MAX_UPLOAD_FILE_SIZE_BYTES = 100 * 1024 * 1024;
+
+export const ALLOWED_UPLOAD_EXTENSIONS = [
+  "csv",
+  "docx",
+  "dx",
+  "h5",
+  "hdf5",
+  "jdx",
+  "jpeg",
+  "jpg",
+  "json",
+  "md",
+  "pdf",
+  "png",
+  "pptx",
+  "txt",
+  "xlsx",
+  "xml",
+] as const;
+
+export const ALLOWED_UPLOAD_MIME_TYPES = [
+  "application/json",
+  "application/pdf",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/x-hdf5",
+  "application/x-jcamp-dx",
+  "chemical/x-jcamp-dx",
+  "image/jpeg",
+  "image/png",
+  "text/csv",
+  "text/markdown",
+  "text/plain",
+  "text/xml",
+] as const;
+
+export const BLOCKED_UPLOAD_EXTENSIONS = [
+  "app",
+  "bat",
+  "cmd",
+  "cjs",
+  "dmg",
+  "exe",
+  "html",
+  "jar",
+  "js",
+  "mjs",
+  "php",
+  "py",
+  "sh",
+  "zip",
+] as const;
 
 export function normalizeSlug(value: string): string {
   const slug = value
@@ -25,6 +79,40 @@ export function sanitizeVisibleName(value: string): string {
     .slice(0, MAX_NAME_LENGTH)
     .trim();
   return cleaned || "untitled-file";
+}
+
+export function getUploadExtension(name: string): string {
+  const cleaned = sanitizeVisibleName(name).toLowerCase();
+  const lastPart = cleaned.includes(".") ? cleaned.split(".").pop() || "" : "";
+  return lastPart.replace(/[^a-z0-9]+/g, "");
+}
+
+export function normalizeUploadMimeType(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const [mimeType] = value.trim().toLowerCase().split(";");
+  return mimeType || null;
+}
+
+export function isAllowedUploadType(name: string, mimeType: unknown): boolean {
+  const extension = getUploadExtension(name);
+  if ((BLOCKED_UPLOAD_EXTENSIONS as readonly string[]).includes(extension)) return false;
+  if ((ALLOWED_UPLOAD_EXTENSIONS as readonly string[]).includes(extension)) return true;
+
+  const normalizedMime = normalizeUploadMimeType(mimeType);
+  if (!normalizedMime) return false;
+  return (ALLOWED_UPLOAD_MIME_TYPES as readonly string[]).includes(normalizedMime);
+}
+
+export function assertUploadFileAllowed(input: { name: string; size: number; mimeType?: unknown }): void {
+  if (!Number.isFinite(input.size) || input.size <= 0) {
+    throw new Error("File size must be greater than zero");
+  }
+  if (input.size > MAX_UPLOAD_FILE_SIZE_BYTES) {
+    throw new Error("File is larger than the 100 MB upload limit");
+  }
+  if (!isAllowedUploadType(input.name, input.mimeType)) {
+    throw new Error("File type is not allowed for upload");
+  }
 }
 
 export function assertNonEmptyName(value: unknown, label: string): string {
@@ -77,9 +165,7 @@ export function assertFileInitPayload(value: unknown): FileInitPayload {
   const payload = value as Record<string, unknown>;
   const name = assertNonEmptyName(payload.name, "File name");
   const size = Number(payload.size);
-  if (!Number.isFinite(size) || size <= 0) {
-    throw new Error("File size must be greater than zero");
-  }
+  assertUploadFileAllowed({ name, size, mimeType: payload.mimeType });
 
   const projectId = typeof payload.projectId === "string" ? payload.projectId.trim() : "";
   if (!projectId) {
@@ -87,12 +173,12 @@ export function assertFileInitPayload(value: unknown): FileInitPayload {
   }
 
   const roleIds = normalizeRoleIds(payload.roleIds);
-  const visibility = payload.visibility === "roles" ? "roles" : "public";
+  const visibility = payload.visibility === "public" ? "public" : payload.visibility === "roles" ? "roles" : "private";
 
   return {
     name,
     size,
-    mimeType: typeof payload.mimeType === "string" && payload.mimeType.trim() ? payload.mimeType.trim() : null,
+    mimeType: normalizeUploadMimeType(payload.mimeType),
     projectId,
     folderId: typeof payload.folderId === "string" && payload.folderId.trim() ? payload.folderId.trim() : null,
     tags: normalizeTags(payload.tags),

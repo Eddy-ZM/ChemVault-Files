@@ -5,7 +5,7 @@ export type PreviewKind = "pdf" | "image" | "csv" | "text" | "unsupported";
 export type FileActivityEventType = "preview" | "download" | "share_created" | "share_accessed" | "share_download";
 export type FilePermissionLevel = "none" | "read" | "write";
 export type FileRoleScope = "owner" | "domain" | "external";
-export type FileVisibility = "public" | "roles";
+export type FileVisibility = "private" | "public" | "roles";
 
 export interface ProjectRecord {
   id: string;

@@ -83,27 +83,110 @@ function role(id: string, name: string, scope: string, domain: string | null, pe
   };
 }
 
-function request(email: string): Request {
+function request(email: string, overrides: Record<string, unknown> = {}): Request {
+  const body = {
+    name: "report.pdf",
+    size: 7,
+    mimeType: "application/pdf",
+    projectId: "project_spectra",
+    folderId: null,
+    tags: [],
+    visibility: "roles",
+    roleIds: ["role_internal", "role_external"],
+    ...overrides,
+  };
+
   return new Request("https://file.chemvault.science/api/files/init", {
     method: "POST",
     headers: {
       "content-type": "application/json",
       "Cf-Access-Authenticated-User-Email": email,
     },
-    body: JSON.stringify({
-      name: "report.pdf",
-      size: 7,
-      mimeType: "application/pdf",
-      projectId: "project_spectra",
-      folderId: null,
-      tags: [],
-      visibility: "roles",
-      roleIds: ["role_internal", "role_external"],
-    }),
+    body: JSON.stringify(body),
   });
 }
 
 describe("upload visibility API", () => {
+  it("stores uploads as private when visibility is omitted", async () => {
+    const state: UploadState = { fileId: null, fileArgs: [], roleAccess: [] };
+    const response = await initUpload({
+      request: request("owner@chemvault.science", { visibility: undefined, roleIds: undefined }),
+      env: {
+        FILES_DB: new UploadD1(state),
+        PRIVATE_OWNER_EMAIL: "owner@chemvault.science",
+      },
+    } as unknown as Parameters<typeof initUpload>[0]);
+
+    expect(response.status).toBe(201);
+    const payload = (await response.json()) as { file: { visibility: string; roleIds: string[] } };
+    expect(payload.file).toMatchObject({ visibility: "private", roleIds: [] });
+    expect(state.roleAccess).toEqual([]);
+  });
+
+  it("stores explicit private uploads as private", async () => {
+    const state: UploadState = { fileId: null, fileArgs: [], roleAccess: [] };
+    const response = await initUpload({
+      request: request("owner@chemvault.science", { visibility: "private", roleIds: ["role_internal"] }),
+      env: {
+        FILES_DB: new UploadD1(state),
+        PRIVATE_OWNER_EMAIL: "owner@chemvault.science",
+      },
+    } as unknown as Parameters<typeof initUpload>[0]);
+
+    expect(response.status).toBe(201);
+    const payload = (await response.json()) as { file: { visibility: string; roleIds: string[] } };
+    expect(payload.file).toMatchObject({ visibility: "private", roleIds: [] });
+    expect(state.roleAccess).toEqual([]);
+  });
+
+  it("stores explicit public uploads only for administrators", async () => {
+    const state: UploadState = { fileId: null, fileArgs: [], roleAccess: [] };
+    const response = await initUpload({
+      request: request("owner@chemvault.science", { visibility: "public", roleIds: ["role_internal"] }),
+      env: {
+        FILES_DB: new UploadD1(state),
+        PRIVATE_OWNER_EMAIL: "owner@chemvault.science",
+      },
+    } as unknown as Parameters<typeof initUpload>[0]);
+
+    expect(response.status).toBe(201);
+    const payload = (await response.json()) as { file: { visibility: string; roleIds: string[] } };
+    expect(payload.file).toMatchObject({ visibility: "public", roleIds: [] });
+    expect(state.roleAccess).toEqual([]);
+  });
+
+  it("falls back to private when a non-admin requests public visibility", async () => {
+    const state: UploadState = { fileId: null, fileArgs: [], roleAccess: [] };
+    const response = await initUpload({
+      request: request("scientist@chemvault.science", { visibility: "public", roleIds: ["role_internal"] }),
+      env: {
+        FILES_DB: new UploadD1(state),
+        PRIVATE_OWNER_EMAIL: "different-owner@chemvault.science",
+      },
+    } as unknown as Parameters<typeof initUpload>[0]);
+
+    expect(response.status).toBe(201);
+    const payload = (await response.json()) as { file: { visibility: string; roleIds: string[] } };
+    expect(payload.file).toMatchObject({ visibility: "private", roleIds: [] });
+    expect(state.roleAccess).toEqual([]);
+  });
+
+  it("falls back to private for invalid visibility values", async () => {
+    const state: UploadState = { fileId: null, fileArgs: [], roleAccess: [] };
+    const response = await initUpload({
+      request: request("owner@chemvault.science", { visibility: "shared", roleIds: ["role_internal"] }),
+      env: {
+        FILES_DB: new UploadD1(state),
+        PRIVATE_OWNER_EMAIL: "owner@chemvault.science",
+      },
+    } as unknown as Parameters<typeof initUpload>[0]);
+
+    expect(response.status).toBe(201);
+    const payload = (await response.json()) as { file: { visibility: string; roleIds: string[] } };
+    expect(payload.file).toMatchObject({ visibility: "private", roleIds: [] });
+    expect(state.roleAccess).toEqual([]);
+  });
+
   it("stores selected role visibility when an administrator uploads a file", async () => {
     const state: UploadState = { fileId: null, fileArgs: [], roleAccess: [] };
     const response = await initUpload({
