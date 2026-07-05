@@ -875,7 +875,7 @@ input:focus-visible {
 .sidebar {
   min-height: 0;
   display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr) auto auto;
+  grid-template-rows: auto auto minmax(112px, 1fr) auto auto;
   overflow: hidden;
   opacity: 1;
   transform: translateX(0);
@@ -894,6 +894,7 @@ input:focus-visible {
 }
 
 .sidebar__section {
+  min-width: 0;
   padding: 11px 10px;
   border-bottom: 1px solid var(--line);
 }
@@ -926,6 +927,13 @@ input:focus-visible {
 
 .sidebar__section--actions {
   padding-top: 14px;
+}
+
+.sidebar__section--folders {
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden;
 }
 
 .sidebar-action-stack {
@@ -1117,8 +1125,13 @@ input:focus-visible {
 
 .folder-tree {
   position: relative;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   gap: 3px;
   padding-top: 1px;
+  padding-right: 4px;
 }
 
 .folder-tree ul {
@@ -1133,6 +1146,7 @@ input:focus-visible {
 .nav-row,
 .folder-row {
   position: relative;
+  min-width: 0;
   display: grid;
   grid-template-columns: 22px minmax(0, 1fr) auto;
   align-items: center;
@@ -1417,6 +1431,7 @@ input:focus-visible {
 }
 
 .storage-meter {
+  min-width: 0;
   padding: 14px 12px 16px;
 }
 
@@ -4612,9 +4627,10 @@ input:focus-visible {
 
   .files-shell[data-cv-sidebar-collapsed="true"] .sidebar,
   .files-shell[data-cv-sidebar-collapsed="false"] .sidebar {
-    grid-template-rows: auto auto minmax(0, 1fr) auto auto;
+    grid-template-rows: auto auto minmax(112px, 1fr) auto auto;
     align-content: stretch;
     justify-items: stretch;
+    overflow: hidden;
   }
 
   .files-shell[data-cv-sidebar-collapsed="true"] .sidebar {
@@ -4635,6 +4651,22 @@ input:focus-visible {
   .files-shell[data-cv-sidebar-collapsed="false"] .sidebar__section {
     width: auto;
     padding: 11px 10px;
+  }
+
+  .files-shell[data-cv-sidebar-collapsed="true"] .sidebar__section--folders,
+  .files-shell[data-cv-sidebar-collapsed="false"] .sidebar__section--folders {
+    min-height: 0;
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    overflow: hidden;
+  }
+
+  .files-shell[data-cv-sidebar-collapsed="true"] .folder-tree,
+  .files-shell[data-cv-sidebar-collapsed="false"] .folder-tree {
+    min-height: 0;
+    max-height: 100%;
+    overflow-x: hidden;
+    overflow-y: auto;
   }
 
   .files-shell[data-cv-sidebar-collapsed="true"] .sidebar__section--tags,

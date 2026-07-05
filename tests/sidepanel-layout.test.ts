@@ -38,6 +38,9 @@ describe("collapsible side panel layout", () => {
     expect(stylesSource).toContain("@keyframes sidepanel-scrim-in");
     expect(stylesSource).toContain(".folder-children");
     expect(stylesSource).toContain("border-left: 1px solid #dbe5f0");
+    expect(stylesSource).toContain(".sidebar__section--folders");
+    expect(stylesSource).toContain("grid-template-rows: auto minmax(0, 1fr)");
+    expect(stylesSource).toContain("overflow-y: auto");
     expect(stylesSource).toContain(".nav-row[aria-current=\"page\"]");
     expect(stylesSource).toContain(".sidebar-action--primary");
     expect(stylesSource).toContain(".files-shell[data-cv-sidebar-collapsed=\"true\"] .sidebar-action");
