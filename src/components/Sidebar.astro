@@ -1,4 +1,31 @@
 <aside id="file-sidebar" class="sidebar panel" aria-label="File navigation" data-cv-sidebar>
+  <section class="sidebar__section sidebar__section--actions" aria-labelledby="actions-label">
+    <div class="section-heading">
+      <h2 id="actions-label">New</h2>
+    </div>
+    <div class="sidebar-action-stack">
+      <button class="sidebar-action sidebar-action--primary" type="button" data-cv-sidebar-action="upload" data-cv-rail-label="Upload">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M12 3v11m0-11 4 4M12 3 8 7M5 14v4.5A2.5 2.5 0 0 0 7.5 21h9a2.5 2.5 0 0 0 2.5-2.5V14" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+        <span>
+          <strong>Upload</strong>
+          <small>Private by default</small>
+        </span>
+      </button>
+      <button class="sidebar-action" type="button" data-cv-sidebar-action="new-folder" data-cv-rail-label="New folder">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M5 7.5A2.5 2.5 0 0 1 7.5 5H10l2 2h4.5A2.5 2.5 0 0 1 19 9.5v7A2.5 2.5 0 0 1 16.5 19h-9A2.5 2.5 0 0 1 5 16.5v-9Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
+          <path d="M12 10v5M9.5 12.5h5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+        </svg>
+        <span>
+          <strong>New folder</strong>
+          <small>Inside current project</small>
+        </span>
+      </button>
+    </div>
+  </section>
+
   <nav class="sidebar__section sidebar__section--top" aria-labelledby="library-label">
     <div class="section-heading">
       <h2 id="library-label">Library</h2>
@@ -14,6 +41,42 @@
           <span>All Files</span>
           <strong data-cv-all-files-count>0</strong>
         </a>
+      </li>
+      <li>
+        <button class="nav-row nav-row--button" type="button" aria-label="Recent files" data-cv-nav="recent" data-cv-rail-label="Recent">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 7v5l3 2M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+          <span>Recent</span>
+          <strong data-cv-nav-count="recent">0</strong>
+        </button>
+      </li>
+      <li>
+        <button class="nav-row nav-row--button" type="button" aria-label="Shared files" data-cv-nav="shared" data-cv-rail-label="Shared">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M8.5 12.5h7M9.5 8.5H8A3.5 3.5 0 1 0 8 15.5h1.5M14.5 8.5H16a3.5 3.5 0 1 1 0 7h-1.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+          <span>Shared</span>
+          <strong data-cv-nav-count="shared">0</strong>
+        </button>
+      </li>
+      <li>
+        <button class="nav-row nav-row--button" type="button" aria-label="Needs review" data-cv-nav="failed" data-cv-rail-label="Needs review">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 8v5m0 4h.01M10.2 4.5 3.7 16A2 2 0 0 0 5.5 19h13a2 2 0 0 0 1.8-3L13.8 4.5a2 2 0 0 0-3.6 0Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+          <span>Needs review</span>
+          <strong data-cv-nav-count="failed">0</strong>
+        </button>
+      </li>
+      <li>
+        <button class="nav-row nav-row--button" type="button" aria-label="Large objects" data-cv-nav="large" data-cv-rail-label="Large">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M4 18h16M7 18V8m5 10V5m5 13v-7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+          <span>Large</span>
+          <strong data-cv-nav-count="large">0</strong>
+        </button>
       </li>
     </ul>
   </nav>
@@ -31,14 +94,8 @@
   <section class="sidebar__section sidebar__section--tags" aria-labelledby="tags-label">
     <div class="section-heading">
       <h2 id="tags-label">Tags</h2>
-      <button class="ghost-icon" type="button" aria-label="Edit tags">
-        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
-          <path d="m4 20 4.5-1 10-10a2.1 2.1 0 0 0-3-3l-10 10L4 20Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
-        </svg>
-      </button>
     </div>
     <div class="tag-cloud" data-cv-tags></div>
-    <button class="link-button" type="button" data-cv-new-tag>+ New tag</button>
   </section>
 
   <nav class="sidebar__section sidebar__section--admin" aria-labelledby="admin-label" data-cv-role-section>

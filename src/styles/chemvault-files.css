@@ -728,6 +728,12 @@ input:focus-visible {
   color: var(--red);
 }
 
+.toast--info {
+  border-color: rgba(0, 113, 227, 0.2);
+  background: rgba(241, 247, 255, 0.96);
+  color: var(--blue-strong);
+}
+
 .toast[data-cv-toast-state="closing"] {
   animation: toast-exit var(--motion-fast) ease-in both;
 }
@@ -867,6 +873,80 @@ input:focus-visible {
   color: #7e8694;
 }
 
+.sidebar__section--actions {
+  padding-top: 14px;
+}
+
+.sidebar-action-stack {
+  display: grid;
+  gap: 7px;
+}
+
+.sidebar-action {
+  position: relative;
+  width: 100%;
+  min-height: 42px;
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  align-items: center;
+  gap: 9px;
+  padding: 7px 9px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #fff;
+  color: #2f3744;
+  text-align: left;
+  transition:
+    background-color var(--motion-fast) ease-out,
+    border-color var(--motion-fast) ease-out,
+    color var(--motion-fast) ease-out,
+    box-shadow var(--motion-fast) ease-out,
+    transform var(--motion-fast) var(--motion-ease);
+}
+
+.sidebar-action--primary {
+  border-color: rgba(0, 113, 227, 0.22);
+  background: #f2f7ff;
+  color: var(--blue-strong);
+}
+
+.sidebar-action span {
+  min-width: 0;
+  display: grid;
+  gap: 1px;
+}
+
+.sidebar-action strong {
+  overflow: hidden;
+  color: inherit;
+  font-size: 13px;
+  font-weight: 690;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar-action small {
+  overflow: hidden;
+  color: #66707d;
+  font-size: 11px;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar-action:hover:not(:disabled),
+.sidebar-action:focus-visible {
+  border-color: rgba(0, 113, 227, 0.26);
+  background: #f6f9fd;
+  color: #1f4f82;
+  transform: translateX(2px);
+}
+
+.sidebar-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
 .files-shell[data-cv-sidebar-collapsed="true"] .sidebar {
   grid-template-rows: auto auto auto auto;
   align-content: start;
@@ -891,6 +971,7 @@ input:focus-visible {
 
 .files-shell[data-cv-sidebar-collapsed="true"] .section-heading h2,
 .files-shell[data-cv-sidebar-collapsed="true"] .folder-tree,
+.files-shell[data-cv-sidebar-collapsed="true"] .sidebar-action span,
 .files-shell[data-cv-sidebar-collapsed="true"] .nav-row span,
 .files-shell[data-cv-sidebar-collapsed="true"] .nav-row strong {
   display: none;
@@ -908,6 +989,16 @@ input:focus-visible {
   padding: 0;
 }
 
+.files-shell[data-cv-sidebar-collapsed="true"] .sidebar-action {
+  width: 38px;
+  height: 38px;
+  min-height: 38px;
+  grid-template-columns: 1fr;
+  place-items: center;
+  padding: 0;
+}
+
+.files-shell[data-cv-sidebar-collapsed="true"] .sidebar-action[data-cv-rail-label]::after,
 .files-shell[data-cv-sidebar-collapsed="true"] .nav-row[data-cv-rail-label]::after {
   content: attr(data-cv-rail-label);
   position: absolute;
@@ -932,6 +1023,8 @@ input:focus-visible {
     transform var(--motion-fast) var(--motion-ease);
 }
 
+.files-shell[data-cv-sidebar-collapsed="true"] .sidebar-action[data-cv-rail-label]:hover::after,
+.files-shell[data-cv-sidebar-collapsed="true"] .sidebar-action[data-cv-rail-label]:focus-visible::after,
 .files-shell[data-cv-sidebar-collapsed="true"] .nav-row[data-cv-rail-label]:hover::after,
 .files-shell[data-cv-sidebar-collapsed="true"] .nav-row[data-cv-rail-label]:focus-visible::after {
   opacity: 1;
@@ -1593,6 +1686,47 @@ input:focus-visible {
 
 .upload-picker-grid--single {
   grid-template-columns: minmax(0, 1fr);
+}
+
+.folder-card {
+  width: min(420px, calc(100vw - 32px));
+}
+
+.folder-form {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.folder-form label {
+  display: grid;
+  gap: 7px;
+  color: #566170;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.folder-form input {
+  width: 100%;
+  min-height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: #fff;
+  color: #202733;
+  font: inherit;
+  font-size: 14px;
+}
+
+.folder-form input:focus {
+  border-color: rgba(0, 113, 227, 0.5);
+  outline: 3px solid rgba(0, 113, 227, 0.12);
+}
+
+.folder-form__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 .upload-choice {

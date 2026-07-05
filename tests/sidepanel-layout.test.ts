@@ -19,6 +19,14 @@ describe("collapsible side panel layout", () => {
     expect(appShellSource).toContain("data-cv-footer-access");
     expect(sidebarSource).toContain('id="file-sidebar"');
     expect(sidebarSource).toContain("data-cv-rail-label");
+    expect(sidebarSource).toContain('data-cv-sidebar-action="upload"');
+    expect(sidebarSource).toContain('data-cv-sidebar-action="new-folder"');
+    expect(sidebarSource).toContain('data-cv-nav="recent"');
+    expect(sidebarSource).toContain('data-cv-nav="shared"');
+    expect(sidebarSource).not.toContain('aria-label="Create project"');
+    expect(sidebarSource).not.toContain('aria-label="Create folder"');
+    expect(sidebarSource).not.toContain("data-cv-new-tag");
+    expect(appShellSource).toContain("data-cv-folder-modal");
   });
 
   it("keeps the workspace fluid while side panels collapse", () => {
@@ -31,6 +39,8 @@ describe("collapsible side panel layout", () => {
     expect(stylesSource).toContain(".folder-children");
     expect(stylesSource).toContain("border-left: 1px solid #dbe5f0");
     expect(stylesSource).toContain(".nav-row[aria-current=\"page\"]");
+    expect(stylesSource).toContain(".sidebar-action--primary");
+    expect(stylesSource).toContain(".files-shell[data-cv-sidebar-collapsed=\"true\"] .sidebar-action");
     expect(stylesSource).toContain("grid-template-rows: 60px minmax(0, 1fr) 34px");
     expect(stylesSource).toContain(".files-footer");
     expect(stylesSource).toContain("font-size: 11px");

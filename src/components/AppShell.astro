@@ -143,6 +143,38 @@ import Inspector from "./Inspector.astro";
     </div>
   </section>
 
+  <section class="auth-modal folder-modal" aria-label="Create a folder" data-cv-folder-modal hidden>
+    <div class="auth-modal__scrim" data-cv-folder-close></div>
+    <div class="auth-card folder-card" role="dialog" aria-modal="true" aria-labelledby="folder-title">
+      <header>
+        <span class="upload-card__icon">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M5 7.5A2.5 2.5 0 0 1 7.5 5H10l2 2h4.5A2.5 2.5 0 0 1 19 9.5v7A2.5 2.5 0 0 1 16.5 19h-9A2.5 2.5 0 0 1 5 16.5v-9Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
+            <path d="M12 10v5M9.5 12.5h5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+          </svg>
+        </span>
+        <button class="ghost-icon" type="button" aria-label="Close new folder" data-cv-folder-close>
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="m6 6 12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+          </svg>
+        </button>
+      </header>
+      <h2 id="folder-title">New folder</h2>
+      <p data-cv-folder-target>Create a folder inside the current project.</p>
+      <form class="folder-form" data-cv-folder-form>
+        <label>
+          <span>Folder name</span>
+          <input type="text" name="folderName" data-cv-folder-name autocomplete="off" placeholder="Experiment runs" maxlength="80" required />
+        </label>
+        <p class="form-status" data-cv-folder-status hidden></p>
+        <div class="folder-form__actions">
+          <button class="button button--secondary" type="button" data-cv-folder-close>Cancel</button>
+          <button class="button button--primary" type="submit" data-cv-folder-submit>Create folder</button>
+        </div>
+      </form>
+    </div>
+  </section>
+
   <section class="auth-modal upload-modal" aria-label="Upload files and folders" data-cv-upload-modal hidden>
     <div class="auth-modal__scrim" data-cv-upload-close></div>
     <div class="auth-card upload-card" role="dialog" aria-modal="true" aria-labelledby="upload-title">

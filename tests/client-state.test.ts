@@ -87,6 +87,23 @@ describe("client state", () => {
     expect(filterFiles([file, failedFile, csvFile], { search: "", tagSlug: null, projectId: null, folderId: null, quickFilter: "large" })).toEqual([failedFile]);
   });
 
+  it("filters shared files by link and visibility state", () => {
+    const privateFile = { ...file, id: "file_private", visibility: "private" as const, sharedStatus: "private" as const };
+    const sharedLinkFile = { ...file, id: "file_shared_link", visibility: "private" as const, sharedStatus: "shared" as const };
+    const publicFile = { ...file, id: "file_public", visibility: "public" as const, sharedStatus: "public" as const };
+    const roleFile = { ...file, id: "file_role", visibility: "roles" as const, sharedStatus: "private" as const };
+
+    expect(
+      filterFiles([privateFile, sharedLinkFile, publicFile, roleFile], {
+        search: "",
+        tagSlug: null,
+        projectId: null,
+        folderId: null,
+        quickFilter: "shared",
+      }).map((entry) => entry.id)
+    ).toEqual(["file_shared_link", "file_public", "file_role"]);
+  });
+
   it("sorts files by table columns", () => {
     expect(sortFiles([file, failedFile, csvFile], { key: "size", direction: "desc" }).map((entry) => entry.id)).toEqual(["file_2", "file_3", "file_1"]);
     expect(sortFiles([file, failedFile, csvFile], { key: "name", direction: "asc" }).map((entry) => entry.id)).toEqual(["file_1", "file_2", "file_3"]);

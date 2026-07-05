@@ -113,6 +113,9 @@ interface RoleSettingsState {
   message: string | null;
 }
 
+type SidebarNavKey = "all-files" | "recent" | "shared" | "failed" | "large";
+type SidebarViewKey = SidebarNavKey | null;
+
 interface BrowserUploadSelection {
   file: File;
   relativePath?: string;
@@ -274,6 +277,7 @@ let uploadRoleIds = new Set<string>(["role_internal", "role_external"]);
 let fileSort: FileSort = { key: "modified", direction: "desc" };
 let viewMode: "list" | "grid" = "list";
 let workspaceView: WorkspaceView = "library";
+let sidebarView: SidebarViewKey = "all-files";
 let inspectorTab: InspectorTab = "details";
 let inspectorTabMotion: TabMotionDirection = "none";
 let inspectorTabMotionSequence = 0;
@@ -376,7 +380,9 @@ function bindEvents(): void {
   document.querySelector<HTMLFormElement>("[data-cv-search-form]")?.addEventListener("submit", (event) => event.preventDefault());
   document.querySelector<HTMLInputElement>("[data-cv-search-input]")?.addEventListener("input", (event) => {
     fileBrowserNotice = null;
-    filters = { ...filters, search: (event.currentTarget as HTMLInputElement).value };
+    const search = (event.currentTarget as HTMLInputElement).value;
+    filters = { ...filters, search };
+    sidebarView = search || filters.projectId || filters.folderId || filters.tagSlug || filters.quickFilter ? null : "all-files";
     renderFiles();
     renderInspector();
   });
@@ -399,6 +405,7 @@ function bindEvents(): void {
 
     const rootButton = target.closest<HTMLElement>("[data-cv-browser-root]");
     if (rootButton) {
+      sidebarView = "all-files";
       navigateToBrowserLocation({ projectId: null, folderId: null });
       return;
     }
@@ -407,6 +414,7 @@ function bindEvents(): void {
 
     const browserFolder = target.closest<HTMLElement>("[data-cv-browser-folder-id]");
     if (browserFolder?.dataset.cvBrowserFolderId) {
+      sidebarView = null;
       navigateToBrowserLocation({
         projectId: browserFolder.dataset.cvBrowserProjectId || filters.projectId,
         folderId: browserFolder.dataset.cvBrowserFolderId,
@@ -416,6 +424,7 @@ function bindEvents(): void {
 
     const browserProject = target.closest<HTMLElement>("[data-cv-browser-project-id]");
     if (browserProject?.dataset.cvBrowserProjectId) {
+      sidebarView = null;
       navigateToBrowserLocation({ projectId: browserProject.dataset.cvBrowserProjectId, folderId: null });
       return;
     }
@@ -439,6 +448,7 @@ function bindEvents(): void {
       ...filters,
       quickFilter: next === filters.quickFilter ? null : (next as FileQuickFilter | null),
     };
+    sidebarView = sidebarViewForQuickFilter(filters.quickFilter);
     fileBrowserNotice = null;
     workspaceView = "library";
     renderAll();
@@ -453,6 +463,7 @@ function bindEvents(): void {
     if (event.key === "Escape" && !target?.closest("[data-cv-search-input]")) {
       closeAuthModal();
       closeRoleModal();
+      closeFolderModal();
       closeUploadModal();
       closeFloatingSidePanels();
     }
@@ -467,6 +478,13 @@ function bindEvents(): void {
   document.querySelector<HTMLButtonElement>("[data-cv-upload-button]")?.addEventListener("click", () => openUploadModal({ reset: true }));
   document.querySelector<HTMLButtonElement>("[data-cv-file-picker]")?.addEventListener("click", () => fileInput?.click());
   document.querySelector<HTMLButtonElement>("[data-cv-folder-picker]")?.addEventListener("click", () => folderInput?.click());
+  document.querySelector<HTMLElement>("[data-cv-folder-modal]")?.addEventListener("submit", (event) => {
+    const form = (event.target as HTMLElement).closest<HTMLFormElement>("[data-cv-folder-form]");
+    if (!form) return;
+    event.preventDefault();
+    void createFolderFromModal(form);
+  });
+  document.querySelectorAll<HTMLElement>("[data-cv-folder-close]").forEach((element) => element.addEventListener("click", closeFolderModal));
   document.querySelector<HTMLElement>("[data-cv-upload-modal]")?.addEventListener("change", (event) => {
     const target = event.target as HTMLInputElement | null;
     if (!target) return;
@@ -504,16 +522,17 @@ function bindEvents(): void {
   });
 
   document.querySelector<HTMLElement>("[data-cv-sidebar]")?.addEventListener("click", (event) => {
-    const nav = (event.target as HTMLElement).closest<HTMLElement>("[data-cv-nav='all-files']");
+    const action = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-cv-sidebar-action]");
+    if (action) {
+      event.preventDefault();
+      handleSidebarAction(action.dataset.cvSidebarAction);
+      return;
+    }
+
+    const nav = (event.target as HTMLElement).closest<HTMLElement>("[data-cv-nav]");
     if (!nav) return;
     event.preventDefault();
-    fileBrowserNotice = null;
-    filters = { search: filters.search, projectId: null, folderId: null, tagSlug: null, quickFilter: null };
-    recordBrowserHistory({ projectId: null, folderId: null }, "push");
-    selectedFileId = null;
-    selectedFileIds = new Set();
-    closeSidebarAfterCompactAction();
-    renderAll();
+    handleSidebarNavigation(nav.dataset.cvNav);
   });
 
   document.querySelector<HTMLElement>("[data-cv-folder-tree]")?.addEventListener("click", (event) => {
@@ -540,6 +559,7 @@ function bindEvents(): void {
     const target = (event.target as HTMLElement).closest<HTMLElement>("[data-cv-project-id], [data-cv-folder-id]");
     if (!target) return;
     event.preventDefault();
+    sidebarView = null;
     navigateToBrowserLocation({
       projectId: target.dataset.cvProjectId || null,
       folderId: target.dataset.cvFolderId || null,
@@ -562,6 +582,7 @@ function bindEvents(): void {
     const target = (event.target as HTMLElement).closest<HTMLElement>("[data-cv-clear-filters]");
     if (!target) return;
     filters = { ...filters, tagSlug: null, quickFilter: null };
+    sidebarView = filters.projectId || filters.folderId || filters.search ? null : "all-files";
     fileBrowserNotice = null;
     renderAll();
   });
@@ -573,6 +594,7 @@ function bindEvents(): void {
     if (!row) return;
     const kind = row.dataset.cvListKind ?? "file";
     if (kind !== "file") {
+      sidebarView = null;
       navigateToBrowserLocation(
         {
           projectId: row.dataset.cvBrowserProjectId || null,
@@ -628,6 +650,7 @@ function bindEvents(): void {
         ...filters,
         quickFilter: next === filters.quickFilter ? null : (next as FileQuickFilter | null),
       };
+      sidebarView = sidebarViewForQuickFilter(filters.quickFilter);
       fileBrowserNotice = null;
       renderAll();
       return;
@@ -1003,7 +1026,7 @@ function updateSidePanels(): void {
   }
 }
 
-function showToast(message: string, tone: "success" | "error" = "success"): void {
+function showToast(message: string, tone: "success" | "error" | "info" = "success"): void {
   const region = document.querySelector<HTMLElement>("[data-cv-toast-region]");
   if (!region) return;
   if (toastTimer !== null) window.clearTimeout(toastTimer);
@@ -1085,8 +1108,68 @@ function renderPermissionControls(): void {
     uploadButton.disabled = !canWrite;
     uploadButton.title = canWrite ? "" : "Current role is read-only or no-read.";
   }
+  document.querySelectorAll<HTMLButtonElement>("[data-cv-sidebar-action='upload']").forEach((button) => {
+    button.disabled = !canWrite;
+    button.title = canWrite ? "Upload files or folders" : "Current role is read-only or no-read.";
+  });
+  document.querySelectorAll<HTMLButtonElement>("[data-cv-sidebar-action='new-folder']").forEach((button) => {
+    const target = folderCreationTarget();
+    button.disabled = !canWrite || !target;
+    button.title = !canWrite
+      ? "Current role is read-only or no-read."
+      : target
+        ? `Create folder in ${target.label}`
+        : "Open a project before creating a folder.";
+  });
   const roleSection = document.querySelector<HTMLElement>("[data-cv-role-section]");
   if (roleSection) roleSection.hidden = !currentActorAccess.canManageRoles;
+}
+
+function handleSidebarAction(action: string | undefined): void {
+  if (action === "upload") {
+    openUploadModal({ reset: true });
+    closeSidebarAfterCompactAction();
+    return;
+  }
+  if (action === "new-folder") {
+    openFolderModal();
+  }
+}
+
+function handleSidebarNavigation(value: string | undefined): void {
+  const nav = sidebarNavFromValue(value);
+  if (!nav) return;
+
+  fileBrowserNotice = null;
+  selectedFileId = null;
+  selectedFileIds = new Set();
+  workspaceView = "library";
+  sidebarView = nav;
+
+  if (nav === "all-files" || nav === "recent") {
+    filters = { search: filters.search, projectId: null, folderId: null, tagSlug: null, quickFilter: null };
+  } else {
+    filters = { search: filters.search, projectId: null, folderId: null, tagSlug: null, quickFilter: nav };
+  }
+
+  if (nav === "recent") {
+    fileSort = { key: "modified", direction: "desc" };
+    viewMode = "list";
+  }
+
+  recordBrowserHistory({ projectId: null, folderId: null }, "push");
+  closeSidebarAfterCompactAction();
+  renderAll();
+}
+
+function sidebarNavFromValue(value: string | undefined): SidebarNavKey | null {
+  return value === "all-files" || value === "recent" || value === "shared" || value === "failed" || value === "large" ? value : null;
+}
+
+function sidebarViewForQuickFilter(filter: FileQuickFilter | null | undefined): SidebarViewKey {
+  if (filter === "shared" || filter === "failed" || filter === "large") return filter;
+  if (filter) return null;
+  return filters.projectId || filters.folderId || filters.search ? null : "all-files";
 }
 
 function renderRoleSettings(): void {
@@ -1447,21 +1530,48 @@ function updateWorkspaceView(): void {
 function renderSidebar(): void {
   const folderTree = document.querySelector<HTMLElement>("[data-cv-folder-tree]");
   const tagsContainer = document.querySelector<HTMLElement>("[data-cv-tags]");
-  const allFilesLink = document.querySelector<HTMLElement>("[data-cv-nav='all-files']");
-  const allFilesCount = document.querySelector<HTMLElement>("[data-cv-all-files-count]");
-  if (allFilesLink) {
-    const isAllFiles = !filters.projectId && !filters.folderId && !filters.tagSlug && !filters.quickFilter;
-    allFilesLink.setAttribute("aria-current", isAllFiles ? "page" : "false");
-  }
-  if (allFilesCount) {
-    allFilesCount.textContent = String(library.files.filter((entry) => entry.status !== "deleted").length);
-  }
+  const liveFiles = library.files.filter((entry) => entry.status !== "deleted");
+  updateSidebarNavigation(liveFiles);
   if (folderTree) {
     folderTree.innerHTML = library.projects.map((projectRecord) => renderProject(projectRecord)).join("");
   }
   if (tagsContainer) {
     tagsContainer.innerHTML = library.tags.map((tagRecord) => renderTagButton(tagRecord)).join("");
   }
+}
+
+function updateSidebarNavigation(liveFiles: FileRecord[]): void {
+  const counts: Record<SidebarNavKey, number> = {
+    "all-files": liveFiles.length,
+    recent: Math.min(5, liveFiles.length),
+    shared: liveFiles.filter(isSharedFileRecord).length,
+    failed: liveFiles.filter((entry) => entry.status === "failed").length,
+    large: liveFiles.filter((entry) => entry.sizeBytes >= 1024 ** 3).length,
+  };
+
+  document.querySelectorAll<HTMLElement>("[data-cv-nav]").forEach((element) => {
+    const nav = sidebarNavFromValue(element.dataset.cvNav);
+    const isActive = nav !== null && nav === sidebarView;
+    element.setAttribute("aria-current", isActive ? "page" : "false");
+    element.classList.toggle("is-active", isActive);
+  });
+  document.querySelectorAll<HTMLElement>("[data-cv-nav-count]").forEach((element) => {
+    const nav = sidebarNavFromValue(element.dataset.cvNavCount);
+    if (!nav) return;
+    element.textContent = String(counts[nav]);
+  });
+  document.querySelectorAll<HTMLElement>("[data-cv-all-files-count]").forEach((element) => {
+    element.textContent = String(counts["all-files"]);
+  });
+}
+
+function isSharedFileRecord(fileRecord: Pick<FileRecord, "sharedStatus" | "visibility">): boolean {
+  return (
+    fileRecord.sharedStatus === "shared" ||
+    fileRecord.sharedStatus === "public" ||
+    fileRecord.visibility === "public" ||
+    fileRecord.visibility === "roles"
+  );
 }
 
 function renderProject(projectRecord: ProjectRecord): string {
@@ -3328,6 +3438,7 @@ function updateViewModeButtons(): void {
 
 function quickFilterLabel(filter: FileQuickFilter): string {
   if (filter === "ready") return "Ready";
+  if (filter === "shared") return "Shared";
   if (filter === "failed") return "Needs review";
   return "Large objects";
 }
@@ -3478,6 +3589,122 @@ function openRoleModal(): void {
 function closeRoleModal(): void {
   const modal = document.querySelector<HTMLElement>("[data-cv-role-modal]");
   if (modal) closeModal(modal);
+}
+
+function folderCreationTarget(): { projectId: string; parentId: string | null; label: string } | null {
+  const activeFolder = filters.folderId ? library.folders.find((folderRecord) => folderRecord.id === filters.folderId) ?? null : null;
+  if (activeFolder) {
+    return { projectId: activeFolder.projectId, parentId: activeFolder.id, label: activeFolder.name };
+  }
+
+  const activeProject = filters.projectId
+    ? library.projects.find((projectRecord) => projectRecord.id === filters.projectId) ?? null
+    : library.projects.length === 1
+      ? library.projects[0]
+      : null;
+
+  return activeProject ? { projectId: activeProject.id, parentId: null, label: activeProject.name } : null;
+}
+
+function openFolderModal(): void {
+  const modal = document.querySelector<HTMLElement>("[data-cv-folder-modal]");
+  if (!modal) return;
+  if (!canWriteCurrentAccess()) {
+    showToast("Current role cannot create folders.", "error");
+    return;
+  }
+  const target = folderCreationTarget();
+  if (!target) {
+    showToast("Open a project before creating a folder.", "info");
+    return;
+  }
+
+  const input = modal.querySelector<HTMLInputElement>("[data-cv-folder-name]");
+  const targetText = modal.querySelector<HTMLElement>("[data-cv-folder-target]");
+  const status = modal.querySelector<HTMLElement>("[data-cv-folder-status]");
+  const submit = modal.querySelector<HTMLButtonElement>("[data-cv-folder-submit]");
+  if (input) input.value = "";
+  if (targetText) targetText.textContent = `Create a folder in ${target.label}.`;
+  if (status) {
+    status.hidden = true;
+    status.textContent = "";
+    status.classList.remove("form-status--error");
+  }
+  if (submit) {
+    submit.disabled = false;
+    submit.textContent = "Create folder";
+  }
+  openModal(modal, "[data-cv-folder-name]");
+  closeSidebarAfterCompactAction();
+}
+
+function closeFolderModal(): void {
+  const modal = document.querySelector<HTMLElement>("[data-cv-folder-modal]");
+  if (modal) closeModal(modal);
+}
+
+async function createFolderFromModal(form: HTMLFormElement): Promise<void> {
+  const modal = document.querySelector<HTMLElement>("[data-cv-folder-modal]");
+  const input = form.querySelector<HTMLInputElement>("[data-cv-folder-name]");
+  const status = form.querySelector<HTMLElement>("[data-cv-folder-status]");
+  const submit = form.querySelector<HTMLButtonElement>("[data-cv-folder-submit]");
+  const target = folderCreationTarget();
+  const name = input?.value.trim() ?? "";
+
+  if (!target) {
+    setFolderModalStatus(status, "Open a project before creating a folder.", true);
+    return;
+  }
+  if (!name) {
+    setFolderModalStatus(status, "Folder name is required.", true);
+    input?.focus();
+    return;
+  }
+
+  if (submit) {
+    submit.disabled = true;
+    submit.textContent = "Creating";
+  }
+
+  try {
+    const response = await fetchJson<{ folder: FolderRecord }>("/api/folders", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ projectId: target.projectId, parentId: target.parentId, name }),
+    });
+    library = {
+      ...library,
+      folders: upsertFolder(library.folders, response.folder),
+    };
+    sidebarView = null;
+    filters = { ...filters, projectId: response.folder.projectId, folderId: response.folder.id, tagSlug: null, quickFilter: null };
+    recordBrowserHistory({ projectId: response.folder.projectId, folderId: response.folder.id }, "push");
+    selectedFileId = null;
+    selectedFileIds = new Set();
+    fileBrowserNotice = { tone: "info", message: `Opened ${response.folder.name}` };
+    if (modal) closeModal(modal);
+    showToast(`Folder ready: ${response.folder.name}`, "success");
+    renderAll();
+  } catch (error) {
+    setFolderModalStatus(status, errorMessage(error), true);
+  } finally {
+    if (submit) {
+      submit.disabled = false;
+      submit.textContent = "Create folder";
+    }
+  }
+}
+
+function setFolderModalStatus(element: HTMLElement | null, message: string, isError: boolean): void {
+  if (!element) return;
+  element.hidden = false;
+  element.textContent = message;
+  element.classList.toggle("form-status--error", isError);
+}
+
+function upsertFolder(folders: FolderRecord[], folder: FolderRecord): FolderRecord[] {
+  const exists = folders.some((entry) => entry.id === folder.id);
+  return exists ? folders.map((entry) => (entry.id === folder.id ? folder : entry)) : [...folders, folder];
 }
 
 function openUploadModal(options: { reset?: boolean } = {}): void {
