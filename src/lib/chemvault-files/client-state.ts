@@ -417,8 +417,9 @@ export function filterFiles(files: FileRecord[], filters: FileFilters): FileReco
   });
 }
 
-function isSharedFile(file: Pick<FileRecord, "sharedStatus" | "visibility">): boolean {
-  return file.sharedStatus === "shared" || file.sharedStatus === "public" || file.visibility === "public" || file.visibility === "roles";
+function isSharedFile(file: FileRecord): boolean {
+  const sharedStatus = "sharedStatus" in file ? (file as { sharedStatus?: "private" | "shared" | "public" }).sharedStatus : undefined;
+  return sharedStatus === "shared" || sharedStatus === "public" || file.visibility === "public" || file.visibility === "roles";
 }
 
 export function sortFiles(files: FileRecord[], sort: FileSort): FileRecord[] {

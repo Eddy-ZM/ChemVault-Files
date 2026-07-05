@@ -1565,10 +1565,11 @@ function updateSidebarNavigation(liveFiles: FileRecord[]): void {
   });
 }
 
-function isSharedFileRecord(fileRecord: Pick<FileRecord, "sharedStatus" | "visibility">): boolean {
+function isSharedFileRecord(fileRecord: FileRecord): boolean {
+  const sharedStatus = "sharedStatus" in fileRecord ? (fileRecord as { sharedStatus?: "private" | "shared" | "public" }).sharedStatus : undefined;
   return (
-    fileRecord.sharedStatus === "shared" ||
-    fileRecord.sharedStatus === "public" ||
+    sharedStatus === "shared" ||
+    sharedStatus === "public" ||
     fileRecord.visibility === "public" ||
     fileRecord.visibility === "roles"
   );
