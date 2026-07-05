@@ -255,6 +255,35 @@ export function markFilesDeleted(files: FileRecord[], fileIds: Set<string>, time
   );
 }
 
+export function mergeCompletedUploadFiles(library: LibraryResponse, completedFiles: Iterable<FileRecord>): LibraryResponse {
+  const completedById = new Map<string, FileRecord>();
+  for (const file of completedFiles) {
+    completedById.set(file.id, { ...file, status: "ready" });
+  }
+  if (completedById.size === 0) return library;
+
+  const seen = new Set<string>();
+  const files = library.files.map((file) => {
+    const completed = completedById.get(file.id);
+    if (!completed) return file;
+    seen.add(file.id);
+    return {
+      ...file,
+      ...completed,
+      status: "ready" as const,
+      tags: file.tags.length ? file.tags : completed.tags,
+    };
+  });
+
+  const missingCompletedFiles = Array.from(completedById.values()).filter((file) => !seen.has(file.id));
+  if (missingCompletedFiles.length === 0) return { ...library, files };
+
+  return {
+    ...library,
+    files: [...missingCompletedFiles, ...files],
+  };
+}
+
 export function buildFolderTree(projectId: string, folders: FolderRecord[], files: FileRecord[]): FolderTreeNode[] {
   const projectFolders = folders
     .filter((folder) => folder.projectId === projectId)

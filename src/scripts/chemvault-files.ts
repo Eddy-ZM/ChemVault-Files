@@ -6,6 +6,7 @@ import {
   formatShareUrl,
   getFolderDeletionScope,
   markFilesDeleted,
+  mergeCompletedUploadFiles,
   mergeTags,
   normalizeActorEmail,
   previewKindForFile,
@@ -249,6 +250,7 @@ let collapsedFolderIds = new Set<string>();
 let selectedFileId: string | null = null;
 let selectedFileIds = new Set<string>();
 let uploadQueue: UploadQueueItem[] = [];
+const completedUploadFiles = new Map<string, FileRecord>();
 let deletingFolderIds = new Set<string>();
 let fileBrowserNotice: FileBrowserNotice | null = null;
 let configurationMissing = false;
@@ -1568,6 +1570,11 @@ function renderQueue(): void {
               ? "Queued"
               : `${item.progress}%`;
       const detailText = item.message || (isPending ? "Waiting to start" : isQueued ? "Preparing" : isUploading ? "Uploading" : "");
+      const statusMarkup = isComplete
+        ? `<span class="upload-row__status upload-row__status--complete">${checkIcon()}<span>${escapeHtml(statusText)}</span></span>`
+        : `<span class="upload-row__status${isFailed ? " upload-row__status--failed" : ""}"><span class="upload-row__status-text">${escapeHtml(statusText)}</span>${
+            detailText ? `<small>${escapeHtml(detailText)}</small>` : ""
+          }</span>`;
       return `
         <li class="upload-row upload-row--${escapeAttr(item.status)}${isFailed ? " is-failed" : ""}" data-cv-upload-row>
           <span class="file-type-icon" data-ext="${escapeAttr(ext)}">${escapeHtml(ext)}</span>
@@ -1575,11 +1582,10 @@ function renderQueue(): void {
           <span class="upload-row__size">${formatBytes(item.sizeBytes)}</span>
           ${
             isComplete
-              ? `<span class="upload-complete">${checkIcon()} Completed</span>`
+              ? `<span class="upload-row__bar upload-row__bar--complete" aria-hidden="true"><span></span></span>`
               : `<span class="progress" role="progressbar" aria-valuenow="${item.progress}" aria-valuemin="0" aria-valuemax="100"><span style="width: ${item.progress}%"></span></span>`
           }
-          <span class="upload-row__progress">${escapeHtml(statusText)}</span>
-          <span class="upload-row__time">${escapeHtml(detailText)}</span>
+          ${statusMarkup}
           <button class="ghost-icon" type="button" aria-label="Upload queue item">
             ${isFailed ? warningIcon() : closeIcon()}
           </button>
@@ -2448,14 +2454,25 @@ async function uploadBrowserFile(
       renderQueue();
     });
 
-    await fetchJson<{ status: string; fileId: string }>("/api/files/complete", {
+    const completed = await fetchJson<{ status: string; fileId: string }>("/api/files/complete", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ fileId: init.file.id, sessionId: init.session.id }),
     });
 
+    const completedAt = new Date().toISOString();
+    const completedFile: FileRecord = {
+      ...init.file,
+      id: completed.fileId || init.file.id,
+      status: completed.status === "ready" ? "ready" : init.file.status,
+      updatedAt: completedAt,
+    };
+    if (completedFile.status === "ready") {
+      completedUploadFiles.set(completedFile.id, completedFile);
+      library = mergeCompletedUploadFiles(library, completedUploadFiles.values());
+    }
     uploadQueue = reduceUploadQueue(uploadQueue, { type: "complete", id: target.queueId });
-    selectedFileId = init.file.id;
+    selectedFileId = completedFile.id;
     revealInspectorForSelection();
     await reloadLibrary();
   } catch (error) {
@@ -2553,7 +2570,10 @@ async function reloadLibrary(): Promise<void> {
     });
     configurationMissing = false;
     previewMode = displayState.previewMode;
-    library = displayState.library;
+    library = mergeCompletedUploadFiles(displayState.library, completedUploadFiles.values());
+    for (const fileRecord of displayState.library.files) {
+      if (fileRecord.status === "ready") completedUploadFiles.delete(fileRecord.id);
+    }
   } catch {
     configurationMissing = true;
     applyUnavailableLibraryFallback(true);

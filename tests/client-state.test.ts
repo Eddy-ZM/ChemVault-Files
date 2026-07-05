@@ -7,6 +7,7 @@ import {
   getFolderDeletionScope,
   markFilesDeleted,
   formatShareUrl,
+  mergeCompletedUploadFiles,
   normalizeActorEmail,
   previewKindForFile,
   reduceUploadQueue,
@@ -216,6 +217,54 @@ describe("client state", () => {
     });
     expect(deleted.find((entry) => entry.id === "file_3")).toMatchObject({ status: "deleted" });
     expect(deleted.find((entry) => entry.id === "file_2")).toBe(failedFile);
+  });
+
+  it("keeps freshly completed uploads ready while the remote library catches up", () => {
+    const pendingCsv: FileRecord = {
+      ...csvFile,
+      id: "file_upload_1",
+      status: "pending",
+      updatedAt: "2026-07-04T08:00:00.000Z",
+      tags: [],
+    };
+    const completedCsv: FileRecord = {
+      ...pendingCsv,
+      status: "ready",
+      updatedAt: "2026-07-04T08:00:05.000Z",
+      tags: csvFile.tags,
+    };
+    const remoteLibrary: LibraryResponse = {
+      projects: [],
+      folders: [],
+      tags: [],
+      files: [pendingCsv],
+    };
+
+    const merged = mergeCompletedUploadFiles(remoteLibrary, [completedCsv]);
+
+    expect(merged.files[0]).toMatchObject({
+      id: "file_upload_1",
+      status: "ready",
+      updatedAt: "2026-07-04T08:00:05.000Z",
+      tags: csvFile.tags,
+    });
+  });
+
+  it("adds completed uploads that are temporarily missing from the remote library", () => {
+    const completedCsv: FileRecord = {
+      ...csvFile,
+      id: "file_upload_2",
+      status: "ready",
+      updatedAt: "2026-07-04T08:01:00.000Z",
+    };
+    const remoteLibrary: LibraryResponse = {
+      projects: [],
+      folders: [],
+      tags: [],
+      files: [],
+    };
+
+    expect(mergeCompletedUploadFiles(remoteLibrary, [completedCsv]).files).toEqual([completedCsv]);
   });
 
   it("classifies selected files for inspector previews", () => {

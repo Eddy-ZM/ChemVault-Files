@@ -1,12 +1,12 @@
 :root {
   color-scheme: light;
-  --bg: #f5f5f7;
+  --bg: #f6f8fb;
   --surface: #ffffff;
-  --surface-soft: #fbfbfd;
+  --surface-soft: #f8fafc;
   --text: #1d1d1f;
   --muted: #6e6e73;
-  --line: rgba(0, 0, 0, 0.1);
-  --strong-line: rgba(0, 0, 0, 0.22);
+  --line: #d9dee8;
+  --strong-line: #b9c2d0;
   --blue: #0071e3;
   --blue-strong: #0066cc;
   --blue-soft: #eaf3ff;
@@ -14,8 +14,8 @@
   --green-soft: #eaf7ee;
   --red: #d70015;
   --red-soft: #fff0f0;
-  --shadow: 0 18px 54px rgba(0, 0, 0, 0.08);
-  --radius: 8px;
+  --shadow: 0 12px 32px rgba(31, 45, 68, 0.08);
+  --radius: 6px;
   --motion-fast: 140ms;
   --motion-content: 160ms;
   --motion-expand: 180ms;
@@ -785,8 +785,8 @@ input:focus-visible {
   min-height: 0;
   display: grid;
   grid-template-columns: var(--cv-sidebar-width) minmax(0, 1fr) var(--cv-inspector-width);
-  gap: 10px;
-  padding: 10px;
+  gap: 8px;
+  padding: 8px;
   overflow: hidden;
   transition:
     grid-template-columns calc(var(--motion-expand) + 70ms) var(--motion-ease),
@@ -809,10 +809,10 @@ input:focus-visible {
 
 .panel {
   min-height: 0;
-  border: 1px solid rgba(0, 0, 0, 0.09);
+  border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--surface);
-  box-shadow: 0 10px 30px rgba(20, 30, 50, 0.055), 0 1px 2px rgba(0, 0, 0, 0.02);
+  box-shadow: none;
 }
 
 .sidebar {
@@ -831,8 +831,8 @@ input:focus-visible {
 }
 
 .sidebar.panel {
-  border-color: rgba(30, 38, 56, 0.08);
-  background: linear-gradient(180deg, #fcfdff, #f8fafc);
+  border-color: var(--line);
+  background: #fff;
   box-shadow: none;
 }
 
@@ -1301,16 +1301,14 @@ input:focus-visible {
 .workspace-command {
   position: relative;
   min-width: 0;
-  min-height: 68px;
+  min-height: 58px;
   display: grid;
   grid-template-columns: minmax(260px, 0.78fr) minmax(430px, 1.22fr);
   align-items: center;
   gap: 16px;
   overflow: hidden;
-  padding: 10px 12px;
-  background:
-    linear-gradient(90deg, rgba(0, 113, 227, 0.08), transparent 34%),
-    linear-gradient(180deg, #ffffff, #fbfcfd);
+  padding: 8px 10px;
+  background: #fff;
 }
 
 .workspace-command::before {
@@ -1318,7 +1316,7 @@ input:focus-visible {
   position: absolute;
   inset: 0 auto 0 0;
   width: 3px;
-  background: linear-gradient(180deg, var(--blue), #2aa198, #ff9f0a);
+  background: var(--blue);
 }
 
 .workspace-command__summary {
@@ -1363,7 +1361,7 @@ input:focus-visible {
 .workspace-switcher__button {
   position: relative;
   min-width: 0;
-  min-height: 52px;
+  min-height: 46px;
   display: grid;
   grid-template-columns: 22px minmax(0, 1fr);
   align-items: center;
@@ -1371,29 +1369,25 @@ input:focus-visible {
   padding: 8px 10px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  background: rgba(255, 255, 255, 0.76);
+  background: #fff;
   color: #313a47;
   text-align: left;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  box-shadow: none;
   transition:
-    transform var(--motion-fast) var(--motion-ease),
     border-color var(--motion-fast) ease-out,
-    background-color var(--motion-fast) ease-out,
-    box-shadow var(--motion-fast) ease-out;
+    background-color var(--motion-fast) ease-out;
 }
 
 .workspace-switcher__button:hover {
-  transform: translateY(-1px);
   border-color: rgba(0, 113, 227, 0.22);
-  background: #fff;
-  box-shadow: 0 8px 18px rgba(24, 40, 72, 0.08);
+  background: #f8fbff;
 }
 
 .workspace-switcher__button.is-active {
-  border-color: rgba(0, 113, 227, 0.38);
-  background: #f6fbff;
+  border-color: rgba(0, 113, 227, 0.42);
+  background: #edf6ff;
   color: var(--blue-strong);
-  box-shadow: 0 10px 22px rgba(0, 113, 227, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(0, 113, 227, 0.08);
 }
 
 .workspace-switcher__button .icon {
@@ -1868,9 +1862,9 @@ input:focus-visible {
 
 .upload-row {
   display: grid;
-  grid-template-columns: 34px minmax(180px, 1fr) 76px minmax(120px, 230px) 56px 96px 32px;
+  grid-template-columns: 34px minmax(180px, 1fr) 78px minmax(120px, 220px) minmax(130px, 190px) 32px;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
   min-height: 50px;
   border-top: 1px solid var(--line);
   color: #222835;
@@ -1878,7 +1872,7 @@ input:focus-visible {
 }
 
 .upload-modal .upload-row:not(.upload-row--empty) {
-  min-width: 760px;
+  min-width: 680px;
 }
 
 .upload-row.is-failed {
@@ -1908,19 +1902,19 @@ input:focus-visible {
 
 .upload-row__name,
 .upload-row__size,
-.upload-row__progress,
-.upload-row__time {
+.upload-row__status,
+.upload-row__status-text {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.upload-row__size,
-.upload-row__time {
+.upload-row__size {
   color: #535b67;
 }
 
-.progress {
+.progress,
+.upload-row__bar {
   display: block;
   height: 7px;
   overflow: hidden;
@@ -1928,21 +1922,58 @@ input:focus-visible {
   background: #e3e7ed;
 }
 
-.progress span {
+.progress span,
+.upload-row__bar span {
   display: block;
   height: 100%;
   border-radius: inherit;
   background: var(--blue);
 }
 
+.upload-row__bar--complete span {
+  width: 100%;
+  background: var(--green);
+}
+
+.upload-row__status {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+  color: #535b67;
+  font-size: 12.5px;
+  line-height: 1.2;
+}
+
+.upload-row__status small {
+  min-width: 0;
+  overflow: hidden;
+  color: #7a8491;
+  font-size: 11.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.upload-row__status--complete,
+.upload-row__status--failed,
 .upload-complete {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  color: var(--green);
+  gap: 7px;
   font-size: 13px;
 }
 
+.upload-row__status--complete {
+  color: var(--green);
+  font-weight: 620;
+}
+
+.upload-row__status--failed {
+  color: var(--red);
+  font-weight: 620;
+}
+
+.upload-row__status--complete .icon,
+.upload-row__status--failed .icon,
 .upload-complete .icon {
   width: 17px;
   height: 17px;
@@ -2006,12 +2037,10 @@ input:focus-visible {
   min-height: 0;
   display: grid;
   grid-template-rows: auto auto minmax(0, 1fr) auto;
-  gap: 8px;
+  gap: 6px;
   padding-top: 8px;
   overflow: hidden;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(249, 251, 254, 0.98)),
-    linear-gradient(90deg, rgba(0, 113, 227, 0.04), transparent 40%);
+  background: #fff;
 }
 
 .file-panel__header {
@@ -2065,12 +2094,10 @@ input:focus-visible {
   grid-template-rows: auto 1fr;
   margin: 0 12px;
   overflow: hidden;
-  border: 1px solid rgba(145, 158, 178, 0.46);
+  border: 1px solid var(--line);
   border-radius: var(--radius);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(247, 250, 253, 0.98)),
-    linear-gradient(90deg, rgba(0, 113, 227, 0.045), transparent 34%);
-  box-shadow: 0 12px 28px rgba(23, 34, 52, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.92);
+  background: #fff;
+  box-shadow: none;
 }
 
 .file-browser__header {
@@ -2080,9 +2107,8 @@ input:focus-visible {
   gap: 12px;
   min-height: 38px;
   padding: 6px 10px;
-  border-bottom: 1px solid rgba(220, 226, 235, 0.86);
-  background: rgba(255, 255, 255, 0.78);
-  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--line);
+  background: #fff;
 }
 
 .file-browser__navigator {
@@ -2222,26 +2248,22 @@ input:focus-visible {
   gap: 3px 10px;
   padding: 10px;
   overflow: hidden;
-  border: 1px solid rgba(204, 214, 228, 0.82);
+  border: 1px solid var(--line);
   border-radius: var(--radius);
-  background: rgba(255, 255, 255, 0.9);
+  background: #fff;
   color: #242b36;
   text-align: left;
-  box-shadow: 0 5px 14px rgba(23, 34, 52, 0.055);
+  box-shadow: none;
   animation: cv-file-os-enter var(--motion-content) var(--motion-ease) both;
   transition:
     border-color var(--motion-fast) ease-out,
-    background-color var(--motion-fast) ease-out,
-    box-shadow var(--motion-fast) ease-out,
-    transform var(--motion-fast) ease-out;
+    background-color var(--motion-fast) ease-out;
 }
 
 .file-os-item:hover,
 .file-os-item:focus-visible {
   border-color: rgba(0, 113, 227, 0.32);
-  background: #fff;
-  box-shadow: 0 14px 30px rgba(32, 45, 66, 0.12);
-  transform: translateY(-2px);
+  background: #f5f9ff;
 }
 
 .file-os-item--deletable {
@@ -2774,7 +2796,7 @@ input:focus-visible {
   height: 100%;
   overflow: auto;
   contain: paint;
-  background: rgba(255, 255, 255, 0.72);
+  background: #fff;
 }
 
 .file-table {
@@ -2786,8 +2808,8 @@ input:focus-visible {
 
 .file-table th,
 .file-table td {
-  height: 42px;
-  padding: 0 10px;
+  height: 40px;
+  padding: 0 12px;
   border-bottom: 1px solid var(--line);
   text-align: left;
   vertical-align: middle;
@@ -2799,12 +2821,11 @@ input:focus-visible {
   top: 0;
   z-index: 2;
   height: 36px;
-  border-bottom-color: rgba(210, 218, 229, 0.82);
-  background: rgba(250, 252, 255, 0.94);
+  border-bottom-color: var(--line);
+  background: #f8fafc;
   color: #475160;
   font-size: 12px;
   font-weight: 650;
-  backdrop-filter: blur(10px);
 }
 
 .table-sort {
@@ -2832,14 +2853,14 @@ input:focus-visible {
 }
 
 .file-table tbody tr {
-  background: rgba(255, 255, 255, 0.82);
+  background: #fff;
   transition:
     background-color var(--motion-fast) ease-out,
     box-shadow var(--motion-fast) ease-out;
 }
 
 .file-table tbody tr:hover {
-  background: rgba(242, 248, 255, 0.98);
+  background: #f5f9ff;
 }
 
 .file-table tbody tr[tabindex] {
@@ -2847,7 +2868,7 @@ input:focus-visible {
 }
 
 .file-table tbody tr.is-selected {
-  background: linear-gradient(90deg, rgba(0, 113, 227, 0.14), rgba(234, 246, 255, 0.96));
+  background: #eaf3ff;
   box-shadow: inset 3px 0 0 var(--blue);
 }
 
@@ -2857,7 +2878,7 @@ input:focus-visible {
 
 .file-table__row--folder {
   color: #425066;
-  background: rgba(255, 255, 255, 0.68);
+  background: #fff;
 }
 
 .file-table__row--folder td {
@@ -4067,7 +4088,7 @@ input:focus-visible {
   }
 
   .upload-row {
-    grid-template-columns: 34px minmax(160px, 1fr) 70px minmax(100px, 1fr) 50px 78px 32px;
+    grid-template-columns: 34px minmax(160px, 1fr) 70px minmax(100px, 1fr) minmax(120px, 170px) 32px;
     gap: 10px;
   }
 
@@ -4261,12 +4282,16 @@ input:focus-visible {
   }
 
   .upload-row .progress,
-  .upload-complete {
+  .upload-row__bar,
+  .upload-row__status {
     grid-column: 2 / 4;
   }
 
-  .upload-row__progress,
-  .upload-row__time {
+  .upload-row__status {
+    display: inline-flex;
+  }
+
+  .upload-row__status small {
     display: none;
   }
 }
