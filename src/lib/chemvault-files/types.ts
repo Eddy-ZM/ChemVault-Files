@@ -24,6 +24,12 @@ export interface FolderRecord {
   name: string;
   slug: string;
   path: string;
+  ownerUserId?: string | null;
+  isStarred?: boolean;
+  isTrashed?: boolean;
+  trashedAt?: string | null;
+  deletedAt?: string | null;
+  metadata?: Record<string, unknown> | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -52,6 +58,13 @@ export interface FileRecord {
   downloadCount: number;
   visibility: FileVisibility;
   roleIds: string[];
+  ownerUserId?: string | null;
+  parentId?: string | null;
+  isStarred?: boolean;
+  trashedAt?: string | null;
+  lastOpenedAt?: string | null;
+  sharedStatus?: "private" | "shared" | "public";
+  metadata?: Record<string, unknown> | null;
   createdAt: string;
   updatedAt: string;
   deletedAt: string | null;

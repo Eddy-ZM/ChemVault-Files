@@ -4,7 +4,7 @@ import { createFileInitDraft } from "../../_lib/file-service";
 import { canWriteFiles, listRolePolicies, permissionDeniedJson, resolveActorAccess } from "../../_lib/permissions";
 import { okJson, parseJsonBody, routeError } from "../../_lib/http";
 import { checkInMemoryRateLimit, rateLimitClientId } from "../../_lib/rate-limit";
-import { ensureFileAccessSchema } from "../../_lib/schema";
+import { ensureDriveAppSchema, ensureFileAccessSchema } from "../../_lib/schema";
 import { normalizeRoleIds, normalizeSlug, normalizeTags } from "../../../src/lib/chemvault-files/validation";
 import type { ActorAccess, FileRolePolicy } from "../../../src/lib/chemvault-files/types";
 
@@ -12,6 +12,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   try {
     const db = requireDb(env.FILES_DB);
     await ensureFileAccessSchema(db, env);
+    await ensureDriveAppSchema(db);
     const access = await resolveActorAccess(request, env, db);
     if (!canWriteFiles(access)) return permissionDeniedJson(access, "write");
     const limited = checkInMemoryRateLimit({
@@ -56,6 +57,11 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
         draft.file.updatedAt,
         draft.file.deletedAt
       )
+      .run();
+
+    await db
+      .prepare("UPDATE files SET owner_user_id = ?, parent_id = ?, shared_status = ? WHERE id = ?")
+      .bind(draft.file.actorEmail, draft.file.folderId, draft.file.visibility === "public" ? "public" : draft.file.visibility === "roles" ? "shared" : "private", draft.file.id)
       .run();
 
     for (const roleId of draft.file.roleIds) {

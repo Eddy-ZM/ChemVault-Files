@@ -1,12 +1,14 @@
 import type { Env } from "../_lib/env";
 import { mapFolder, requireDb } from "../_lib/db";
 import { canWriteFiles, permissionDeniedJson, resolveActorAccess } from "../_lib/permissions";
+import { ensureDriveAppSchema } from "../_lib/schema";
 import { okJson, parseJsonBody, routeError } from "../_lib/http";
 import { assertNonEmptyName, normalizeSlug } from "../../src/lib/chemvault-files/validation";
 
 export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
   try {
     const db = requireDb(env.FILES_DB);
+    await ensureDriveAppSchema(db);
     const access = await resolveActorAccess(request, env, db);
     if (!canWriteFiles(access)) return permissionDeniedJson(access, "write");
     const body = (await parseJsonBody(request)) as Record<string, unknown>;
@@ -33,6 +35,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       .prepare("INSERT INTO folders (id, project_id, parent_id, name, slug, path, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
       .bind(folderId, projectId, parentId, name, slug, path, timestamp, timestamp)
       .run();
+    await db.prepare("UPDATE folders SET owner_user_id = ? WHERE id = ?").bind(access.actorEmail, folderId).run();
 
     const row = await db.prepare("SELECT * FROM folders WHERE id = ?").bind(folderId).first();
     return okJson({ folder: mapFolder(row as Record<string, unknown>) }, { status: 201 });

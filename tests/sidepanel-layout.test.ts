@@ -7,8 +7,8 @@ const clientSource = readFileSync(new URL("../src/scripts/chemvault-files.ts", i
 const stylesSource = readFileSync(new URL("../src/styles/chemvault-files.css", import.meta.url), "utf8");
 
 describe("collapsible side panel layout", () => {
-  it("starts with compact side panels and exposes topbar controls", () => {
-    expect(appShellSource).toContain('data-cv-sidebar-collapsed="true"');
+  it("starts with a readable sidebar and exposes topbar controls", () => {
+    expect(appShellSource).toContain('data-cv-sidebar-collapsed="false"');
     expect(appShellSource).toContain('data-cv-inspector-collapsed="true"');
     expect(appShellSource).toContain("data-cv-sidebar-toggle");
     expect(appShellSource).toContain("data-cv-inspector-toggle");
@@ -30,7 +30,7 @@ describe("collapsible side panel layout", () => {
   });
 
   it("keeps the workspace fluid while side panels collapse", () => {
-    expect(stylesSource).toContain("--cv-sidebar-collapsed-width: 56px");
+    expect(stylesSource).toContain("--cv-sidebar-collapsed-width: 82px");
     expect(stylesSource).toContain('grid-template-columns: var(--cv-sidebar-width) minmax(0, 1fr) var(--cv-inspector-width)');
     expect(stylesSource).toContain('.files-shell[data-cv-sidebar-collapsed="true"] .files-workbench');
     expect(stylesSource).toContain('.files-shell[data-cv-inspector-collapsed="true"] .files-workbench');
@@ -41,6 +41,8 @@ describe("collapsible side panel layout", () => {
     expect(stylesSource).toContain(".nav-row[aria-current=\"page\"]");
     expect(stylesSource).toContain(".sidebar-action--primary");
     expect(stylesSource).toContain(".files-shell[data-cv-sidebar-collapsed=\"true\"] .sidebar-action");
+    expect(stylesSource).toContain(".files-shell[data-cv-sidebar-collapsed=\"true\"] .nav-row span");
+    expect(stylesSource).toContain("font-size: 10.5px");
     expect(stylesSource).toContain("grid-template-rows: 60px minmax(0, 1fr) 34px");
     expect(stylesSource).toContain(".files-footer");
     expect(stylesSource).toContain("font-size: 11px");
@@ -48,6 +50,7 @@ describe("collapsible side panel layout", () => {
 
   it("persists side panel state and reopens the inspector on file selection", () => {
     expect(clientSource).toContain("chemvault-files:sidebar-collapsed");
+    expect(clientSource).toContain("readStoredBoolean(sidebarCollapsedStorageKey, false)");
     expect(clientSource).toContain("chemvault-files:inspector-collapsed");
     expect(clientSource).toContain("function updateSidePanels");
     expect(clientSource).toContain("function toggleSidebar");

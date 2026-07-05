@@ -4,11 +4,13 @@ import { buildInlinePreviewHeaders, createActivityDraft, recordFileActivity } fr
 import { canReadFiles, canViewFile, permissionDeniedJson, resolveActorAccess } from "../../../_lib/permissions";
 import { errorJson, routeError } from "../../../_lib/http";
 import { isPreviewableFile } from "../../../../src/lib/chemvault-files/preview";
+import { ensureDriveAppSchema } from "../../../_lib/schema";
 
 export const onRequestGet: PagesFunction<Env> = async ({ request, env, params }) => {
   try {
     if (!env.FILES_BUCKET) throw new Error("R2 binding FILES_BUCKET is not configured");
     const db = requireDb(env.FILES_DB);
+    await ensureDriveAppSchema(db);
     const access = await resolveActorAccess(request, env, db);
     if (!canReadFiles(access)) return permissionDeniedJson(access, "read");
     const fileId = String(params.id || "");
@@ -46,6 +48,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env, params })
         metadata: { mimeType: file.mimeType, name: file.displayName },
       })
     );
+    await db.prepare("UPDATE files SET last_opened_at = ? WHERE id = ?").bind(new Date().toISOString(), fileId).run();
     return new Response(object.body, { headers: buildInlinePreviewHeaders(file) });
   } catch (error) {
     return routeError(error);

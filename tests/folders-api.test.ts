@@ -102,14 +102,27 @@ class FakeStatement {
       this.state.deletedIds.push(folderId);
       delete this.state.folders[folderId];
     }
+    if (this.sql.includes("UPDATE folders SET is_trashed = 1")) {
+      const folderIds = this.sql.includes("WHERE id IN") ? this.args.slice(3).map(String) : [String(this.args[3])];
+      for (const folderId of folderIds) {
+        const folder = this.state.folders[folderId];
+        if (folder) {
+          folder.is_trashed = 1;
+          folder.trashed_at = this.args[0];
+          folder.deleted_at = this.args[1];
+          folder.updated_at = this.args[2];
+        }
+        this.state.deletedIds.push(folderId);
+      }
+    }
     if (this.sql.includes("UPDATE files SET status = 'deleted'")) {
-      const fileId = String(this.args[2]);
+      const fileId = String(this.args[3]);
       const file = this.state.files?.[fileId];
       if (file) {
         file.status = "deleted";
         file.deleted_at = this.args[0];
-        file.updated_at = this.args[1];
-        file.folder_id = null;
+        file.trashed_at = this.args[1];
+        file.updated_at = this.args[2];
       }
       this.state.deletedFileIds?.push(fileId);
     }
@@ -267,8 +280,9 @@ describe("folders API", () => {
     const response = await deleteFolder(context(state, request("owner@chemvault.science", { method: "DELETE" }), { id: "folder_empty" }));
 
     expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toEqual({ status: "deleted", folderId: "folder_empty" });
+    await expect(response.json()).resolves.toMatchObject({ status: "trashed", folderId: "folder_empty" });
     expect(state.deletedIds).toEqual(["folder_empty"]);
+    expect(state.folders.folder_empty.is_trashed).toBe(1);
   });
 
   it("detaches already-deleted file tombstones before deleting an otherwise empty folder", async () => {
@@ -286,7 +300,7 @@ describe("folders API", () => {
     const response = await deleteFolder(context(state, request("owner@chemvault.science", { method: "DELETE" }), { id: "folder_empty" }));
 
     expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toEqual({ status: "deleted", folderId: "folder_empty" });
+    await expect(response.json()).resolves.toMatchObject({ status: "trashed", folderId: "folder_empty" });
     expect(state.files?.file_deleted.folder_id).toBeNull();
     expect(state.deletedIds).toEqual(["folder_empty"]);
   });
@@ -334,13 +348,13 @@ describe("folders API", () => {
 
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toMatchObject({
-      status: "deleted",
+      status: "trashed",
       folderId: "folder_parent",
       deletedFolderCount: 2,
       deletedFileCount: 2,
     });
     expect(state.deletedFileIds).toEqual(["file_parent", "file_child"]);
-    expect(state.deletedIds).toEqual(["folder_child", "folder_parent"]);
-    expect(ctx.data.deletedR2Keys).toEqual(["files/parent.pdf", "files/child.pdf"]);
+    expect(state.deletedIds).toEqual(["folder_parent", "folder_child"]);
+    expect(ctx.data.deletedR2Keys).toEqual([]);
   });
 });

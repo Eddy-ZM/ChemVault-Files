@@ -8,12 +8,13 @@ import {
 } from "../../../_lib/file-service";
 import { canReadFiles, canViewFile, canWriteFiles, permissionDeniedJson, resolveActorAccess } from "../../../_lib/permissions";
 import { errorJson, okJson, parseJsonBody, routeError } from "../../../_lib/http";
-import { ensureFileSharesSchema } from "../../../_lib/schema";
+import { ensureDriveAppSchema, ensureFileSharesSchema } from "../../../_lib/schema";
 
 export const onRequestGet: PagesFunction<Env> = async ({ request, env, params }) => {
   try {
     const db = requireDb(env.FILES_DB);
     await ensureFileSharesSchema(db);
+    await ensureDriveAppSchema(db);
     const access = await resolveActorAccess(request, env, db);
     if (!canReadFiles(access)) return permissionDeniedJson(access, "read");
     const fileId = String(params.id || "");
@@ -37,6 +38,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env, params }
   try {
     const db = requireDb(env.FILES_DB);
     await ensureFileSharesSchema(db);
+    await ensureDriveAppSchema(db);
     const access = await resolveActorAccess(request, env, db);
     if (!canWriteFiles(access)) return permissionDeniedJson(access, "write");
     const fileId = String(params.id || "");
@@ -66,6 +68,11 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env, params }
         0,
         null
       )
+      .run();
+
+    await db
+      .prepare("UPDATE files SET shared_status = ?, visibility = CASE WHEN visibility = 'private' THEN 'roles' ELSE visibility END, updated_at = ? WHERE id = ?")
+      .bind(payload.isPublic ? "public" : "shared", createdAt, file.id)
       .run();
 
     await recordFileActivity(

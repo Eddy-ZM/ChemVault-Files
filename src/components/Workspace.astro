@@ -85,6 +85,19 @@
         <div class="active-filters" aria-label="Active filters" data-cv-active-filters></div>
       </div>
       <div class="file-tools" aria-label="File table tools">
+        <label class="toolbar-select" aria-label="Filter by file type">
+          <span>Type</span>
+          <select data-cv-type-filter>
+            <option value="all">All</option>
+            <option value="image">Images</option>
+            <option value="document">Documents</option>
+            <option value="spreadsheet">Spreadsheets</option>
+            <option value="presentation">Presentations</option>
+            <option value="pdf">PDF</option>
+            <option value="code">Code</option>
+            <option value="other">Other</option>
+          </select>
+        </label>
         <button class="button button--secondary" type="button" data-cv-quick-filter="failed">
           <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
             <path d="M4 5h16l-6 7v5l-4 2v-7L4 5Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
@@ -175,12 +188,12 @@
               </svg>
             </button>
             <span data-cv-page-summary>Loading</span>
-            <button class="ghost-icon" type="button" aria-label="Previous page">
+            <button class="ghost-icon" type="button" aria-label="Previous page" data-cv-page="prev" disabled>
               <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
                 <path d="m15 18-6-6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
               </svg>
             </button>
-            <button class="ghost-icon" type="button" aria-label="Next page">
+            <button class="ghost-icon" type="button" aria-label="Next page" data-cv-page="next" disabled>
               <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
                 <path d="m9 18 6-6-6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
               </svg>

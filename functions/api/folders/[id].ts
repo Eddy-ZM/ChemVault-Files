@@ -1,11 +1,13 @@
 import type { Env } from "../../_lib/env";
 import { listFileRoleAccess, mapFile, requireDb } from "../../_lib/db";
 import { canViewFile, canWriteFiles, permissionDeniedJson, resolveActorAccess } from "../../_lib/permissions";
+import { ensureDriveAppSchema } from "../../_lib/schema";
 import { errorJson, okJson, routeError } from "../../_lib/http";
 
 export const onRequestDelete: PagesFunction<Env> = async ({ request, env, params }) => {
   try {
     const db = requireDb(env.FILES_DB);
+    await ensureDriveAppSchema(db);
     const access = await resolveActorAccess(request, env, db);
     if (!canWriteFiles(access)) return permissionDeniedJson(access, "write");
 
@@ -27,9 +29,10 @@ export const onRequestDelete: PagesFunction<Env> = async ({ request, env, params
     }
 
     if (!options.recursive) {
-      await detachFilesFromFolders(db, [folderId], new Date().toISOString());
-      await db.prepare("DELETE FROM folders WHERE id = ?").bind(folderId).run();
-      return okJson({ status: "deleted", folderId });
+      const now = new Date().toISOString();
+      await detachFilesFromFolders(db, [folderId], now);
+      await db.prepare("UPDATE folders SET is_trashed = 1, trashed_at = ?, deleted_at = ?, updated_at = ? WHERE id = ?").bind(now, now, now, folderId).run();
+      return okJson({ status: "trashed", folderId, trashedAt: now });
     }
 
     const folderIds = await listFolderTreeIds(db, folderId);
@@ -45,19 +48,14 @@ export const onRequestDelete: PagesFunction<Env> = async ({ request, env, params
     const now = new Date().toISOString();
     for (const file of files) {
       await db
-        .prepare("UPDATE files SET status = 'deleted', deleted_at = ?, updated_at = ?, folder_id = NULL WHERE id = ?")
-        .bind(now, now, file.id)
+        .prepare("UPDATE files SET status = 'deleted', deleted_at = ?, trashed_at = ?, updated_at = ? WHERE id = ?")
+        .bind(now, now, now, file.id)
         .run();
-      await env.FILES_BUCKET?.delete(file.r2Key);
     }
 
-    await detachFilesFromFolders(db, folderIds, now);
+    await markFoldersTrashed(db, folderIds, now);
 
-    for (const id of [...folderIds].reverse()) {
-      await db.prepare("DELETE FROM folders WHERE id = ?").bind(id).run();
-    }
-
-    return okJson({ status: "deleted", folderId, deletedFolderCount: folderIds.length, deletedFileCount: files.length });
+    return okJson({ status: "trashed", folderId, deletedFolderCount: folderIds.length, deletedFileCount: files.length, trashedAt: now });
   } catch (error) {
     return routeError(error);
   }
@@ -101,5 +99,14 @@ async function detachFilesFromFolders(db: D1Database, folderIds: string[], times
   await db
     .prepare(`UPDATE files SET folder_id = NULL, updated_at = ? WHERE folder_id IN (${placeholders})`)
     .bind(timestamp, ...folderIds)
+    .run();
+}
+
+async function markFoldersTrashed(db: D1Database, folderIds: string[], timestamp: string): Promise<void> {
+  if (folderIds.length === 0) return;
+  const placeholders = folderIds.map(() => "?").join(",");
+  await db
+    .prepare(`UPDATE folders SET is_trashed = 1, trashed_at = ?, deleted_at = ?, updated_at = ? WHERE id IN (${placeholders})`)
+    .bind(timestamp, timestamp, timestamp, ...folderIds)
     .run();
 }

@@ -8,6 +8,8 @@ import {
   normalizeUploadMimeType,
 } from "../../../src/lib/chemvault-files/validation";
 
+export { onRequestPost } from "./init";
+
 export const onRequestPut: PagesFunction<Env> = async ({ request, env }) => {
   try {
     if (!env.FILES_BUCKET) throw new Error("R2 binding FILES_BUCKET is not configured");

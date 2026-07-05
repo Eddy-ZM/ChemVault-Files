@@ -10,7 +10,8 @@
     "USER_LOGIN_URL": "https://user.chemvault.science/login",
     "COOKIE_NAME": "chemvault_session",
     "COOKIE_DOMAIN": ".chemvault.science",
-    "ENVIRONMENT": "production"
+    "ENVIRONMENT": "production",
+    "FILE_STORAGE_QUOTA_BYTES": "10737418240"
   },
   "r2_buckets": [
     {

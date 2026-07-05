@@ -67,6 +67,14 @@ class FakeStatement {
   }
 
   async run(): Promise<{ success: true }> {
+    if (this.sql.includes("UPDATE file_shares SET allow_download")) {
+      const share = this.state.shares.find((entry) => entry.token === this.args[3] && entry.file_id === this.args[4]);
+      if (share) {
+        share.allow_download = Number(this.args[0]);
+        share.is_public = Number(this.args[1]);
+        share.expires_at = String(this.args[2]);
+      }
+    }
     if (this.sql.includes("UPDATE file_shares SET expires_at")) {
       const share = this.state.shares.find((entry) => entry.token === this.args[1] && entry.file_id === this.args[2]);
       if (share) share.expires_at = String(this.args[0]);
@@ -142,7 +150,7 @@ describe("share management API", () => {
         state,
         authedRequest("https://file.chemvault.science/api/files/file_1/shares/sh_active", {
           method: "PATCH",
-          body: JSON.stringify({ expiresInDays: 30 }),
+          body: JSON.stringify({ expiresInDays: 30, allowDownload: true, isPublic: true }),
         })
       ) as unknown as Parameters<typeof updateShare>[0]
     );
@@ -151,9 +159,13 @@ describe("share management API", () => {
     await expect(response.json()).resolves.toMatchObject({
       share: {
         token: "sh_active",
+        allowDownload: true,
+        isPublic: true,
       },
     });
     expect(new Date(state.shares[0].expires_at).getTime()).toBeGreaterThan(new Date("2026-06-25T00:00:00.000Z").getTime());
+    expect(state.shares[0].allow_download).toBe(1);
+    expect(state.shares[0].is_public).toBe(1);
   });
 
   it("revokes a share instead of deleting the row", async () => {

@@ -17,7 +17,7 @@ export function requireDb(db: D1Database | undefined): D1Database {
 export async function listLibrary(db: D1Database, access?: ActorAccess): Promise<LibraryResponse> {
   const [projects, folders, tags, files] = await Promise.all([
     db.prepare("SELECT * FROM projects ORDER BY sort_order, name").all(),
-    db.prepare("SELECT * FROM folders ORDER BY path").all(),
+    listActiveFolderRows(db),
     db.prepare("SELECT * FROM tags ORDER BY name").all(),
     db.prepare("SELECT * FROM files WHERE deleted_at IS NULL ORDER BY updated_at DESC LIMIT 500").all(),
   ]);
@@ -31,6 +31,17 @@ export async function listLibrary(db: D1Database, access?: ActorAccess): Promise
     tags: (tags.results as Record<string, unknown>[]).map(mapTag),
     files: access ? mappedFiles.filter((file) => isFileVisibleToAccess(file, access)) : mappedFiles,
   };
+}
+
+async function listActiveFolderRows(db: D1Database): Promise<{ results: unknown[] }> {
+  try {
+    return await db.prepare("SELECT * FROM folders WHERE deleted_at IS NULL ORDER BY path").all();
+  } catch (error) {
+    if (error instanceof Error && error.message.toLowerCase().includes("no such column: deleted_at")) {
+      return await db.prepare("SELECT * FROM folders ORDER BY path").all();
+    }
+    throw error;
+  }
 }
 
 export async function mapFilesWithTags(db: D1Database, fileRows: Record<string, unknown>[]): Promise<FileRecord[]> {
@@ -108,6 +119,12 @@ export function mapFolder(row: Record<string, unknown>): FolderRecord {
     name: String(row.name),
     slug: String(row.slug),
     path: String(row.path),
+    ownerUserId: row.owner_user_id === undefined || row.owner_user_id === null ? null : String(row.owner_user_id),
+    isStarred: Number(row.is_starred ?? 0) === 1,
+    isTrashed: Number(row.is_trashed ?? 0) === 1 || row.deleted_at !== undefined && row.deleted_at !== null,
+    trashedAt: row.trashed_at === undefined || row.trashed_at === null ? null : String(row.trashed_at),
+    deletedAt: row.deleted_at === undefined || row.deleted_at === null ? null : String(row.deleted_at),
+    metadata: parseJsonObject(row.metadata_json),
     createdAt: String(row.created_at),
     updatedAt: String(row.updated_at),
   };
@@ -140,6 +157,18 @@ export function mapFile(row: Record<string, unknown>): Omit<FileRecord, "tags"> 
     downloadCount: Number(row.download_count),
     visibility: row.visibility === "public" ? "public" : row.visibility === "roles" ? "roles" : "private",
     roleIds: [],
+    ownerUserId: row.owner_user_id === undefined || row.owner_user_id === null ? null : String(row.owner_user_id),
+    parentId: row.parent_id === undefined || row.parent_id === null ? (row.folder_id === null ? null : String(row.folder_id)) : String(row.parent_id),
+    isStarred: Number(row.is_starred ?? 0) === 1,
+    trashedAt: row.trashed_at === undefined || row.trashed_at === null ? (row.deleted_at === null ? null : String(row.deleted_at)) : String(row.trashed_at),
+    lastOpenedAt: row.last_opened_at === undefined || row.last_opened_at === null ? null : String(row.last_opened_at),
+    sharedStatus:
+      row.shared_status === "public" || row.shared_status === "shared" || row.shared_status === "private"
+        ? row.shared_status
+        : row.visibility === "public"
+          ? "public"
+          : "private",
+    metadata: parseJsonObject(row.metadata_json),
     createdAt: String(row.created_at),
     updatedAt: String(row.updated_at),
     deletedAt: row.deleted_at === null ? null : String(row.deleted_at),
@@ -186,6 +215,10 @@ export function mapActivity(row: Record<string, unknown>): FileActivityRecord {
 }
 
 function parseActivityMetadata(value: unknown): Record<string, unknown> | null {
+  return parseJsonObject(value);
+}
+
+function parseJsonObject(value: unknown): Record<string, unknown> | null {
   if (typeof value !== "string" || !value.trim()) return null;
   try {
     const parsed = JSON.parse(value) as unknown;

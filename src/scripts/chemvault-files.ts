@@ -113,8 +113,23 @@ interface RoleSettingsState {
   message: string | null;
 }
 
-type SidebarNavKey = "all-files" | "recent" | "shared" | "failed" | "large";
+type SidebarNavKey = "all-files" | "recent" | "starred" | "shared" | "trash" | "storage" | "settings" | "failed" | "large";
 type SidebarViewKey = SidebarNavKey | null;
+type DriveTypeFilter = "all" | "image" | "document" | "spreadsheet" | "presentation" | "pdf" | "code" | "other";
+
+interface DriveItemsResponse {
+  files?: FileRecord[];
+  folders?: FolderRecord[];
+  items?: Array<{ type: "file"; file: FileRecord } | { type: "folder"; folder: FolderRecord }>;
+}
+
+interface TrashState {
+  loading: boolean;
+  loaded: boolean;
+  error: string | null;
+  files: FileRecord[];
+  folders: FolderRecord[];
+}
 
 interface BrowserUploadSelection {
   file: File;
@@ -154,6 +169,8 @@ interface BrowserFileSystemDirectoryEntry extends BrowserFileEntry {
     readEntries: (success: (entries: BrowserFileEntry[]) => void, error?: (error: DOMException) => void) => void;
   };
 }
+
+type FileActionMode = "rename" | "move" | "copy";
 
 const seedProjects = [
   project("project_dossiers", "Dossiers", "dossiers", 10),
@@ -237,6 +254,7 @@ const seedUploadQueue: UploadQueueItem[] = [
 const sidebarCollapsedStorageKey = "chemvault-files:sidebar-collapsed";
 const inspectorCollapsedStorageKey = "chemvault-files:inspector-collapsed";
 const toastDurationMs = 2200;
+const browserPageSize = 50;
 
 let library: LibraryResponse = createInitialLibrary(seedLibrary);
 let filters: FileFilters = {
@@ -275,16 +293,22 @@ let roleSettingsState: RoleSettingsState = { loading: false, saving: false, erro
 let uploadVisibility: FileVisibility = "private";
 let uploadRoleIds = new Set<string>(["role_internal", "role_external"]);
 let fileSort: FileSort = { key: "modified", direction: "desc" };
+let typeFilter: DriveTypeFilter = "all";
 let viewMode: "list" | "grid" = "list";
+let browserPage = 1;
 let workspaceView: WorkspaceView = "library";
 let sidebarView: SidebarViewKey = "all-files";
 let inspectorTab: InspectorTab = "details";
 let inspectorTabMotion: TabMotionDirection = "none";
 let inspectorTabMotionSequence = 0;
-let sidebarCollapsed = readStoredBoolean(sidebarCollapsedStorageKey, true);
+let sidebarCollapsed = readStoredBoolean(sidebarCollapsedStorageKey, false);
 let inspectorCollapsed = readStoredBoolean(inspectorCollapsedStorageKey, true);
 const activityByFileId = new Map<string, InspectorAsyncState<FileActivityRecord[]>>();
 const shareByFileId = new Map<string, ShareUiState>();
+let trashState: TrashState = { loading: false, loaded: false, error: null, files: [], folders: [] };
+let fileActionMode: FileActionMode | null = null;
+let fileActionTargetId: string | null = null;
+let fileActionSaving = false;
 let toastTimer: number | null = null;
 
 export function bootChemVaultFiles(): void {
@@ -294,6 +318,7 @@ export function bootChemVaultFiles(): void {
   shell.dataset.cvBooted = "true";
   setShellAuthState("checking");
   setAuthGateMessage("loading");
+  initializeRouteState();
   bindEvents();
   updateSidePanels();
   renderAccountIdentity();
@@ -309,6 +334,41 @@ function readStoredBoolean(key: string, fallback: boolean): boolean {
     return fallback;
   }
   return fallback;
+}
+
+function initializeRouteState(): void {
+  const routeView = sidebarViewFromPath(window.location.pathname);
+  sidebarView = routeView;
+  filters = { search: filters.search, projectId: null, folderId: null, tagSlug: null, quickFilter: null };
+  if (routeView === "starred" || routeView === "shared") {
+    filters.quickFilter = routeView;
+  }
+  if (routeView === "recent" || routeView === "trash") {
+    viewMode = "list";
+    fileSort = { key: "modified", direction: "desc" };
+  }
+  if (routeView === "storage" || routeView === "settings") {
+    workspaceView = "insights";
+  }
+}
+
+function sidebarViewFromPath(pathname: string): SidebarNavKey {
+  if (pathname.includes("/files/recent")) return "recent";
+  if (pathname.includes("/files/starred")) return "starred";
+  if (pathname.includes("/files/shared")) return "shared";
+  if (pathname.includes("/files/trash")) return "trash";
+  if (pathname.includes("/files/settings")) return "settings";
+  return "all-files";
+}
+
+function routeForSidebarNav(nav: SidebarNavKey): string | null {
+  if (nav === "recent") return "/files/recent";
+  if (nav === "starred") return "/files/starred";
+  if (nav === "shared") return "/files/shared";
+  if (nav === "trash") return "/files/trash";
+  if (nav === "storage" || nav === "settings") return "/files/settings";
+  if (nav === "all-files") return "/files";
+  return null;
 }
 
 function writeStoredBoolean(key: string, value: boolean): void {
@@ -376,6 +436,14 @@ function bindEvents(): void {
   document.querySelector<HTMLButtonElement>("[data-cv-inspector-toggle]")?.addEventListener("click", () => toggleInspector());
   document.querySelector<HTMLButtonElement>("[data-cv-sidepanel-scrim]")?.addEventListener("click", () => closeFloatingSidePanels());
   window.addEventListener("resize", updateSidePanels);
+  window.addEventListener("popstate", () => {
+    initializeRouteState();
+    selectedFileId = null;
+    selectedFileIds = new Set();
+    browserPage = 1;
+    if (sidebarView === "trash") void loadTrashItems();
+    renderAll();
+  });
 
   document.querySelector<HTMLFormElement>("[data-cv-search-form]")?.addEventListener("submit", (event) => event.preventDefault());
   document.querySelector<HTMLInputElement>("[data-cv-search-input]")?.addEventListener("input", (event) => {
@@ -383,6 +451,7 @@ function bindEvents(): void {
     const search = (event.currentTarget as HTMLInputElement).value;
     filters = { ...filters, search };
     sidebarView = search || filters.projectId || filters.folderId || filters.tagSlug || filters.quickFilter ? null : "all-files";
+    browserPage = 1;
     renderFiles();
     renderInspector();
   });
@@ -451,6 +520,7 @@ function bindEvents(): void {
     sidebarView = sidebarViewForQuickFilter(filters.quickFilter);
     fileBrowserNotice = null;
     workspaceView = "library";
+    browserPage = 1;
     renderAll();
   });
 
@@ -460,12 +530,45 @@ function bindEvents(): void {
       event.preventDefault();
       document.querySelector<HTMLInputElement>("[data-cv-search-input]")?.focus();
     }
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "a" && !isTextInputTarget(target)) {
+      event.preventDefault();
+      const visibleFileIds = getSelectableVisibleFileIds();
+      selectedFileIds = new Set(visibleFileIds);
+      selectedFileId = visibleFileIds[0] ?? null;
+      revealInspectorForSelection();
+      renderFiles();
+      renderInspector();
+      return;
+    }
+    if ((event.key === "Delete" || event.key === "Backspace") && !isTextInputTarget(target)) {
+      if (selectedFileIds.size || selectedFileId) {
+        event.preventDefault();
+        if (sidebarView === "trash" && selectedFileId) {
+          void permanentlyDeleteTrashItem(selectedFileId);
+        } else {
+          void deleteSelectedFiles();
+        }
+      }
+      return;
+    }
+    if (event.key === "Enter" && !isTextInputTarget(target)) {
+      event.preventDefault();
+      openSelectedFile();
+      return;
+    }
     if (event.key === "Escape" && !target?.closest("[data-cv-search-input]")) {
       closeAuthModal();
       closeRoleModal();
       closeFolderModal();
       closeUploadModal();
+      closeFileActionModal();
       closeFloatingSidePanels();
+      if (selectedFileIds.size) {
+        selectedFileIds = new Set();
+        selectedFileId = null;
+        renderFiles();
+        renderInspector();
+      }
     }
   });
 
@@ -475,6 +578,7 @@ function bindEvents(): void {
     folderInput.setAttribute("webkitdirectory", "");
     folderInput.setAttribute("directory", "");
   }
+  document.querySelector<HTMLButtonElement>("[data-cv-new-folder-button]")?.addEventListener("click", () => openFolderModal());
   document.querySelector<HTMLButtonElement>("[data-cv-upload-button]")?.addEventListener("click", () => openUploadModal({ reset: true }));
   document.querySelector<HTMLButtonElement>("[data-cv-file-picker]")?.addEventListener("click", () => fileInput?.click());
   document.querySelector<HTMLButtonElement>("[data-cv-folder-picker]")?.addEventListener("click", () => folderInput?.click());
@@ -535,6 +639,13 @@ function bindEvents(): void {
     handleSidebarNavigation(nav.dataset.cvNav);
   });
 
+  document.querySelector<HTMLElement>(".mobile-drive-nav")?.addEventListener("click", (event) => {
+    const nav = (event.target as HTMLElement).closest<HTMLElement>("[data-cv-nav]");
+    if (!nav) return;
+    event.preventDefault();
+    handleSidebarNavigation(nav.dataset.cvNav);
+  });
+
   document.querySelector<HTMLElement>("[data-cv-folder-tree]")?.addEventListener("click", (event) => {
     if (handleFolderDeleteClick(event, (event.target as HTMLElement).closest<HTMLElement>("[data-cv-delete-folder-id]"))) return;
 
@@ -574,6 +685,7 @@ function bindEvents(): void {
       tagSlug: filters.tagSlug === target.dataset.cvTagSlug ? null : target.dataset.cvTagSlug || null,
     };
     fileBrowserNotice = null;
+    browserPage = 1;
     closeSidebarAfterCompactAction();
     renderAll();
   });
@@ -582,12 +694,35 @@ function bindEvents(): void {
     const target = (event.target as HTMLElement).closest<HTMLElement>("[data-cv-clear-filters]");
     if (!target) return;
     filters = { ...filters, tagSlug: null, quickFilter: null };
+    typeFilter = "all";
     sidebarView = filters.projectId || filters.folderId || filters.search ? null : "all-files";
     fileBrowserNotice = null;
+    browserPage = 1;
     renderAll();
   });
 
   document.querySelector<HTMLElement>("[data-cv-file-table-body]")?.addEventListener("click", (event) => {
+    const trashRestore = (event.target as HTMLElement).closest<HTMLElement>("[data-cv-trash-restore-id]");
+    if (trashRestore?.dataset.cvTrashRestoreId) {
+      event.preventDefault();
+      event.stopPropagation();
+      void restoreTrashItem(trashRestore.dataset.cvTrashRestoreId);
+      return;
+    }
+    const trashPermanent = (event.target as HTMLElement).closest<HTMLElement>("[data-cv-trash-permanent-id]");
+    if (trashPermanent?.dataset.cvTrashPermanentId) {
+      event.preventDefault();
+      event.stopPropagation();
+      void permanentlyDeleteTrashItem(trashPermanent.dataset.cvTrashPermanentId);
+      return;
+    }
+    const starButton = (event.target as HTMLElement).closest<HTMLElement>("[data-cv-star-file-id]");
+    if (starButton?.dataset.cvStarFileId) {
+      event.preventDefault();
+      event.stopPropagation();
+      void setFileStarred(starButton.dataset.cvStarFileId, starButton.dataset.cvStarValue === "true");
+      return;
+    }
     if (handleFolderDeleteClick(event, (event.target as HTMLElement).closest<HTMLElement>("[data-cv-delete-folder-id]"))) return;
 
     const row = (event.target as HTMLElement).closest<HTMLTableRowElement>("[data-cv-file-row]");
@@ -631,14 +766,45 @@ function bindEvents(): void {
     renderInspector();
   });
 
+  (document.querySelector("[data-cv-type-filter]") as HTMLSelectElement | null)?.addEventListener("change", (event) => {
+    const value = (event.currentTarget as HTMLSelectElement).value;
+    typeFilter = driveTypeFilterFromValue(value);
+    fileBrowserNotice = null;
+    browserPage = 1;
+    renderFiles();
+    renderInspector();
+  });
+
   document.querySelector<HTMLElement>("[data-cv-file-panel]")?.addEventListener("click", (event) => {
+    const pageButton = (event.target as HTMLElement).closest<HTMLButtonElement>("[data-cv-page]");
+    if (pageButton) {
+      if (pageButton.disabled) return;
+      browserPage += pageButton.dataset.cvPage === "prev" ? -1 : 1;
+      renderFiles();
+      renderInspector();
+      return;
+    }
+
     const sortButton = (event.target as HTMLElement).closest<HTMLElement>("[data-cv-sort]");
+    const trashRestore = (event.target as HTMLElement).closest<HTMLElement>("[data-cv-trash-restore-id]");
+    if (trashRestore?.dataset.cvTrashRestoreId) {
+      event.preventDefault();
+      void restoreTrashItem(trashRestore.dataset.cvTrashRestoreId);
+      return;
+    }
+    const trashPermanent = (event.target as HTMLElement).closest<HTMLElement>("[data-cv-trash-permanent-id]");
+    if (trashPermanent?.dataset.cvTrashPermanentId) {
+      event.preventDefault();
+      void permanentlyDeleteTrashItem(trashPermanent.dataset.cvTrashPermanentId);
+      return;
+    }
     if (sortButton) {
       const key = sortButton.dataset.cvSort as FileSort["key"];
       fileSort = {
         key,
         direction: fileSort.key === key && fileSort.direction === "asc" ? "desc" : "asc",
       };
+      browserPage = 1;
       renderFiles();
       return;
     }
@@ -652,6 +818,7 @@ function bindEvents(): void {
       };
       sidebarView = sidebarViewForQuickFilter(filters.quickFilter);
       fileBrowserNotice = null;
+      browserPage = 1;
       renderAll();
       return;
     }
@@ -659,6 +826,7 @@ function bindEvents(): void {
     const viewButton = (event.target as HTMLElement).closest<HTMLElement>("[data-cv-view-mode]");
     if (viewButton) {
       viewMode = viewButton.dataset.cvViewMode === "grid" ? "grid" : "list";
+      browserPage = 1;
       renderFiles();
       return;
     }
@@ -674,7 +842,7 @@ function bindEvents(): void {
       return;
     }
     if (target.closest("[data-cv-bulk-download]")) {
-      downloadSelectionManifest();
+      void downloadSelectionManifest();
       return;
     }
     if (target.closest("[data-cv-bulk-tag]")) {
@@ -714,6 +882,12 @@ function bindEvents(): void {
 
     if (target.closest("[data-cv-copy-share]")) {
       void copySelectedShareLink();
+      return;
+    }
+
+    const fileActionButton = target.closest<HTMLElement>("[data-cv-file-action-button]");
+    if (fileActionButton?.dataset.cvFileActionButton) {
+      openFileActionModal(fileActionButton.dataset.cvFileActionButton as FileActionMode);
       return;
     }
 
@@ -764,6 +938,11 @@ function bindEvents(): void {
   document.querySelectorAll<HTMLElement>("[data-cv-auth-close]").forEach((element) => element.addEventListener("click", closeAuthModal));
   document.querySelectorAll<HTMLElement>("[data-cv-role-close]").forEach((element) => element.addEventListener("click", closeRoleModal));
   document.querySelectorAll<HTMLElement>("[data-cv-upload-close]").forEach((element) => element.addEventListener("click", closeUploadModal));
+  document.querySelectorAll<HTMLElement>("[data-cv-file-action-close]").forEach((element) => element.addEventListener("click", closeFileActionModal));
+  document.querySelector<HTMLFormElement>("[data-cv-file-action-form]")?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    void submitFileAction();
+  });
 
   document.querySelector<HTMLButtonElement>("[data-cv-download-button]")?.addEventListener("click", () => {
     if (!selectedFileId) return;
@@ -788,6 +967,7 @@ function handleFolderDeleteClick(event: Event, deleteButton: HTMLElement | null)
 function navigateToBrowserLocation(location: BrowserLocationState, options: { clearSelection?: boolean; history?: "push" | "replace" | "none" } = {}): void {
   fileBrowserNotice = null;
   const nextLocation = normalizeBrowserLocation(location);
+  browserPage = 1;
   filters = {
     ...filters,
     projectId: nextLocation.projectId,
@@ -901,6 +1081,7 @@ async function loadRemoteState(): Promise<void> {
   selectedFileId = pickSelectedFileId();
   selectedFileIds = selectedFileId ? new Set([selectedFileId]) : new Set();
   renderAll();
+  if (sidebarView === "trash") void loadTrashItems();
   setShellAuthState("ready");
 }
 
@@ -1103,7 +1284,17 @@ function renderAccountIdentity(): void {
 
 function renderPermissionControls(): void {
   const canWrite = canWriteCurrentAccess();
+  const newFolderButton = document.querySelector<HTMLButtonElement>("[data-cv-new-folder-button]");
   const uploadButton = document.querySelector<HTMLButtonElement>("[data-cv-upload-button]");
+  if (newFolderButton) {
+    const target = folderCreationTarget();
+    newFolderButton.disabled = !canWrite || !target;
+    newFolderButton.title = !canWrite
+      ? "Current role is read-only or no-read."
+      : target
+        ? `Create folder in ${target.label}`
+        : "Open a project before creating a folder.";
+  }
   if (uploadButton) {
     uploadButton.disabled = !canWrite;
     uploadButton.title = canWrite ? "" : "Current role is read-only or no-read.";
@@ -1143,31 +1334,53 @@ function handleSidebarNavigation(value: string | undefined): void {
   fileBrowserNotice = null;
   selectedFileId = null;
   selectedFileIds = new Set();
+  browserPage = 1;
   workspaceView = "library";
   sidebarView = nav;
 
-  if (nav === "all-files" || nav === "recent") {
+  if (nav === "all-files" || nav === "recent" || nav === "trash" || nav === "storage" || nav === "settings") {
     filters = { search: filters.search, projectId: null, folderId: null, tagSlug: null, quickFilter: null };
   } else {
-    filters = { search: filters.search, projectId: null, folderId: null, tagSlug: null, quickFilter: nav };
+    filters = { search: filters.search, projectId: null, folderId: null, tagSlug: null, quickFilter: nav as FileQuickFilter };
   }
 
   if (nav === "recent") {
     fileSort = { key: "modified", direction: "desc" };
     viewMode = "list";
   }
+  if (nav === "storage" || nav === "settings") {
+    workspaceView = "insights";
+  }
+  if (nav === "trash") {
+    viewMode = "list";
+    void loadTrashItems();
+  }
 
+  const nextRoute = routeForSidebarNav(nav);
+  if (nextRoute && window.location.pathname !== nextRoute) {
+    window.history.pushState({ chemvaultFilesView: nav }, "", nextRoute);
+  }
   recordBrowserHistory({ projectId: null, folderId: null }, "push");
   closeSidebarAfterCompactAction();
   renderAll();
 }
 
 function sidebarNavFromValue(value: string | undefined): SidebarNavKey | null {
-  return value === "all-files" || value === "recent" || value === "shared" || value === "failed" || value === "large" ? value : null;
+  return value === "all-files" ||
+    value === "recent" ||
+    value === "starred" ||
+    value === "shared" ||
+    value === "trash" ||
+    value === "storage" ||
+    value === "settings" ||
+    value === "failed" ||
+    value === "large"
+    ? value
+    : null;
 }
 
 function sidebarViewForQuickFilter(filter: FileQuickFilter | null | undefined): SidebarViewKey {
-  if (filter === "shared" || filter === "failed" || filter === "large") return filter;
+  if (filter === "shared" || filter === "starred" || filter === "failed" || filter === "large") return filter;
   if (filter) return null;
   return filters.projectId || filters.folderId || filters.search ? null : "all-files";
 }
@@ -1544,7 +1757,11 @@ function updateSidebarNavigation(liveFiles: FileRecord[]): void {
   const counts: Record<SidebarNavKey, number> = {
     "all-files": liveFiles.length,
     recent: Math.min(5, liveFiles.length),
+    starred: liveFiles.filter((entry) => entry.isStarred).length,
     shared: liveFiles.filter(isSharedFileRecord).length,
+    trash: trashState.files.length + trashState.folders.length,
+    storage: liveFiles.length,
+    settings: 0,
     failed: liveFiles.filter((entry) => entry.status === "failed").length,
     large: liveFiles.filter((entry) => entry.sizeBytes >= 1024 ** 3).length,
   };
@@ -1717,7 +1934,9 @@ function renderFiles(): void {
   const bulkBar = document.querySelector<HTMLElement>("[data-cv-bulk-bar]");
   const bulkSummary = document.querySelector<HTMLElement>("[data-cv-bulk-summary]");
   const selectAll = document.querySelector<HTMLInputElement>("[data-cv-select-all]");
-  const sortedListItems = viewMode === "list" ? getBrowserItemsForListView() : buildFileBrowserItems(library, filters);
+  const allListItems = viewMode === "list" ? getBrowserItemsForListView() : getCurrentBrowserItems();
+  const sortedListItems = viewMode === "list" ? pagedBrowserItems(allListItems) : allListItems;
+  const pageButtons = document.querySelectorAll<HTMLButtonElement>("[data-cv-page]");
   const visibleFileItems = sortedListItems.filter((entry): entry is FileBrowserItem & { kind: "file" } => entry.kind === "file");
   const visibleFiles = visibleFileItems.map((entry) => entry.file);
   const visibleIds = new Set(visibleFiles.map((entry) => entry.id));
@@ -1731,14 +1950,19 @@ function renderFiles(): void {
     selectedFileId = selectedFileIds.values().next().value ?? visibleFiles[0]?.id ?? null;
   }
 
-  if (filesTitle) filesTitle.textContent = libraryLoading ? "Files" : `Items (${sortedListItems.length})`;
+  if (filesTitle) filesTitle.textContent = sidebarView === "trash" ? `Recycle Bin (${allListItems.length})` : libraryLoading ? "Files" : `Items (${allListItems.length})`;
   if (selectionSummary) selectionSummary.textContent = selectedFileIds.size ? `${selectedFileIds.size} selected` : "No files checked";
   if (pageSummary)
     pageSummary.textContent = libraryLoading
       ? "Loading"
-      : sortedListItems.length
-        ? `1-${Math.min(50, sortedListItems.length)} of ${sortedListItems.length}`
+      : allListItems.length
+        ? `${(browserPage - 1) * browserPageSize + 1}-${Math.min(browserPage * browserPageSize, allListItems.length)} of ${allListItems.length}`
         : "0 files";
+  pageButtons.forEach((button) => {
+    const totalPages = Math.max(1, Math.ceil(allListItems.length / browserPageSize));
+    const direction = button.dataset.cvPage;
+    button.disabled = libraryLoading || viewMode !== "list" || allListItems.length <= browserPageSize || (direction === "prev" ? browserPage <= 1 : browserPage >= totalPages);
+  });
   if (activeFilters) activeFilters.innerHTML = renderActiveFilters();
   if (bulkBar) bulkBar.hidden = selectedFileIds.size === 0;
   if (bulkSummary) bulkSummary.textContent = selectedFileIds.size === 1 ? "1 file selected" : `${selectedFileIds.size} files selected`;
@@ -1750,6 +1974,7 @@ function renderFiles(): void {
   updateSortButtons();
   updateQuickFilterButtons();
   updateViewModeButtons();
+  updateTypeFilterControl();
   renderFileBrowser();
 
   const isGridView = viewMode === "grid";
@@ -1760,7 +1985,7 @@ function renderFiles(): void {
     body.innerHTML = libraryLoading
       ? `<tr><td colspan="8"><div class="empty-state">Loading file index...</div></td></tr>`
       : sortedListItems.length
-        ? sortedListItems.map((item) => renderFileListRow(item)).join("")
+        ? sortedListItems.map((item) => (sidebarView === "trash" ? renderTrashListRow(item) : renderFileListRow(item))).join("")
         : `<tr><td colspan="8"><div class="empty-state">${escapeHtml(emptyFilesLabel())}</div></td></tr>`;
   }
 }
@@ -1784,9 +2009,9 @@ function renderFileBrowser(): void {
     return;
   }
 
-  const items = buildFileBrowserItems(library, filters);
+  const items = getCurrentBrowserItems();
   grid.innerHTML = items.length
-    ? items.map((item) => renderFileBrowserItem(item)).join("")
+    ? items.map((item) => (sidebarView === "trash" ? renderTrashBrowserItem(item) : renderFileBrowserItem(item))).join("")
     : `<div class="empty-state">${escapeHtml(emptyFilesLabel())}</div>`;
 }
 
@@ -1798,6 +2023,9 @@ function updateBrowserHistoryButtons(): void {
 }
 
 function renderFileBrowserPath(): string {
+  if (sidebarView === "trash") {
+    return `<button type="button" data-cv-browser-root>My Files</button><span aria-hidden="true">/</span><button type="button" data-cv-nav="trash">Recycle Bin</button>`;
+  }
   const activeFolder = filters.folderId ? library.folders.find((folderRecord) => folderRecord.id === filters.folderId) ?? null : null;
   const activeProjectId = filters.projectId ?? activeFolder?.projectId ?? null;
   const activeProject = activeProjectId ? library.projects.find((projectRecord) => projectRecord.id === activeProjectId) ?? null : null;
@@ -1829,7 +2057,11 @@ function folderAncestry(folderId: string): FolderRecord[] {
 }
 
 function fileBrowserSummary(): string {
-  const items = buildFileBrowserItems(library, filters);
+  if (sidebarView === "trash") {
+    if (trashState.loading) return "Loading deleted items";
+    if (trashState.error) return trashState.error;
+  }
+  const items = getCurrentBrowserItems();
   const folders = items.filter((item) => item.kind === "project" || item.kind === "folder").length;
   const files = items.filter((item) => item.kind === "file").length;
   return `${folders} folders · ${files} files`;
@@ -1873,12 +2105,66 @@ function renderFileBrowserItem(item: FileBrowserItem): string {
   `;
 }
 
+function renderTrashBrowserItem(item: FileBrowserItem): string {
+  const name = item.kind === "file" ? item.file.displayName : item.name;
+  const meta = item.kind === "file" ? `${typeLabel(item.file)} · ${formatBytes(item.file.sizeBytes)}` : "Deleted folder";
+  const icon = item.kind === "file"
+    ? `<span class="file-type-icon" data-ext="${escapeAttr(extensionForFile(item.file))}">${escapeHtml(extensionForFile(item.file))}</span>`
+    : folderIcon();
+  return `
+    <article class="file-os-item file-os-item--trash" data-cv-file-os-item>
+      <span class="file-os-item__icon">${icon}</span>
+      <span class="file-os-item__name">${escapeHtml(name)}</span>
+      <span class="file-os-item__meta">${escapeHtml(meta)}</span>
+      <span class="trash-actions">
+        <button class="button button--secondary" type="button" data-cv-trash-restore-id="${escapeAttr(item.id)}">Restore</button>
+        <button class="button button--danger" type="button" data-cv-trash-permanent-id="${escapeAttr(item.id)}">Delete permanently</button>
+      </span>
+    </article>
+  `;
+}
+
+function getCurrentBrowserItems(): FileBrowserItem[] {
+  if (sidebarView === "trash") {
+    return getTrashBrowserItems();
+  }
+  return buildFileBrowserItems(library, filters).filter((item) => item.kind !== "file" || fileMatchesTypeFilter(item.file));
+}
+
+function getTrashBrowserItems(): FileBrowserItem[] {
+  const folderItems: FileBrowserItem[] = trashState.folders.map((folderRecord) => ({
+    kind: "folder",
+    id: folderRecord.id,
+    projectId: folderRecord.projectId,
+    parentId: folderRecord.parentId ?? null,
+    name: folderRecord.name,
+    path: folderRecord.path,
+    fileCount: 0,
+    totalBytes: 0,
+  }));
+  const fileItems: FileBrowserItem[] = trashState.files.filter(fileMatchesTypeFilter).map((fileRecord) => ({
+    kind: "file",
+    id: fileRecord.id,
+    name: fileRecord.displayName,
+    file: fileRecord,
+  }));
+  return [...folderItems, ...fileItems];
+}
+
 function getBrowserItemsForListView(): FileBrowserItem[] {
-  return sortBrowserItemsForList(buildFileBrowserItems(library, filters), fileSort);
+  return sortBrowserItemsForList(getCurrentBrowserItems(), fileSort);
+}
+
+function pagedBrowserItems(items: FileBrowserItem[]): FileBrowserItem[] {
+  const pageCount = Math.max(1, Math.ceil(items.length / browserPageSize));
+  browserPage = Math.min(Math.max(browserPage, 1), pageCount);
+  const start = (browserPage - 1) * browserPageSize;
+  return items.slice(start, start + browserPageSize);
 }
 
 function getSelectableVisibleFileIds(): string[] {
-  return getBrowserItemsForListView().filter((entry): entry is FileBrowserItem & { kind: "file" } => entry.kind === "file").map((entry) => entry.id);
+  const items = viewMode === "list" ? pagedBrowserItems(getBrowserItemsForListView()) : getCurrentBrowserItems();
+  return items.filter((entry): entry is FileBrowserItem & { kind: "file" } => entry.kind === "file").map((entry) => entry.id);
 }
 
 function renderFileListRow(item: FileBrowserItem): string {
@@ -1891,6 +2177,34 @@ function renderFileListRow(item: FileBrowserItem): string {
   }
 
   return renderFileListFileRow(item.file);
+}
+
+function renderTrashListRow(item: FileBrowserItem): string {
+  const isFile = item.kind === "file";
+  const name = isFile ? item.file.displayName : item.name;
+  const type = isFile ? typeLabel(item.file) : "Folder";
+  const size = isFile ? formatBytes(item.file.sizeBytes) : "-";
+  const deletedAt = isFile
+    ? item.file.trashedAt || item.file.deletedAt || item.file.updatedAt
+    : trashState.folders.find((folderRecord) => folderRecord.id === item.id)?.deletedAt || "";
+  const ext = isFile ? extensionForFile(item.file) : "FOLDER";
+  return `
+    <tr class="file-table__row file-table__row--trash" data-cv-file-row data-cv-list-kind="${isFile ? "file" : "folder"}" data-cv-file-id="${escapeAttr(item.id)}">
+      <td class="select-cell"><span class="folder-row-placeholder" aria-hidden="true"></span></td>
+      <td>
+        <span class="file-name">
+          <span class="file-type-icon" data-ext="${escapeAttr(ext)}">${escapeHtml(ext)}</span>
+          <span>${escapeHtml(name)}</span>
+        </span>
+      </td>
+      <td><span class="file-list-meta">Deleted item</span></td>
+      <td>${escapeHtml(type)}</td>
+      <td>${size}</td>
+      <td class="date-cell">${escapeHtml(deletedAt ? formatDate(deletedAt) : "-")}</td>
+      <td class="icon-cell"><button class="link-button" type="button" data-cv-trash-restore-id="${escapeAttr(item.id)}">Restore</button></td>
+      <td class="icon-cell"><button class="button button--danger" type="button" data-cv-trash-permanent-id="${escapeAttr(item.id)}">Delete</button></td>
+    </tr>
+  `;
 }
 
 function sortBrowserItemsForList(items: FileBrowserItem[], sort: FileSort): FileBrowserItem[] {
@@ -1954,8 +2268,8 @@ function renderFileListContainerRow(
       <td><span class="file-list-meta">${escapeHtml(fileCountLabel(fileCount))}</span></td>
       <td>${escapeHtml(itemTypeLabel)}</td>
       <td>${formatBytes(totalBytes)}</td>
-      <td class="date-cell">—</td>
-      <td class="icon-cell"><span class="file-list-meta">—</span></td>
+      <td class="date-cell">-</td>
+      <td class="icon-cell"><span class="file-list-meta">-</span></td>
       <td class="icon-cell">${deleteButton}</td>
     </tr>
   `;
@@ -1976,6 +2290,11 @@ function fileCountLabel(count: number): string {
 }
 
 function emptyFilesLabel(): string {
+  if (sidebarView === "trash") {
+    if (trashState.loading) return "Loading deleted items...";
+    if (trashState.error) return trashState.error;
+    return "Recycle Bin is empty.";
+  }
   return canReadCurrentAccess() ? "No files match the current filters." : "Current role has no file read access.";
 }
 
@@ -1985,6 +2304,7 @@ function renderActiveFilters(): string {
 
   if (tagRecord) chips.push(filterChip(tagRecord.name));
   if (filters.quickFilter) chips.push(filterChip(quickFilterLabel(filters.quickFilter)));
+  if (typeFilter !== "all") chips.push(filterChip(typeFilterLabel(typeFilter)));
 
   return `${chips.join("")}${chips.length ? `<button class="link-button" type="button" data-cv-clear-filters>Clear filters</button>` : ""}`;
 }
@@ -1998,10 +2318,22 @@ function filterChip(label: string): string {
   `;
 }
 
+function typeFilterLabel(filter: DriveTypeFilter): string {
+  if (filter === "image") return "Images";
+  if (filter === "document") return "Documents";
+  if (filter === "spreadsheet") return "Spreadsheets";
+  if (filter === "presentation") return "Presentations";
+  if (filter === "pdf") return "PDF";
+  if (filter === "code") return "Code";
+  if (filter === "other") return "Other";
+  return "All types";
+}
+
 function renderFileRow(fileRecord: FileRecord): string {
   const ext = extensionForFile(fileRecord);
   const isSelected = selectedFileIds.has(fileRecord.id);
   const isFailed = fileRecord.status === "failed";
+  const isStarred = fileRecord.isStarred === true;
   return `
     <tr class="${isSelected ? "is-selected" : ""}${isFailed ? " is-failed" : ""}" data-cv-file-row data-cv-list-kind="file" data-cv-file-id="${escapeAttr(fileRecord.id)}" tabindex="0" aria-selected="${isSelected ? "true" : "false"}">
       <td class="select-cell">
@@ -2020,7 +2352,7 @@ function renderFileRow(fileRecord: FileRecord): string {
       <td class="icon-cell">${
         isFailed
           ? `<span class="failed-state">${warningIcon()} Failed</span>`
-          : `<button class="star-button" type="button" aria-label="Star file">${starIcon()}</button>`
+          : `<button class="star-button${isStarred ? " is-active" : ""}" type="button" aria-label="${isStarred ? "Remove from starred" : "Star file"}" data-cv-star-file-id="${escapeAttr(fileRecord.id)}" data-cv-star-value="${isStarred ? "false" : "true"}">${starIcon()}</button>`
       }</td>
       <td class="icon-cell">${isFailed ? `<button class="link-button" type="button">Retry</button>` : ""}<button class="ghost-icon" type="button" aria-label="Open actions">${moreIcon()}</button></td>
     </tr>
@@ -2035,6 +2367,7 @@ function renderInspector(): void {
   const downloadButton = document.querySelector<HTMLButtonElement>("[data-cv-download-button]");
   const shareFocusButton = document.querySelector<HTMLButtonElement>("[data-cv-share-focus-button]");
   const deleteButton = document.querySelector<HTMLButtonElement>("[data-cv-delete-button]");
+  const fileActionButtons = document.querySelectorAll<HTMLButtonElement>("[data-cv-file-action-button]");
   updateInspectorTabs();
 
   if (libraryLoading) {
@@ -2047,6 +2380,9 @@ function renderInspector(): void {
     if (downloadButton) downloadButton.disabled = true;
     if (shareFocusButton) shareFocusButton.disabled = true;
     if (deleteButton) deleteButton.disabled = true;
+    fileActionButtons.forEach((button) => {
+      button.disabled = true;
+    });
     return;
   }
 
@@ -2061,6 +2397,9 @@ function renderInspector(): void {
     if (downloadButton) downloadButton.disabled = true;
     if (shareFocusButton) shareFocusButton.disabled = true;
     if (deleteButton) deleteButton.disabled = true;
+    fileActionButtons.forEach((button) => {
+      button.disabled = true;
+    });
     return;
   }
 
@@ -2073,6 +2412,9 @@ function renderInspector(): void {
   if (downloadButton) downloadButton.disabled = !canReadCurrentAccess();
   if (shareFocusButton) shareFocusButton.disabled = !canWriteCurrentAccess();
   if (deleteButton) deleteButton.disabled = !canWriteCurrentAccess();
+  fileActionButtons.forEach((button) => {
+    button.disabled = !canWriteCurrentAccess();
+  });
   if (body) body.innerHTML = renderInspectorBody(selectedFile);
   if (inspectorTab === "activity" && !activityByFileId.has(selectedFile.id)) {
     void loadActivityForSelected();
@@ -2346,6 +2688,7 @@ function renderManagedShareRow(fileId: string, share: FileShareRecord): string {
   const expired = new Date(share.expiresAt).getTime() <= Date.now();
   const canWrite = canWriteCurrentAccess();
   const accessLabel = share.isPublic ? "Public link" : "Authenticated only";
+  const permissionLabel = share.allowDownload ? "Can download" : "View only";
   const customExpiryMin = minShareCustomExpiryValue();
   const customExpiryMax = maxShareCustomExpiryValue();
   const customExpiryValue = datetimeLocalValue(new Date(share.expiresAt));
@@ -2353,10 +2696,19 @@ function renderManagedShareRow(fileId: string, share: FileShareRecord): string {
     <form class="share-list__item" data-cv-share-update-form data-cv-file-id="${escapeAttr(fileId)}" data-cv-share-token="${escapeAttr(share.token)}">
       <div class="share-list__summary">
         <strong>${escapeHtml(share.token.slice(0, 12))}</strong>
-        <span>${expired ? "Expired" : `Expires ${escapeHtml(formatDate(share.expiresAt))}`} · ${share.accessCount} opens · ${accessLabel}</span>
+        <span>${expired ? "Expired" : `Expires ${escapeHtml(formatDate(share.expiresAt))}`} · ${share.accessCount} opens · ${accessLabel} · ${permissionLabel}</span>
         <input type="text" value="${escapeAttr(shareUrl)}" readonly />
       </div>
       <div class="share-list__actions">
+        <select name="sharePermission" aria-label="Permission for ${escapeAttr(share.token)}" ${canWrite ? "" : "disabled"}>
+          <option value="view" ${share.allowDownload ? "" : "selected"}>View only</option>
+          <option value="download" ${share.allowDownload ? "selected" : ""}>Can download</option>
+          <option value="edit" disabled>Can edit (coming soon)</option>
+        </select>
+        <select name="shareAudience" aria-label="Audience for ${escapeAttr(share.token)}" ${canWrite ? "" : "disabled"}>
+          <option value="auth" ${share.isPublic ? "" : "selected"}>Requires login</option>
+          <option value="public" ${share.isPublic ? "selected" : ""}>Anyone with link</option>
+        </select>
         <select name="expiresInDays" aria-label="New expiration for ${escapeAttr(share.token)}" data-cv-share-expiry ${canWrite ? "" : "disabled"}>
           <option value="1">1 day</option>
           <option value="7" selected>7 days</option>
@@ -2717,6 +3069,21 @@ async function reloadLibrary(): Promise<void> {
   renderAll();
 }
 
+async function loadTrashItems(): Promise<void> {
+  if (trashState.loading) return;
+  trashState = { ...trashState, loading: true, error: null };
+  renderFiles();
+  try {
+    const response = await fetchJson<DriveItemsResponse>("/api/trash");
+    const folders = response.folders ?? response.items?.filter((item): item is { type: "folder"; folder: FolderRecord } => item.type === "folder").map((item) => item.folder) ?? [];
+    const files = response.files ?? response.items?.filter((item): item is { type: "file"; file: FileRecord } => item.type === "file").map((item) => item.file) ?? [];
+    trashState = { loading: false, loaded: true, error: null, files, folders };
+  } catch (error) {
+    trashState = { loading: false, loaded: true, error: errorMessage(error), files: [], folders: [] };
+  }
+  renderAll();
+}
+
 async function deleteSelectedFile(): Promise<void> {
   if (!selectedFileId) return;
   await deleteFileIds([selectedFileId], "Delete request");
@@ -2727,8 +3094,37 @@ async function deleteSelectedFiles(): Promise<void> {
   await deleteFileIds(fileIds, "Delete selected files");
 }
 
+async function setFileStarred(fileId: string, isStarred: boolean): Promise<void> {
+  const previous = library;
+  library = {
+    ...library,
+    files: library.files.map((fileRecord) => (fileRecord.id === fileId ? { ...fileRecord, isStarred, updatedAt: new Date().toISOString() } : fileRecord)),
+  };
+  renderAll();
+
+  if (previewMode) {
+    showToast(isStarred ? "Added to Starred" : "Removed from Starred");
+    return;
+  }
+
+  try {
+    await fetchJson<{ status: string }>(`/api/files/${encodeURIComponent(fileId)}/star`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ isStarred }),
+    });
+    showToast(isStarred ? "Added to Starred" : "Removed from Starred");
+  } catch (error) {
+    library = previous;
+    renderAll();
+    showToast(errorMessage(error), "error");
+  }
+}
+
 async function deleteFileIds(fileIds: string[], queueName: string): Promise<void> {
   if (fileIds.length === 0 || !canWriteCurrentAccess()) return;
+  const confirmed = window.confirm(fileIds.length === 1 ? "Move this item to the Recycle Bin?" : `Move ${fileIds.length} items to the Recycle Bin?`);
+  if (!confirmed) return;
 
   if (previewMode) {
     const now = new Date().toISOString();
@@ -2736,6 +3132,7 @@ async function deleteFileIds(fileIds: string[], queueName: string): Promise<void
     selectedFileId = null;
     selectedFileIds = new Set();
     renderAll();
+    showToast("Moved to Recycle Bin");
     return;
   }
 
@@ -2773,6 +3170,7 @@ async function deleteFileIds(fileIds: string[], queueName: string): Promise<void
     selectedFileIds = new Set();
     renderFiles();
     renderInspector();
+    showToast(fileIds.length === 1 ? "Moved to Recycle Bin" : `${fileIds.length} items moved to Recycle Bin`);
   } catch (error) {
     uploadQueue = reduceUploadQueue(uploadQueue, {
       type: "add",
@@ -2785,6 +3183,41 @@ async function deleteFileIds(fileIds: string[], queueName: string): Promise<void
       uploadQueue = reduceUploadQueue(uploadQueue, { type: "fail", id: latest.id, message: errorMessage(error) });
     }
     renderQueue();
+  }
+}
+
+async function restoreTrashItem(itemId: string): Promise<void> {
+  if (!itemId || !canWriteCurrentAccess()) return;
+  try {
+    await fetchJson<{ status: string }>(`/api/trash/${encodeURIComponent(itemId)}/restore`, { method: "POST" });
+    trashState = {
+      ...trashState,
+      files: trashState.files.filter((fileRecord) => fileRecord.id !== itemId),
+      folders: trashState.folders.filter((folderRecord) => folderRecord.id !== itemId),
+    };
+    await reloadLibrary();
+    if (sidebarView === "trash") await loadTrashItems();
+    showToast("Restored");
+  } catch (error) {
+    showToast(errorMessage(error), "error");
+  }
+}
+
+async function permanentlyDeleteTrashItem(itemId: string): Promise<void> {
+  if (!itemId || !canWriteCurrentAccess()) return;
+  const confirmed = window.confirm("Permanently delete this item? This cannot be undone.");
+  if (!confirmed) return;
+  try {
+    await fetchJson<{ status: string }>(`/api/trash/${encodeURIComponent(itemId)}/permanent`, { method: "DELETE" });
+    trashState = {
+      ...trashState,
+      files: trashState.files.filter((fileRecord) => fileRecord.id !== itemId),
+      folders: trashState.folders.filter((folderRecord) => folderRecord.id !== itemId),
+    };
+    renderAll();
+    showToast("Permanently deleted");
+  } catch (error) {
+    showToast(errorMessage(error), "error");
   }
 }
 
@@ -2968,6 +3401,11 @@ interface ShareExpiryPayload {
   expiresAt?: string;
 }
 
+interface ShareUpdatePayload extends ShareExpiryPayload {
+  allowDownload: boolean;
+  isPublic: boolean;
+}
+
 function syncShareCustomExpiry(select: HTMLSelectElement): void {
   const form = select.closest<HTMLFormElement>("form");
   const input = form?.querySelector<HTMLInputElement>("[data-cv-share-custom-expiry]");
@@ -2993,6 +3431,17 @@ function shareExpiryPayloadFromForm(form: HTMLFormElement): ShareExpiryPayload {
 
   const expiresInDays = Number(mode);
   return { expiresInDays: [1, 7, 30].includes(expiresInDays) ? expiresInDays : 7 };
+}
+
+function shareUpdatePayloadFromForm(form: HTMLFormElement, fallback: FileShareRecord): ShareUpdatePayload {
+  const formData = new FormData(form);
+  const permission = String(formData.get("sharePermission") || (fallback.allowDownload ? "download" : "view"));
+  const audience = String(formData.get("shareAudience") || (fallback.isPublic ? "public" : "auth"));
+  return {
+    ...shareExpiryPayloadFromForm(form),
+    allowDownload: permission === "download",
+    isPublic: audience === "public",
+  };
 }
 
 function expiresAtFromShareExpiryPayload(payload: ShareExpiryPayload): string {
@@ -3086,7 +3535,7 @@ async function createShareForSelected(form: HTMLFormElement): Promise<void> {
     showToast("链接已创建");
   } catch (error) {
     shareByFileId.set(fileId, { ...previous, loading: false, link: null, message: null, error: errorMessage(error) });
-    showToast("创建失败", "error");
+    showToast("Create failed", "error");
   }
   renderInspector();
   if (inspectorTab === "activity") void loadActivityForSelected();
@@ -3115,9 +3564,11 @@ async function updateManagedShare(form: HTMLFormElement): Promise<void> {
   if (!fileId || !token) return;
   if (!canWriteCurrentAccess()) return;
   const state = getShareState(fileId);
-  let expiryPayload: ShareExpiryPayload;
+  const currentShare = (state.shares ?? []).find((share) => share.token === token);
+  if (!currentShare) return;
+  let updatePayload: ShareUpdatePayload;
   try {
-    expiryPayload = shareExpiryPayloadFromForm(form);
+    updatePayload = shareUpdatePayloadFromForm(form, currentShare);
   } catch (error) {
     shareByFileId.set(fileId, { ...state, message: null, error: errorMessage(error) });
     renderInspector();
@@ -3127,9 +3578,13 @@ async function updateManagedShare(form: HTMLFormElement): Promise<void> {
   renderInspector();
 
   if (previewMode || token.startsWith("preview_")) {
-    const expiresAt = expiresAtFromShareExpiryPayload(expiryPayload);
-    const nextShares = (getShareState(fileId).shares ?? []).map((share) => (share.token === token ? { ...share, expiresAt } : share));
-    shareByFileId.set(fileId, { ...getShareState(fileId), shares: nextShares, message: "Share expiration updated.", error: null });
+    const expiresAt = expiresAtFromShareExpiryPayload(updatePayload);
+    const nextShares = (getShareState(fileId).shares ?? []).map((share) =>
+      share.token === token
+        ? { ...share, expiresAt, allowDownload: updatePayload.allowDownload, isPublic: updatePayload.isPublic }
+        : share
+    );
+    shareByFileId.set(fileId, { ...getShareState(fileId), shares: nextShares, message: "Share link updated.", error: null });
     renderInspector();
     showToast("已更新");
     return;
@@ -3141,15 +3596,15 @@ async function updateManagedShare(form: HTMLFormElement): Promise<void> {
       {
         method: "PATCH",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify(expiryPayload),
+        body: JSON.stringify(updatePayload),
       }
     );
     const nextShares = (getShareState(fileId).shares ?? []).map((share) => (share.token === token ? response.share : share));
-    shareByFileId.set(fileId, { ...getShareState(fileId), shares: nextShares, message: "Share expiration updated.", error: null });
+    shareByFileId.set(fileId, { ...getShareState(fileId), shares: nextShares, message: "Share link updated.", error: null });
     showToast("已更新");
   } catch (error) {
     shareByFileId.set(fileId, { ...getShareState(fileId), message: null, error: errorMessage(error) });
-    showToast("更新失败", "error");
+    showToast("Update failed", "error");
   }
   renderInspector();
 }
@@ -3178,7 +3633,7 @@ async function deleteManagedShare(token: string): Promise<void> {
     showToast("已删除");
   } catch (error) {
     shareByFileId.set(fileId, { ...getShareState(fileId), message: null, error: errorMessage(error) });
-    showToast("删除失败", "error");
+    showToast("Delete failed", "error");
   }
   renderInspector();
 }
@@ -3194,7 +3649,7 @@ async function copyManagedShareLink(token: string): Promise<void> {
     showToast("已复制");
   } catch {
     shareByFileId.set(fileId, { ...state, message: "Copy failed.", error: null });
-    showToast("复制失败", "error");
+    showToast("Copy failed", "error");
   }
   renderInspector();
 }
@@ -3300,9 +3755,9 @@ function uploadAccessPayload(): { visibility: FileVisibility; roleIds: string[] 
 }
 
 function permissionLabel(permission: FilePermissionLevel): string {
-  if (permission === "none") return "不可读";
-  if (permission === "read") return "只读";
-  return "读写";
+  if (permission === "none") return "No access";
+  if (permission === "read") return "Read-only";
+  return "Read and write";
 }
 
 function roleDescription(role: FileRolePolicy): string {
@@ -3411,6 +3866,24 @@ function toggleSelectedFile(fileId: string | null, selected: boolean): void {
   selectedFileIds = next;
 }
 
+function openSelectedFile(): void {
+  const fileId = selectedFileId || selectedFileIds.values().next().value || null;
+  if (!fileId || sidebarView === "trash") return;
+  const fileRecord = library.files.find((entry) => entry.id === fileId && entry.status !== "deleted");
+  if (!fileRecord) return;
+  selectedFileId = fileRecord.id;
+  selectedFileIds = new Set([fileRecord.id]);
+  inspectorTab = previewKindForFile(fileRecord) === "unsupported" ? "details" : "preview";
+  revealInspectorForSelection();
+  renderFiles();
+  renderInspector();
+}
+
+function isTextInputTarget(target: HTMLElement | null): boolean {
+  if (!target) return false;
+  return Boolean(target.closest("input, textarea, select, [contenteditable='true']"));
+}
+
 function updateSortButtons(): void {
   document.querySelectorAll<HTMLElement>("[data-cv-sort]").forEach((button) => {
     const isActive = button.dataset.cvSort === fileSort.key;
@@ -3437,19 +3910,54 @@ function updateViewModeButtons(): void {
   });
 }
 
+function updateTypeFilterControl(): void {
+  document.querySelectorAll("[data-cv-type-filter]").forEach((select) => {
+    (select as unknown as HTMLSelectElement).value = typeFilter;
+  });
+}
+
 function quickFilterLabel(filter: FileQuickFilter): string {
   if (filter === "ready") return "Ready";
+  if (filter === "starred") return "Starred";
   if (filter === "shared") return "Shared";
   if (filter === "failed") return "Needs review";
   return "Large objects";
 }
 
-function downloadSelectionManifest(): void {
+async function downloadSelectionManifest(): Promise<void> {
   const selectedFiles = library.files.filter((entry) => selectedFileIds.has(entry.id));
   if (selectedFiles.length === 0) return;
   if (selectedFiles.length === 1) {
     window.location.href = `/api/files/${encodeURIComponent(selectedFiles[0].id)}/download`;
     return;
+  }
+
+  if (!previewMode) {
+    try {
+      const response = await fetch("/api/files/bulk-download", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ fileIds: selectedFiles.map((entry) => entry.id) }),
+      });
+      if (!response.ok) {
+        const payload = response.headers.get("content-type")?.includes("application/json") ? await response.json() : null;
+        throw new Error(readErrorMessage(payload) || `${response.status} ${response.statusText}`);
+      }
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = downloadFilenameFromHeaders(response.headers, "chemvault-files.zip");
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      showToast("已下载");
+      return;
+    } catch (error) {
+      showToast(`Download failed: ${errorMessage(error)}`, "error");
+      return;
+    }
   }
 
   const manifest = {
@@ -3460,7 +3968,6 @@ function downloadSelectionManifest(): void {
       name: entry.displayName,
       sizeBytes: entry.sizeBytes,
       type: typeLabel(entry),
-      r2Key: entry.r2Key,
       tags: entry.tags.map((tagRecord) => tagRecord.name),
     })),
   };
@@ -3473,6 +3980,13 @@ function downloadSelectionManifest(): void {
   link.click();
   link.remove();
   URL.revokeObjectURL(url);
+  showToast("已下载");
+}
+
+function downloadFilenameFromHeaders(headers: Headers, fallback: string): string {
+  const disposition = headers.get("content-disposition") || "";
+  const match = disposition.match(/filename="([^"]+)"/i) || disposition.match(/filename=([^;]+)/i);
+  return match?.[1]?.trim() || fallback;
 }
 
 function applyLocalReviewTag(): void {
@@ -3644,6 +4158,236 @@ function closeFolderModal(): void {
   if (modal) closeModal(modal);
 }
 
+function openFileActionModal(mode: FileActionMode): void {
+  if (!isFileActionMode(mode) || !selectedFileId) return;
+  if (!canWriteCurrentAccess()) {
+    showToast("Current role cannot modify files.", "error");
+    return;
+  }
+  const fileRecord = library.files.find((entry) => entry.id === selectedFileId);
+  const modal = document.querySelector<HTMLElement>("[data-cv-file-action-modal]");
+  if (!fileRecord || !modal) return;
+
+  fileActionMode = mode;
+  fileActionTargetId = fileRecord.id;
+  fileActionSaving = false;
+
+  const title = modal.querySelector<HTMLElement>("[data-cv-file-action-title]");
+  const copy = modal.querySelector<HTMLElement>("[data-cv-file-action-copy]");
+  const nameWrap = modal.querySelector<HTMLElement>("[data-cv-file-action-name-wrap]");
+  const nameLabel = modal.querySelector<HTMLElement>("[data-cv-file-action-name-label]");
+  const nameInput = modal.querySelector<HTMLInputElement>("[data-cv-file-action-name]");
+  const folderWrap = modal.querySelector<HTMLElement>("[data-cv-file-action-folder-wrap]");
+  const folderSelect = modal.querySelector("[data-cv-file-action-folder]") as HTMLSelectElement | null;
+  const status = modal.querySelector<HTMLElement>("[data-cv-file-action-status]");
+  const submit = modal.querySelector<HTMLButtonElement>("[data-cv-file-action-submit]");
+
+  const actionLabels = fileActionLabels(mode);
+  if (title) title.textContent = actionLabels.title;
+  if (copy) copy.textContent = actionLabels.copy(fileRecord.displayName);
+  if (nameLabel) nameLabel.textContent = mode === "copy" ? "Copy name" : "File name";
+  if (nameInput) {
+    nameInput.value = mode === "copy" ? copyFileName(fileRecord.displayName) : fileRecord.displayName;
+    nameInput.required = mode !== "move";
+  }
+  if (nameWrap) nameWrap.hidden = mode === "move";
+  if (folderWrap) folderWrap.hidden = mode === "rename";
+  if (folderSelect) {
+    folderSelect.innerHTML = renderFolderDestinationOptions(fileRecord);
+    folderSelect.value = mode === "copy" || mode === "move" ? fileRecord.folderId ?? "" : "";
+  }
+  setFileActionStatus(status, "", false, true);
+  if (submit) {
+    submit.disabled = false;
+    submit.textContent = actionLabels.submit;
+  }
+  openModal(modal, mode === "move" ? "[data-cv-file-action-folder]" : "[data-cv-file-action-name]");
+}
+
+function closeFileActionModal(): void {
+  const modal = document.querySelector<HTMLElement>("[data-cv-file-action-modal]");
+  if (modal) closeModal(modal);
+  fileActionSaving = false;
+  fileActionMode = null;
+  fileActionTargetId = null;
+}
+
+async function submitFileAction(): Promise<void> {
+  if (!fileActionMode || !fileActionTargetId || fileActionSaving) return;
+  const modal = document.querySelector<HTMLElement>("[data-cv-file-action-modal]");
+  const fileRecord = library.files.find((entry) => entry.id === fileActionTargetId);
+  if (!modal || !fileRecord) return;
+
+  const status = modal.querySelector<HTMLElement>("[data-cv-file-action-status]");
+  const submit = modal.querySelector<HTMLButtonElement>("[data-cv-file-action-submit]");
+  const name = modal.querySelector<HTMLInputElement>("[data-cv-file-action-name]")?.value.trim() ?? "";
+  const folderId = (modal.querySelector("[data-cv-file-action-folder]") as HTMLSelectElement | null)?.value.trim() || null;
+
+  if ((fileActionMode === "rename" || fileActionMode === "copy") && !name) {
+    setFileActionStatus(status, "File name is required.", true);
+    modal.querySelector<HTMLInputElement>("[data-cv-file-action-name]")?.focus();
+    return;
+  }
+
+  fileActionSaving = true;
+  if (submit) {
+    submit.disabled = true;
+    submit.textContent = "Working";
+  }
+  setFileActionStatus(status, "Updating file...", false);
+
+  try {
+    if (fileActionMode === "rename") {
+      await renameFile(fileRecord.id, name);
+      showToast("已更新");
+    } else if (fileActionMode === "move") {
+      await moveFile(fileRecord.id, folderId);
+      showToast("已移动");
+    } else {
+      await copyFileRecord(fileRecord.id, name, folderId);
+      showToast("已复制");
+    }
+    closeFileActionModal();
+    renderAll();
+  } catch (error) {
+    setFileActionStatus(status, errorMessage(error), true);
+    showToast(errorMessage(error), "error");
+  } finally {
+    fileActionSaving = false;
+    if (submit && !modal.hidden) {
+      submit.disabled = false;
+      submit.textContent = fileActionMode ? fileActionLabels(fileActionMode).submit : "Apply";
+    }
+  }
+}
+
+async function renameFile(fileId: string, displayName: string): Promise<void> {
+  const updatedAt = new Date().toISOString();
+  if (!previewMode) {
+    await fetchJson<{ status: string; fileId: string }>(`/api/files/${encodeURIComponent(fileId)}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ displayName }),
+    });
+  }
+  library = {
+    ...library,
+    files: library.files.map((fileRecord) => (fileRecord.id === fileId ? { ...fileRecord, displayName, updatedAt } : fileRecord)),
+  };
+}
+
+async function moveFile(fileId: string, folderId: string | null): Promise<void> {
+  const folderRecord = folderId ? library.folders.find((entry) => entry.id === folderId) ?? null : null;
+  const updatedAt = new Date().toISOString();
+  let projectId = folderRecord?.projectId ?? library.files.find((entry) => entry.id === fileId)?.projectId ?? null;
+  if (!previewMode) {
+    const response = await fetchJson<{ status: string; fileId: string; folderId: string | null; projectId: string; updatedAt: string }>(
+      `/api/files/${encodeURIComponent(fileId)}/move`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ folderId }),
+      }
+    );
+    projectId = response.projectId;
+  }
+  library = {
+    ...library,
+    files: library.files.map((fileRecord) =>
+      fileRecord.id === fileId
+        ? { ...fileRecord, folderId, parentId: folderId, projectId: projectId ?? fileRecord.projectId, updatedAt }
+        : fileRecord
+    ),
+  };
+}
+
+async function copyFileRecord(fileId: string, displayName: string, folderId: string | null): Promise<void> {
+  const source = library.files.find((entry) => entry.id === fileId);
+  if (!source) throw new Error("File was not found.");
+
+  if (previewMode) {
+    const folderRecord = folderId ? library.folders.find((entry) => entry.id === folderId) ?? null : null;
+    const now = new Date().toISOString();
+    library = {
+      ...library,
+      files: [
+        {
+          ...source,
+          id: `local_copy_${Date.now()}_${Math.random().toString(16).slice(2)}`,
+          displayName,
+          originalName: displayName,
+          folderId,
+          parentId: folderId,
+          projectId: folderRecord?.projectId ?? source.projectId,
+          createdAt: now,
+          updatedAt: now,
+          downloadCount: 0,
+        },
+        ...library.files,
+      ],
+    };
+    return;
+  }
+
+  const response = await fetchJson<{ status: string; file: FileRecord }>(`/api/files/${encodeURIComponent(fileId)}/copy`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ name: displayName, folderId }),
+  });
+  library = {
+    ...library,
+    files: [response.file, ...library.files.filter((entry) => entry.id !== response.file.id)],
+  };
+  selectedFileId = response.file.id;
+  selectedFileIds = new Set([response.file.id]);
+}
+
+function renderFolderDestinationOptions(fileRecord: FileRecord): string {
+  const projectRecord = library.projects.find((entry) => entry.id === fileRecord.projectId);
+  const parts = [`<option value="">${escapeHtml(projectRecord ? `${projectRecord.name} root` : "Current project root")}</option>`];
+  const foldersByProject = new Map<string, FolderRecord[]>();
+  for (const folderRecord of library.folders) {
+    const current = foldersByProject.get(folderRecord.projectId) ?? [];
+    current.push(folderRecord);
+    foldersByProject.set(folderRecord.projectId, current);
+  }
+  for (const project of library.projects) {
+    const folders = foldersByProject.get(project.id) ?? [];
+    if (folders.length === 0) continue;
+    parts.push(`<optgroup label="${escapeAttr(project.name)}">`);
+    for (const folderRecord of folders.sort((left, right) => left.path.localeCompare(right.path))) {
+      const depth = Math.max(0, folderRecord.path.split("/").filter(Boolean).length - 1);
+      const prefix = depth ? `${"  ".repeat(depth)}- ` : "";
+      parts.push(`<option value="${escapeAttr(folderRecord.id)}">${escapeHtml(prefix + folderRecord.name)}</option>`);
+    }
+    parts.push("</optgroup>");
+  }
+  return parts.join("");
+}
+
+function fileActionLabels(mode: FileActionMode): { title: string; submit: string; copy: (name: string) => string } {
+  if (mode === "rename") return { title: "Rename file", submit: "Rename", copy: (name) => `Rename ${name}.` };
+  if (mode === "move") return { title: "Move file", submit: "Move", copy: (name) => `Move ${name} to another folder.` };
+  return { title: "Copy file", submit: "Copy", copy: (name) => `Create a copy of ${name}.` };
+}
+
+function copyFileName(name: string): string {
+  const dot = name.lastIndexOf(".");
+  if (dot <= 0 || dot === name.length - 1) return `${name} copy`;
+  return `${name.slice(0, dot)} copy${name.slice(dot)}`;
+}
+
+function isFileActionMode(value: string | null | undefined): value is FileActionMode {
+  return value === "rename" || value === "move" || value === "copy";
+}
+
+function setFileActionStatus(element: HTMLElement | null, message: string, isError: boolean, hidden = false): void {
+  if (!element) return;
+  element.hidden = hidden;
+  element.textContent = message;
+  element.classList.toggle("form-status--error", isError);
+}
+
 async function createFolderFromModal(form: HTMLFormElement): Promise<void> {
   const modal = document.querySelector<HTMLElement>("[data-cv-folder-modal]");
   const input = form.querySelector<HTMLInputElement>("[data-cv-folder-name]");
@@ -3742,6 +4486,35 @@ function formatDate(value: string): string {
     hour: "numeric",
     minute: "2-digit",
   }).format(date);
+}
+
+function driveTypeFilterFromValue(value: string): DriveTypeFilter {
+  return value === "image" ||
+    value === "document" ||
+    value === "spreadsheet" ||
+    value === "presentation" ||
+    value === "pdf" ||
+    value === "code" ||
+    value === "other"
+    ? value
+    : "all";
+}
+
+function fileMatchesTypeFilter(fileRecord: FileRecord): boolean {
+  if (typeFilter === "all") return true;
+  return driveTypeForFile(fileRecord) === typeFilter;
+}
+
+function driveTypeForFile(fileRecord: FileRecord): Exclude<DriveTypeFilter, "all"> {
+  const name = fileRecord.displayName.toLowerCase();
+  const mime = (fileRecord.mimeType || "").toLowerCase();
+  if (previewKindForFile(fileRecord) === "image") return "image";
+  if (mime.includes("pdf") || name.endsWith(".pdf")) return "pdf";
+  if (mime.includes("spreadsheet") || /\.(xlsx|xls|csv|tsv)$/.test(name)) return "spreadsheet";
+  if (mime.includes("presentation") || /\.(ppt|pptx|key)$/.test(name)) return "presentation";
+  if (mime.includes("word") || mime.includes("document") || /\.(doc|docx|rtf|odt)$/.test(name)) return "document";
+  if (/(\.ts|\.tsx|\.js|\.jsx|\.json|\.css|\.html|\.md|\.py|\.sql|\.r|\.java|\.cpp|\.c|\.h)$/.test(name)) return "code";
+  return "other";
 }
 
 function typeLabel(fileRecord: FileRecord): string {

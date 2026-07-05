@@ -2,6 +2,7 @@ import type { Env } from "../../_lib/env";
 import { listFileRoleIds, mapFile, requireDb } from "../../_lib/db";
 import { coercePatchPayload } from "../../_lib/file-service";
 import { canViewFile, canWriteFiles, permissionDeniedJson, resolveActorAccess } from "../../_lib/permissions";
+import { ensureDriveAppSchema } from "../../_lib/schema";
 import { normalizeSlug } from "../../../src/lib/chemvault-files/validation";
 import { okJson, parseJsonBody, routeError } from "../../_lib/http";
 
@@ -21,6 +22,7 @@ async function replaceFileTags(db: D1Database, fileId: string, tags: string[]): 
 export const onRequestPatch: PagesFunction<Env> = async ({ request, env, params }) => {
   try {
     const db = requireDb(env.FILES_DB);
+    await ensureDriveAppSchema(db);
     const access = await resolveActorAccess(request, env, db);
     if (!canWriteFiles(access)) return permissionDeniedJson(access, "write");
     const fileId = String(params.id || "");
@@ -34,11 +36,13 @@ export const onRequestPatch: PagesFunction<Env> = async ({ request, env, params 
 
     await db
       .prepare(
-        "UPDATE files SET display_name = COALESCE(?, display_name), project_id = COALESCE(?, project_id), folder_id = CASE WHEN ? THEN ? ELSE folder_id END, updated_at = ? WHERE id = ? AND deleted_at IS NULL"
+        "UPDATE files SET display_name = COALESCE(?, display_name), project_id = COALESCE(?, project_id), folder_id = CASE WHEN ? THEN ? ELSE folder_id END, parent_id = CASE WHEN ? THEN ? ELSE parent_id END, updated_at = ? WHERE id = ? AND deleted_at IS NULL"
       )
       .bind(
         patch.displayName ?? null,
         patch.projectId ?? null,
+        Object.prototype.hasOwnProperty.call(patch, "folderId") ? 1 : 0,
+        patch.folderId ?? null,
         Object.prototype.hasOwnProperty.call(patch, "folderId") ? 1 : 0,
         patch.folderId ?? null,
         now,
@@ -59,6 +63,7 @@ export const onRequestPatch: PagesFunction<Env> = async ({ request, env, params 
 export const onRequestDelete: PagesFunction<Env> = async ({ request, env, params }) => {
   try {
     const db = requireDb(env.FILES_DB);
+    await ensureDriveAppSchema(db);
     const access = await resolveActorAccess(request, env, db);
     if (!canWriteFiles(access)) return permissionDeniedJson(access, "write");
     const fileId = String(params.id || "");
@@ -69,12 +74,11 @@ export const onRequestDelete: PagesFunction<Env> = async ({ request, env, params
 
     const now = new Date().toISOString();
     await db
-      .prepare("UPDATE files SET status = 'deleted', deleted_at = ?, updated_at = ?, folder_id = NULL WHERE id = ?")
-      .bind(now, now, fileId)
+      .prepare("UPDATE files SET status = 'deleted', deleted_at = ?, trashed_at = ?, updated_at = ? WHERE id = ?")
+      .bind(now, now, now, fileId)
       .run();
-    await env.FILES_BUCKET?.delete(file.r2Key);
 
-    return okJson({ status: "deleted", fileId });
+    return okJson({ status: "trashed", fileId, trashedAt: now });
   } catch (error) {
     return routeError(error);
   }

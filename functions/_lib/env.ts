@@ -8,6 +8,7 @@ export interface Env {
   COOKIE_NAME?: string;
   COOKIE_DOMAIN?: string;
   ENVIRONMENT?: string;
+  FILE_STORAGE_QUOTA_BYTES?: string;
 }
 
 export function hasRequiredBindings(env: Env): { d1: boolean; r2: boolean } {

@@ -10,7 +10,7 @@ export interface FileFilters {
 }
 
 export type UploadQueueStatus = "pending" | "queued" | "uploading" | "complete" | "failed";
-export type FileQuickFilter = "ready" | "failed" | "large" | "shared";
+export type FileQuickFilter = "ready" | "failed" | "large" | "shared" | "starred";
 export type FileSortKey = "name" | "type" | "size" | "modified";
 export type SortDirection = "asc" | "desc";
 
@@ -402,6 +402,7 @@ export function filterFiles(files: FileRecord[], filters: FileFilters): FileReco
     if (filters.quickFilter === "failed" && file.status !== "failed") return false;
     if (filters.quickFilter === "large" && file.sizeBytes < 1024 ** 3) return false;
     if (filters.quickFilter === "shared" && !isSharedFile(file)) return false;
+    if (filters.quickFilter === "starred" && !file.isStarred) return false;
 
     if (!search) return true;
     const searchable = [

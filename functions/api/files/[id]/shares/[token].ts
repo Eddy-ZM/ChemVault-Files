@@ -22,10 +22,17 @@ export const onRequestPatch: PagesFunction<Env> = async ({ request, env, params 
       .first();
     if (!existing) return errorJson("Share link was not found", 404, "SHARE_NOT_FOUND");
 
-    const payload = coerceShareCreatePayload(await parseJsonBody(request));
+    const rawPayload = (await parseJsonBody(request)) as Record<string, unknown>;
+    const payload = coerceShareCreatePayload(rawPayload);
+    const allowDownload = typeof rawPayload.allowDownload === "boolean" ? rawPayload.allowDownload : Number((existing as Record<string, unknown>).allow_download) === 1;
+    const isPublic = typeof rawPayload.isPublic === "boolean" ? rawPayload.isPublic : Number((existing as Record<string, unknown>).is_public ?? 0) === 1;
     await db
-      .prepare("UPDATE file_shares SET expires_at = ? WHERE token = ? AND file_id = ? AND revoked_at IS NULL")
-      .bind(payload.expiresAt, token, fileId)
+      .prepare("UPDATE file_shares SET allow_download = ?, is_public = ?, expires_at = ? WHERE token = ? AND file_id = ? AND revoked_at IS NULL")
+      .bind(allowDownload ? 1 : 0, isPublic ? 1 : 0, payload.expiresAt, token, fileId)
+      .run();
+    await db
+      .prepare("UPDATE files SET shared_status = ?, visibility = CASE WHEN visibility = 'private' THEN 'roles' ELSE visibility END, updated_at = ? WHERE id = ?")
+      .bind(isPublic ? "public" : "shared", new Date().toISOString(), fileId)
       .run();
 
     const row = await db.prepare("SELECT * FROM file_shares WHERE token = ? AND file_id = ?").bind(token, fileId).first();
