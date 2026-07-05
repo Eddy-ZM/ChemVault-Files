@@ -878,6 +878,7 @@ input:focus-visible {
   padding: 8px;
 }
 
+.files-shell[data-cv-sidebar-collapsed="true"] .sidebar__section--folders,
 .files-shell[data-cv-sidebar-collapsed="true"] .sidebar__section--tags,
 .files-shell[data-cv-sidebar-collapsed="true"] .storage-meter {
   display: none;
