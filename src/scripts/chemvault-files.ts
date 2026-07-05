@@ -2070,11 +2070,14 @@ function metadataRow(label: string, value: string, location: boolean): string {
 }
 
 function renderPreviewPanel(fileRecord: FileRecord): string {
+  const kind = previewKindForFile(fileRecord);
   if (fileRecord.status !== "ready") {
+    if (!previewMode && (fileRecord.status === "pending" || fileRecord.status === "uploading") && kind !== "unsupported") {
+      return renderRecoveringPreview(fileRecord, kind);
+    }
     return `<div class="preview-empty">${warningIcon()}<strong>Preview unavailable</strong><span>${escapeHtml(fileRecord.status)} file</span></div>`;
   }
 
-  const kind = previewKindForFile(fileRecord);
   if (kind === "unsupported") {
     return `
       <div class="preview-empty">
@@ -2099,6 +2102,25 @@ function renderPreviewPanel(fileRecord: FileRecord): string {
 
   return `
     <section class="preview-pane">
+      <iframe class="preview-frame${kind === "csv" || kind === "text" ? " preview-frame--text" : ""}" src="${escapeAttr(previewUrl)}" title="${escapeAttr(fileRecord.displayName)} preview"></iframe>
+    </section>
+  `;
+}
+
+function renderRecoveringPreview(fileRecord: FileRecord, kind: ReturnType<typeof previewKindForFile>): string {
+  const previewUrl = `/api/files/${encodeURIComponent(fileRecord.id)}/preview`;
+  const caption = `${typeLabel(fileRecord)} · ${formatBytes(fileRecord.sizeBytes)} · checking stored object`;
+  if (kind === "image") {
+    return `
+      <figure class="preview-pane preview-pane--recovering">
+        <img class="preview-image" src="${escapeAttr(previewUrl)}" alt="${escapeAttr(fileRecord.displayName)}" />
+        <figcaption>${escapeHtml(caption)}</figcaption>
+      </figure>
+    `;
+  }
+
+  return `
+    <section class="preview-pane preview-pane--recovering">
       <iframe class="preview-frame${kind === "csv" || kind === "text" ? " preview-frame--text" : ""}" src="${escapeAttr(previewUrl)}" title="${escapeAttr(fileRecord.displayName)} preview"></iframe>
     </section>
   `;
