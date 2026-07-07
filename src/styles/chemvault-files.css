@@ -77,6 +77,10 @@ ol {
   list-style: none;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 h1,
 h2,
 h3,
@@ -875,7 +879,7 @@ input:focus-visible {
 .sidebar {
   min-height: 0;
   display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr) auto auto;
+  grid-template-rows: auto auto minmax(112px, 1fr) auto auto;
   overflow: hidden;
   opacity: 1;
   transform: translateX(0);
@@ -894,6 +898,7 @@ input:focus-visible {
 }
 
 .sidebar__section {
+  min-width: 0;
   padding: 11px 10px;
   border-bottom: 1px solid var(--line);
 }
@@ -926,6 +931,13 @@ input:focus-visible {
 
 .sidebar__section--actions {
   padding-top: 14px;
+}
+
+.sidebar__section--folders {
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden;
 }
 
 .sidebar-action-stack {
@@ -1117,8 +1129,13 @@ input:focus-visible {
 
 .folder-tree {
   position: relative;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   gap: 3px;
   padding-top: 1px;
+  padding-right: 4px;
 }
 
 .folder-tree ul {
@@ -1133,6 +1150,7 @@ input:focus-visible {
 .nav-row,
 .folder-row {
   position: relative;
+  min-width: 0;
   display: grid;
   grid-template-columns: 22px minmax(0, 1fr) auto;
   align-items: center;
@@ -1417,6 +1435,7 @@ input:focus-visible {
 }
 
 .storage-meter {
+  min-width: 0;
   padding: 14px 12px 16px;
 }
 
@@ -4129,9 +4148,10 @@ input:focus-visible {
 .auth-card {
   position: relative;
   z-index: 1;
-  width: min(420px, 100%);
+  width: min(560px, calc(100vw - 32px));
   max-height: calc(100vh - 40px);
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
   padding: 18px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -4140,6 +4160,10 @@ input:focus-visible {
   opacity: 0;
   transform: translateY(var(--motion-distance)) scale(.98);
   transition: opacity var(--motion-modal) var(--motion-ease), transform var(--motion-modal) var(--motion-ease);
+}
+
+.auth-card > * {
+  min-width: 0;
 }
 
 .auth-modal[data-cv-modal-state="open"] .auth-card {
@@ -4187,12 +4211,14 @@ input:focus-visible {
 }
 
 .auth-form {
+  min-width: 0;
   display: grid;
   gap: 10px;
   margin-top: 16px;
 }
 
 .auth-form label {
+  min-width: 0;
   display: grid;
   gap: 7px;
   color: #56606d;
@@ -4201,6 +4227,7 @@ input:focus-visible {
 }
 
 .auth-form input {
+  min-width: 0;
   width: 100%;
   min-height: 38px;
   padding: 0 11px;
@@ -4213,12 +4240,23 @@ input:focus-visible {
 
 .auth-actions {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 108px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
 }
 
 .auth-actions .button {
   min-width: 0;
+  width: 100%;
+  min-height: 40px;
+  padding-block: 7px;
+  overflow: hidden;
+  line-height: 1.2;
+  text-align: center;
+  white-space: normal;
+}
+
+.auth-actions [data-cv-logout-button] {
+  grid-column: 1 / -1;
 }
 
 .role-settings {
@@ -4315,9 +4353,13 @@ input:focus-visible {
   background: #f4f5f7;
 }
 
-@media (max-width: 520px) {
+@media (max-width: 640px) {
   .auth-actions {
     grid-template-columns: 1fr;
+  }
+
+  .auth-actions [data-cv-logout-button] {
+    grid-column: auto;
   }
 }
 
@@ -4612,9 +4654,10 @@ input:focus-visible {
 
   .files-shell[data-cv-sidebar-collapsed="true"] .sidebar,
   .files-shell[data-cv-sidebar-collapsed="false"] .sidebar {
-    grid-template-rows: auto auto minmax(0, 1fr) auto auto;
+    grid-template-rows: auto auto minmax(112px, 1fr) auto auto;
     align-content: stretch;
     justify-items: stretch;
+    overflow: hidden;
   }
 
   .files-shell[data-cv-sidebar-collapsed="true"] .sidebar {
@@ -4635,6 +4678,22 @@ input:focus-visible {
   .files-shell[data-cv-sidebar-collapsed="false"] .sidebar__section {
     width: auto;
     padding: 11px 10px;
+  }
+
+  .files-shell[data-cv-sidebar-collapsed="true"] .sidebar__section--folders,
+  .files-shell[data-cv-sidebar-collapsed="false"] .sidebar__section--folders {
+    min-height: 0;
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    overflow: hidden;
+  }
+
+  .files-shell[data-cv-sidebar-collapsed="true"] .folder-tree,
+  .files-shell[data-cv-sidebar-collapsed="false"] .folder-tree {
+    min-height: 0;
+    max-height: 100%;
+    overflow-x: hidden;
+    overflow-y: auto;
   }
 
   .files-shell[data-cv-sidebar-collapsed="true"] .sidebar__section--tags,
