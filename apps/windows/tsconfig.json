@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "noEmit": true,
+    "types": ["node", "vite/client"],
+    "ignoreDeprecations": "6.0",
+    "baseUrl": ".",
+    "paths": {
+      "@chemvault/files-api-client": ["../../packages/api-client/src/index.ts"]
+    }
+  },
+  "include": ["src/**/*.ts", "../../packages/api-client/src/**/*.ts"],
+  "exclude": ["dist", "node_modules"]
+}

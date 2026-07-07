@@ -1,0 +1,4 @@
+API_BASE_URL = https:/$()/file.chemvault.science
+APP_ENV = production
+BUNDLE_ID = science.chemvault.files
+DEVELOPMENT_TEAM = 96L6379Q92

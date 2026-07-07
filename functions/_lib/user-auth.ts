@@ -2,6 +2,7 @@ import type { FilePermissionLevel } from "../../src/lib/chemvault-files/types";
 import type { Env } from "./env";
 import { normalizeEmailCandidate, readCookie } from "./env";
 import { HttpError } from "./http";
+import { appSessionPayloadToUser, readBearerToken, verifyAppSessionToken } from "./app-auth";
 
 export interface UserAuthProfile {
   id: string;
@@ -81,6 +82,11 @@ export function getUserLogoutCookie(env: Pick<Env, "COOKIE_NAME" | "COOKIE_DOMAI
 }
 
 export async function loadUserAuthProfile(request: Request, env: Env): Promise<UserAuthProfile | null> {
+  const bearerToken = readBearerToken(request);
+  if (bearerToken) {
+    return appSessionPayloadToUser(await verifyAppSessionToken(bearerToken, env, "access"));
+  }
+
   const localActor = env.ENVIRONMENT === "production" ? null : normalizeEmailCandidate(request.headers.get(localActorHeader));
   if (localActor) {
     return {

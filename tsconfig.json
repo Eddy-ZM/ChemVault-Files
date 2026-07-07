@@ -4,5 +4,5 @@
     "types": ["@cloudflare/workers-types", "vitest/globals", "node"]
   },
   "include": [".astro/types.d.ts", "**/*"],
-  "exclude": ["dist"]
+  "exclude": ["dist", "apps/windows/dist", "apps/windows/node_modules", "apps/windows/src", "apps/windows/vite.config.ts"]
 }

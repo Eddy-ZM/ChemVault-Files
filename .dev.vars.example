@@ -1,0 +1,12 @@
+ENVIRONMENT=development
+PRIVATE_OWNER_EMAIL=owner@example.com
+FILES_ADMIN_EMAILS=owner@example.com
+USER_AUTH_ORIGIN=https://user.chemvault.science
+USER_LOGIN_URL=/login
+COOKIE_NAME=chemvault_session
+COOKIE_DOMAIN=
+FILE_STORAGE_QUOTA_BYTES=10737418240
+ALLOWED_APP_ORIGINS=null app://chemvault-files http://127.0.0.1:5177 http://localhost:5177
+
+# Use at least 32 random characters. Do not commit the real value.
+APP_SESSION_SECRET=

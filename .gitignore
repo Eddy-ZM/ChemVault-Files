@@ -1,11 +1,15 @@
 .astro/
 .worktrees/
 .wrangler/
-dist/
+.cache/
 node_modules/
+dist/
+build/
 docs/superpowers/
 .DS_Store
 *.log
+
+# Local environment files
 .env
 .env.*
 !.env.example
@@ -28,20 +32,12 @@ docs/superpowers/
 *.xcarchive
 *.ipa
 
-# Local build output
-build/
-.cache/
-# ChemVault local secrets and build output
-.env
-.env.*
-!.env.example
-*.p8
-AuthKey_*.p8
-*.p12
-*.cer
-*.mobileprovision
-node_modules/
-dist/
-build/
-.wrangler/
-.DS_Store
+# Generated package/app artifacts
+apps/windows/dist/
+apps/windows/src/renderer/node_modules/
+packages/api-client/dist/
+
+# Windows desktop app package icons
+!apps/windows/build/
+!apps/windows/build/icon.ico
+!apps/windows/build/icon.png

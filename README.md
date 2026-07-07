@@ -50,7 +50,17 @@ The account panel shows the current ChemVault identity and available file permis
 
 ## Website Status
 
-ChemVault Files is available as a web application for ChemVault users. This repository does not currently include a separate mobile or desktop app.
+ChemVault Files is available as a web application for ChemVault users. The repository also includes native Apple app source for iOS, iPadOS, and macOS, plus a Windows desktop app source that can be packaged as an installer.
+
+## App Features
+
+### Apple App
+
+The Apple app provides a native SwiftUI file workspace with ChemVault sign-in, sidebar navigation, file list and grid views, file preview, upload, download, search, sorting, recycle bin access, settings, and secure session storage.
+
+### Windows Desktop App
+
+The Windows app provides an installable ChemVault Files desktop experience with sign-in, secure session storage, file browsing, upload, drag-and-drop upload, download, preview, new folder creation, delete and restore actions, desktop notifications, and update checking.
 
 ## License
 

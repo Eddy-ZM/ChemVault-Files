@@ -9,6 +9,9 @@ export interface Env {
   COOKIE_DOMAIN?: string;
   ENVIRONMENT?: string;
   FILE_STORAGE_QUOTA_BYTES?: string;
+  ALLOWED_APP_ORIGINS?: string;
+  APP_SESSION_SECRET?: string;
+  JWT_SECRET?: string;
 }
 
 export function hasRequiredBindings(env: Env): { d1: boolean; r2: boolean } {
