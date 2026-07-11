@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
-      FILES_ORIGIN: https://file.chemvault.science
+      FILES_ORIGIN: https://chemvault-files.pages.dev
       FILE_SCAN_CALLBACK_SECRET: ${{ secrets.FILE_SCAN_CALLBACK_SECRET }}
     steps:
       - name: Validate scanner secret
