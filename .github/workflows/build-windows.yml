@@ -1,0 +1,59 @@
+name: Build ChemVault Files for Windows
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            apps/windows/package-lock.json
+      - name: Install website dependencies
+        run: npm ci
+      - name: Install desktop dependencies
+        run: npm --prefix apps/windows ci
+      - name: Validate website and API
+        run: npm run check
+      - name: Build Windows installer
+        run: npm run package:windows
+      - name: Create checksum and release record
+        shell: pwsh
+        run: |
+          $asset = Get-ChildItem -Path dist/windows -Filter 'ChemVaultFilesSetup-*.exe' | Select-Object -First 1
+          if (-not $asset) { throw 'Windows installer was not produced.' }
+          $version = (Get-Content -Raw apps/windows/package.json | ConvertFrom-Json).version
+          $tag = if ($env:GITHUB_REF_TYPE -eq 'tag') { $env:GITHUB_REF_NAME } else { "v$version" }
+          $url = "https://github.com/$env:GITHUB_REPOSITORY/releases/download/$tag/$($asset.Name)"
+          node scripts/create-release-record.mjs --file $asset.FullName --app chemvault-files --platform Windows --type exe --version $version --url $url --output dist/windows/release-manifest.json
+      - name: Upload verified artifact bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: chemvault-files-windows
+          path: |
+            dist/windows/*.exe
+            dist/windows/*.sha256
+            dist/windows/release-manifest.json
+          if-no-files-found: error
+      - name: Create protected draft release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          files: |
+            dist/windows/*.exe
+            dist/windows/*.sha256
+            dist/windows/release-manifest.json

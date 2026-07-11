@@ -51,6 +51,9 @@ export async function ensureDriveAppSchema(db: D1Database): Promise<void> {
     "ALTER TABLE files ADD COLUMN last_opened_at TEXT",
     "ALTER TABLE files ADD COLUMN shared_status TEXT NOT NULL DEFAULT 'private' CHECK (shared_status IN ('private', 'shared', 'public'))",
     "ALTER TABLE files ADD COLUMN metadata_json TEXT",
+    "ALTER TABLE files ADD COLUMN scan_status TEXT NOT NULL DEFAULT 'clean'",
+    "ALTER TABLE files ADD COLUMN scan_detail TEXT",
+    "ALTER TABLE files ADD COLUMN scanned_at TEXT",
   ];
   const folderColumns = [
     "ALTER TABLE folders ADD COLUMN owner_user_id TEXT",
@@ -70,6 +73,7 @@ export async function ensureDriveAppSchema(db: D1Database): Promise<void> {
   await db.prepare("CREATE INDEX IF NOT EXISTS idx_files_starred ON files(is_starred, updated_at)").run();
   await db.prepare("CREATE INDEX IF NOT EXISTS idx_files_trashed ON files(deleted_at, trashed_at)").run();
   await db.prepare("CREATE INDEX IF NOT EXISTS idx_files_last_opened ON files(last_opened_at)").run();
+  await db.prepare("CREATE INDEX IF NOT EXISTS idx_files_scan_status ON files(scan_status, updated_at)").run();
   await db.prepare("CREATE INDEX IF NOT EXISTS idx_folders_parent_deleted ON folders(parent_id, deleted_at)").run();
   await db.prepare("CREATE INDEX IF NOT EXISTS idx_folders_starred ON folders(is_starred, updated_at)").run();
 }

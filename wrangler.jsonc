@@ -14,6 +14,8 @@
     "FILE_STORAGE_QUOTA_BYTES": "10737418240",
     "ALLOWED_APP_ORIGINS": "null app://chemvault-files http://127.0.0.1:5177 http://localhost:5177"
   },
+  // Configure with: wrangler pages secret put LIFECYCLE_SERVICE_SECRET --project-name chemvault-files
+  // Configure the same LAB_HANDOFF_SECRET in ChemVault Files and ChemVault Lab.
   "r2_buckets": [
     {
       "binding": "FILES_BUCKET",

@@ -50,6 +50,9 @@ export const onRequestPost: PagesFunction<Env> = async ({ env, request, params }
     if (!file) {
       return Response.json({ error: "File was not found" }, { status: 404 });
     }
+    if (file.scanStatus !== "clean") {
+      return Response.json({ error: "File is quarantined until its safety scan completes." }, { status: 423 });
+    }
     const object = await bucket.get(file.r2Key);
     if (!object) {
       return Response.json({ error: "Source object was not found" }, { status: 404 });

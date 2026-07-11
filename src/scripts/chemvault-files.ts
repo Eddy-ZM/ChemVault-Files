@@ -949,10 +949,28 @@ function bindEvents(): void {
     window.location.href = `/api/files/${encodeURIComponent(selectedFileId)}/download`;
   });
 
+  document.querySelector<HTMLButtonElement>("[data-cv-process-in-lab-button]")?.addEventListener("click", () => {
+    openSelectedFileInLab();
+  });
+
   document.querySelector<HTMLButtonElement>("[data-cv-delete-button]")?.addEventListener("click", () => {
     if (!selectedFileId) return;
     void deleteSelectedFile();
   });
+}
+
+function openSelectedFileInLab(): void {
+  if (!selectedFileId) return;
+  const selectedFile = library.files.find((entry) => entry.id === selectedFileId);
+  if (!selectedFile) return;
+
+  const labUrl = new URL(
+    import.meta.env.PUBLIC_CHEMVAULT_LAB_URL || "https://lab.chemvault.science/analyse",
+  );
+  labUrl.searchParams.set("source", "files");
+  labUrl.searchParams.set("filesFileId", selectedFile.id);
+  labUrl.searchParams.set("fileName", selectedFile.displayName);
+  window.location.assign(labUrl.toString());
 }
 
 function handleFolderDeleteClick(event: Event, deleteButton: HTMLElement | null): boolean {
@@ -2365,6 +2383,7 @@ function renderInspector(): void {
   const icon = document.querySelector<HTMLElement>("[data-cv-selected-file-icon]");
   const body = document.querySelector<HTMLElement>("[data-cv-inspector-body]");
   const downloadButton = document.querySelector<HTMLButtonElement>("[data-cv-download-button]");
+  const processInLabButton = document.querySelector<HTMLButtonElement>("[data-cv-process-in-lab-button]");
   const shareFocusButton = document.querySelector<HTMLButtonElement>("[data-cv-share-focus-button]");
   const deleteButton = document.querySelector<HTMLButtonElement>("[data-cv-delete-button]");
   const fileActionButtons = document.querySelectorAll<HTMLButtonElement>("[data-cv-file-action-button]");
@@ -2378,6 +2397,7 @@ function renderInspector(): void {
     }
     if (body) body.innerHTML = `<dl class="metadata-list"><div><dt>Status</dt><dd>Reading library metadata.</dd></div></dl>`;
     if (downloadButton) downloadButton.disabled = true;
+    if (processInLabButton) processInLabButton.disabled = true;
     if (shareFocusButton) shareFocusButton.disabled = true;
     if (deleteButton) deleteButton.disabled = true;
     fileActionButtons.forEach((button) => {
@@ -2395,6 +2415,7 @@ function renderInspector(): void {
     const statusText = canReadCurrentAccess() ? "Select a file to inspect metadata." : "Current role is set to no-read.";
     if (body) body.innerHTML = `<dl class="metadata-list"><div><dt>Status</dt><dd>${escapeHtml(statusText)}</dd></div></dl>`;
     if (downloadButton) downloadButton.disabled = true;
+    if (processInLabButton) processInLabButton.disabled = true;
     if (shareFocusButton) shareFocusButton.disabled = true;
     if (deleteButton) deleteButton.disabled = true;
     fileActionButtons.forEach((button) => {
@@ -2410,6 +2431,7 @@ function renderInspector(): void {
     icon.dataset.ext = ext;
   }
   if (downloadButton) downloadButton.disabled = !canReadCurrentAccess();
+  if (processInLabButton) processInLabButton.disabled = !canReadCurrentAccess();
   if (shareFocusButton) shareFocusButton.disabled = !canWriteCurrentAccess();
   if (deleteButton) deleteButton.disabled = !canWriteCurrentAccess();
   fileActionButtons.forEach((button) => {
@@ -3686,6 +3708,10 @@ async function copySelectedShareLink(): Promise<void> {
 }
 
 function pickSelectedFileId(): string | null {
+  const requestedFileId = new URLSearchParams(window.location.search).get("fileId");
+  if (requestedFileId && library.files.some((entry) => entry.id === requestedFileId && entry.status !== "deleted")) {
+    return requestedFileId;
+  }
   if (selectedFileId && library.files.some((entry) => entry.id === selectedFileId && entry.status !== "deleted")) {
     return selectedFileId;
   }

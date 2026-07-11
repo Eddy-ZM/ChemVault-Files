@@ -19,8 +19,8 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env, params })
     let file = { ...mapFile(row as Record<string, unknown>), roleIds: await listFileRoleIds(db, fileId) };
     if (!canViewFile(access, file)) return permissionDeniedJson(access, "read");
     if (!isPreviewableFile(file)) return errorJson("File type is not previewable", 415, "PREVIEW_UNSUPPORTED");
-    if (file.status !== "ready" && file.status !== "pending" && file.status !== "uploading") {
-      return errorJson("File is not ready for preview", 409, "FILE_NOT_READY");
+    if (file.status !== "ready" || file.scanStatus !== "clean") {
+      return errorJson("File is quarantined until its safety scan completes", 423, "FILE_QUARANTINED");
     }
 
     const object = await env.FILES_BUCKET.get(file.r2Key);
@@ -28,15 +28,6 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env, params })
       return file.status === "ready"
         ? errorJson("Stored object was not found", 404, "OBJECT_NOT_FOUND")
         : errorJson("File is not ready for preview", 409, "FILE_NOT_READY");
-    }
-
-    if (file.status !== "ready") {
-      const now = new Date().toISOString();
-      await db.prepare("UPDATE files SET status = 'ready', updated_at = ? WHERE id = ?").bind(now, fileId).run();
-      if (file.uploadSessionId) {
-        await db.prepare("UPDATE upload_sessions SET status = 'complete', updated_at = ? WHERE id = ?").bind(now, file.uploadSessionId).run();
-      }
-      file = { ...file, status: "ready", updatedAt: now };
     }
 
     await recordFileActivity(

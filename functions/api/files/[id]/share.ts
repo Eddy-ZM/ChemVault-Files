@@ -42,7 +42,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env, params }
     const access = await resolveActorAccess(request, env, db);
     if (!canWriteFiles(access)) return permissionDeniedJson(access, "write");
     const fileId = String(params.id || "");
-    const row = await db.prepare("SELECT * FROM files WHERE id = ? AND status = 'ready' AND deleted_at IS NULL").bind(fileId).first();
+    const row = await db.prepare("SELECT * FROM files WHERE id = ? AND status = 'ready' AND COALESCE(scan_status, 'clean') = 'clean' AND deleted_at IS NULL").bind(fileId).first();
     if (!row) return errorJson("File was not found", 404, "FILE_NOT_FOUND");
     const file = { ...mapFile(row as Record<string, unknown>), roleIds: await listFileRoleIds(db, fileId) };
     if (!canViewFile(access, file)) return permissionDeniedJson(access, "write");

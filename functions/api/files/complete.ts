@@ -25,9 +25,9 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
 
     const now = new Date().toISOString();
     await db.prepare("UPDATE upload_sessions SET status = 'complete', updated_at = ? WHERE id = ?").bind(now, sessionId).run();
-    await db.prepare("UPDATE files SET status = 'ready', updated_at = ? WHERE id = ?").bind(now, fileId).run();
+    await db.prepare("UPDATE files SET status = 'ready', scan_status = 'pending', scan_detail = NULL, scanned_at = NULL, updated_at = ? WHERE id = ?").bind(now, fileId).run();
 
-    return okJson({ status: "ready", fileId });
+    return okJson({ status: "quarantined", scanStatus: "pending", fileId });
   } catch (error) {
     return routeError(error);
   }

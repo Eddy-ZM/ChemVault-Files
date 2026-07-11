@@ -1,4 +1,5 @@
 export type FileStatus = "pending" | "uploading" | "ready" | "failed" | "deleted";
+export type FileScanStatus = "pending" | "clean" | "rejected" | "error";
 export type FileVisibility = "private" | "public" | "roles";
 export type DriveView = "files" | "recent" | "starred" | "shared" | "trash";
 
@@ -31,6 +32,9 @@ export interface CVFile {
   mimeType: string | null;
   sizeBytes: number;
   status: FileStatus;
+  scanStatus?: FileScanStatus;
+  scanDetail?: string | null;
+  scannedAt?: string | null;
   checksum: string | null;
   actorEmail: string | null;
   downloadCount: number;

@@ -60,7 +60,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       .run();
 
     await db
-      .prepare("UPDATE files SET owner_user_id = ?, parent_id = ?, shared_status = ? WHERE id = ?")
+      .prepare("UPDATE files SET owner_user_id = ?, parent_id = ?, shared_status = ?, scan_status = 'pending', scan_detail = NULL, scanned_at = NULL WHERE id = ?")
       .bind(draft.file.actorEmail, draft.file.folderId, draft.file.visibility === "public" ? "public" : draft.file.visibility === "roles" ? "shared" : "private", draft.file.id)
       .run();
 

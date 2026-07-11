@@ -1,4 +1,5 @@
 export type FileStatus = "pending" | "uploading" | "ready" | "failed" | "deleted";
+export type FileScanStatus = "pending" | "clean" | "rejected" | "error";
 export type UploadMode = "direct" | "presigned" | "multipart";
 export type UploadSessionStatus = "created" | "uploading" | "complete" | "aborted" | "failed";
 export type PreviewKind = "pdf" | "image" | "csv" | "text" | "unsupported";
@@ -52,6 +53,9 @@ export interface FileRecord {
   mimeType: string | null;
   sizeBytes: number;
   status: FileStatus;
+  scanStatus?: FileScanStatus;
+  scanDetail?: string | null;
+  scannedAt?: string | null;
   checksum: string | null;
   uploadSessionId: string | null;
   actorEmail: string | null;

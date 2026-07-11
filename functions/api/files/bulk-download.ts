@@ -34,6 +34,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       const file = await loadVisibleFile(db, fileId, access);
       if (!file) return Response.json({ error: { message: "One or more files were not found." } }, { status: 404 });
       if (file.status !== "ready") return Response.json({ error: { message: `${file.displayName} is not ready for download.` } }, { status: 409 });
+      if (file.scanStatus !== "clean") return Response.json({ error: { message: `${file.displayName} is quarantined until its safety scan completes.` } }, { status: 423 });
       totalBytes += file.sizeBytes;
       if (totalBytes > maxBulkBytes) {
         return Response.json({ error: { message: "Bulk download is larger than the 250 MB limit." } }, { status: 413 });

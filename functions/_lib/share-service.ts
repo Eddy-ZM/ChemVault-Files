@@ -11,7 +11,7 @@ export interface ShareTarget {
 export async function loadShareTarget(db: D1Database, token: string): Promise<ShareTarget | null> {
   const row = await db
     .prepare(
-      "SELECT s.*, f.* FROM file_shares s JOIN files f ON f.id = s.file_id WHERE s.token = ? AND f.status = 'ready' AND f.deleted_at IS NULL"
+      "SELECT s.*, f.* FROM file_shares s JOIN files f ON f.id = s.file_id WHERE s.token = ? AND f.status = 'ready' AND COALESCE(f.scan_status, 'clean') = 'clean' AND f.deleted_at IS NULL"
     )
     .bind(token)
     .first();

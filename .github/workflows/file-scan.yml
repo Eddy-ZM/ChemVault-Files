@@ -1,0 +1,74 @@
+name: File malware scan
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: file-malware-scan
+  cancel-in-progress: false
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      FILES_ORIGIN: https://file.chemvault.science
+      FILE_SCAN_CALLBACK_SECRET: ${{ secrets.FILE_SCAN_CALLBACK_SECRET }}
+    steps:
+      - name: Validate scanner secret
+        run: test -n "$FILE_SCAN_CALLBACK_SECRET"
+      - name: Install ClamAV
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clamav jq
+          sudo freshclam || true
+      - name: Scan quarantined files
+        shell: bash
+        run: |
+          set -euo pipefail
+          queue="$(curl --fail --silent --show-error \
+            -H "Authorization: Bearer $FILE_SCAN_CALLBACK_SECRET" \
+            "$FILES_ORIGIN/api/internal/file-scan?limit=10")"
+
+          jq -r '.files[].id' <<<"$queue" | while IFS= read -r file_id; do
+            [ -n "$file_id" ] || continue
+            target="$(mktemp)"
+            report="$(mktemp)"
+            status="error"
+            detail="ClamAV scanner failed."
+
+            if curl --fail --silent --show-error \
+              -H "Authorization: Bearer $FILE_SCAN_CALLBACK_SECRET" \
+              "$FILES_ORIGIN/api/internal/file-scan/$file_id" \
+              --output "$target"; then
+              set +e
+              clamscan --no-summary "$target" >"$report" 2>&1
+              scan_exit=$?
+              set -e
+              if [ "$scan_exit" -eq 0 ]; then
+                status="clean"
+                detail="ClamAV scan completed with no detected malware."
+              elif [ "$scan_exit" -eq 1 ]; then
+                status="rejected"
+                detail="$(tail -n 1 "$report" | cut -c1-400)"
+              else
+                detail="$(tail -n 1 "$report" | cut -c1-400)"
+              fi
+            else
+              detail="Scanner could not download the quarantined object."
+            fi
+
+            payload="$(jq -n --arg status "$status" --arg detail "$detail" '{status: $status, detail: $detail}')"
+            curl --fail --silent --show-error \
+              -X POST \
+              -H "Authorization: Bearer $FILE_SCAN_CALLBACK_SECRET" \
+              -H "Content-Type: application/json" \
+              --data "$payload" \
+              "$FILES_ORIGIN/api/internal/file-scan/$file_id"
+            rm -f "$target" "$report"
+          done

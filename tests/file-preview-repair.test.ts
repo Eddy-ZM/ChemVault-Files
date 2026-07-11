@@ -121,22 +121,22 @@ function context(state: PreviewState) {
   } as unknown as Parameters<typeof previewFile>[0];
 }
 
-describe("file preview repair", () => {
-  it("repairs a pending previewable file when the R2 object exists", async () => {
+describe("file preview quarantine", () => {
+  it("does not use preview as a shortcut around the safety scan", async () => {
     const state = pendingCsvState();
     const response = await previewFile(context(state));
 
-    expect(response.status).toBe(200);
-    expect(state.file.status).toBe("ready");
-    expect(state.sessionStatus).toBe("complete");
-    expect(state.activity).toHaveLength(1);
+    expect(response.status).toBe(423);
+    expect(state.file.status).toBe("pending");
+    expect(state.sessionStatus).toBeNull();
+    expect(state.activity).toHaveLength(0);
   });
 
   it("does not mark a pending file ready when the R2 object is missing", async () => {
     const state = pendingCsvState(false);
     const response = await previewFile(context(state));
 
-    expect(response.status).toBe(409);
+    expect(response.status).toBe(423);
     expect(state.file.status).toBe("pending");
     expect(state.sessionStatus).toBeNull();
     expect(state.activity).toHaveLength(0);

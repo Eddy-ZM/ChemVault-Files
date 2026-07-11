@@ -10,3 +10,5 @@ ALLOWED_APP_ORIGINS=null app://chemvault-files http://127.0.0.1:5177 http://loca
 
 # Use at least 32 random characters. Do not commit the real value.
 APP_SESSION_SECRET=
+LIFECYCLE_SERVICE_SECRET=replace_with_a_dedicated_cross_service_secret
+LAB_HANDOFF_SECRET=replace_with_a_dedicated_files_to_lab_secret

@@ -95,7 +95,7 @@ async function deleteFileRows(db: D1Database, fileIds: string[]): Promise<void> 
   if (fileIds.length === 0) return;
   const placeholders = fileIds.map(() => "?").join(",");
   await db.prepare(`DELETE FROM file_tags WHERE file_id IN (${placeholders})`).bind(...fileIds).run();
-  await db.prepare(`DELETE FROM file_roles WHERE file_id IN (${placeholders})`).bind(...fileIds).run();
+  await db.prepare(`DELETE FROM file_role_access WHERE file_id IN (${placeholders})`).bind(...fileIds).run();
   await db.prepare(`DELETE FROM file_shares WHERE file_id IN (${placeholders})`).bind(...fileIds).run();
   await db.prepare(`DELETE FROM file_activity WHERE file_id IN (${placeholders})`).bind(...fileIds).run();
   await db.prepare(`DELETE FROM upload_sessions WHERE file_id IN (${placeholders})`).bind(...fileIds).run();

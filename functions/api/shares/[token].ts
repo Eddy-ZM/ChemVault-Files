@@ -14,6 +14,7 @@ type SharePatchBody = {
 export const onRequestGet: PagesFunction<Env> = async ({ request, env, params }) => {
   try {
     const db = requireDb(env.FILES_DB);
+    await ensureDriveAppSchema(db);
     const token = getToken(params);
     const target = await loadShareTarget(db, token);
     if (!target) return errorJson("Share link was not found", 404, "SHARE_NOT_FOUND");

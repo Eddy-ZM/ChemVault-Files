@@ -12,6 +12,10 @@ export interface Env {
   ALLOWED_APP_ORIGINS?: string;
   APP_SESSION_SECRET?: string;
   JWT_SECRET?: string;
+  LIFECYCLE_SERVICE_SECRET?: string;
+  LAB_HANDOFF_SECRET?: string;
+  FILE_SCAN_CALLBACK_SECRET?: string;
+  ARTIFACT_WRITE_SECRET?: string;
 }
 
 export function hasRequiredBindings(env: Env): { d1: boolean; r2: boolean } {
