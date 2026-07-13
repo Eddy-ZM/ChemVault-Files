@@ -1,7 +1,10 @@
-# Critical flows
+# Critical Flows
 
-1. Upload initialization creates a private metadata record and upload session.
-2. Upload completion leaves the object quarantined with `scan_status=pending`.
-3. A scanner reads the object through the secret-protected internal route and reports `clean`, `rejected`, or `error`.
-4. Preview, download, sharing, bulk download, and Lab import accept only ready, scan-cleared files.
-5. Lab writes derived artifacts through a separate credential; the artifact records source file, analysis, generator, and user correlation.
+| Flow | Actor/precondition | Protected steps and side effects | Deny/failure behavior |
+| --- | --- | --- | --- |
+| Upload/quarantine | Signed-in user with write access | Server derives owner/project, creates private row, issues bounded upload, marks completion `pending` | Invalid size/type/scope denied; object stays unreadable until clean |
+| Malware scan | Scheduled scanner with callback secret | Lists oldest pending/error rows, downloads quarantined bytes, scans, posts clean/rejected/error | Unauthorized callback denied; stale definitions fail the run; errors remain quarantined for retry |
+| Preview/download/share | Viewer with effective role or valid share | Server loads non-deleted file, resolves policy, requires clean scan, streams private/no-store bytes | Pending/rejected/error/deleted files denied even to owners/public links |
+| Files to Lab | Owner starts analysis | Files verifies access/clean status and signs a bounded handoff carrying file/project context | Other owner, unsafe file, expired/invalid handoff denied |
+| Lab artifact writeback | Lab service after successful analysis | Separate credential creates derived artifact with source, generator, analysis, and user correlation | Duplicate request is idempotent; failed write is never reported saved |
+| Lifecycle export/delete | User Center service | Dedicated credential exports/deletes owner-scoped metadata/objects idempotently | Missing authority denied; partial failure remains retryable |

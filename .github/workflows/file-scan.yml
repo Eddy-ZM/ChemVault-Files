@@ -26,14 +26,32 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y clamav jq
-          sudo freshclam || true
+          sudo systemctl stop clamav-freshclam.service || true
+          sudo freshclam
+          clamscan --version
       - name: Scan quarantined files
         shell: bash
         run: |
           set -euo pipefail
           queue="$(curl --fail --silent --show-error \
             -H "Authorization: Bearer $FILE_SCAN_CALLBACK_SECRET" \
-            "$FILES_ORIGIN/api/internal/file-scan?limit=10")"
+            "$FILES_ORIGIN/api/internal/file-scan?limit=50")"
+
+          jq -e '.files | type == "array"' <<<"$queue" > /dev/null
+          backlog_total="$(jq -r '.backlog.total // 0' <<<"$queue")"
+          backlog_age="$(jq -r '.backlog.oldestAgeSeconds // 0' <<<"$queue")"
+          {
+            echo "### Malware scan queue"
+            echo "- Pending files: $backlog_total"
+            echo "- Oldest pending age: ${backlog_age}s"
+            echo "- Batch limit: 50"
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$backlog_total" -gt 50 ]; then
+            echo "::warning::Malware scan backlog exceeds one batch ($backlog_total files)."
+          fi
+          if [ "$backlog_age" -gt 3600 ]; then
+            echo "::warning::Oldest quarantined file has waited more than one hour (${backlog_age}s)."
+          fi
 
           jq -r '.files[].id' <<<"$queue" | while IFS= read -r file_id; do
             [ -n "$file_id" ] || continue
