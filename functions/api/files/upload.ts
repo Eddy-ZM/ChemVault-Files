@@ -1,12 +1,14 @@
 import type { Env } from "../../_lib/env";
 import { requireDb } from "../../_lib/db";
 import { canWriteFiles, permissionDeniedJson, resolveActorAccess } from "../../_lib/permissions";
-import { okJson, routeError } from "../../_lib/http";
+import { HttpError, okJson, routeError } from "../../_lib/http";
 import { checkInMemoryRateLimit, rateLimitClientId } from "../../_lib/rate-limit";
 import {
   assertUploadFileAllowed,
   normalizeUploadMimeType,
 } from "../../../src/lib/chemvault-files/validation";
+import { resolveBillingEntitlements, storageQuotaBytesForPlan } from "../../_lib/billing-entitlements";
+import { storageUsage } from "../../_lib/drive-service";
 
 export { onRequestPost } from "./init";
 
@@ -33,6 +35,17 @@ export const onRequestPut: PagesFunction<Env> = async ({ request, env }) => {
       .bind(fileId, sessionId)
       .first<{ r2_key: string; original_name: string; mime_type: string | null; size_bytes: number }>();
     if (!row) throw new Error("Upload session was not found");
+
+    const billing = await resolveBillingEntitlements(env, access.actorUserId, { privileged: access.canManageRoles });
+    const quotaBytes = storageQuotaBytesForPlan(billing.plan, env);
+    const usage = await storageUsage(db, access, quotaBytes);
+    if (usage.usedBytes > quotaBytes) {
+      throw new HttpError("File storage quota exceeded. Upgrade the plan or remove files before uploading.", 402, "STORAGE_QUOTA_EXCEEDED", {
+        plan: billing.plan,
+        quotaBytes,
+        usedBytes: usage.usedBytes,
+      });
+    }
 
     const contentLength = Number(request.headers.get("content-length"));
     if (Number.isFinite(contentLength) && contentLength > row.size_bytes) {

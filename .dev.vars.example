@@ -5,10 +5,16 @@ USER_AUTH_ORIGIN=https://user.chemvault.science
 USER_LOGIN_URL=/login
 COOKIE_NAME=chemvault_session
 COOKIE_DOMAIN=
-FILE_STORAGE_QUOTA_BYTES=10737418240
+FILE_STORAGE_FREE_QUOTA_BYTES=104857600
+FILE_STORAGE_PRO_QUOTA_BYTES=10737418240
+FILE_STORAGE_TEAM_QUOTA_BYTES=107374182400
+FILE_STORAGE_ENTERPRISE_QUOTA_BYTES=1099511627776
+BILLING_API_ORIGIN=https://chemvault.science
+BILLING_ENFORCEMENT_MODE=shadow
 ALLOWED_APP_ORIGINS=null app://chemvault-files http://127.0.0.1:5177 http://localhost:5177
 
 # Use at least 32 random characters. Do not commit the real value.
 APP_SESSION_SECRET=
 LIFECYCLE_SERVICE_SECRET=replace_with_a_dedicated_cross_service_secret
+BILLING_SERVICE_SECRET=replace_with_the_shared_billing_service_secret
 LAB_HANDOFF_SECRET=replace_with_a_dedicated_files_to_lab_secret

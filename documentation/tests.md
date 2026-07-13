@@ -9,6 +9,7 @@
 | Malware gate | Pending/rejected/error cannot preview, download, share, bulk-download, or enter Lab | file preview/security tests and scan endpoints | CI required |
 | Artifact/lifecycle | Service credentials remain separate; provenance/idempotency/delete rules hold | artifact/lifecycle tests | CI required |
 | Native/API contracts | Browser, Windows, Apple, and package client decode the authority contract | client/API and Swift tests | Platform workflows |
+| Billing/quota | Production fails closed, user echo is verified, plan quotas match packaging, over-quota init writes nothing | `billing-entitlements.test.ts`, `upload-visibility-api.test.ts` | CI required |
 
 ## Proposed tests
 
@@ -19,6 +20,8 @@
 | Files → Lab → artifact | Guarded live | Owner-clean file creates one provenance-linked artifact; replay is idempotent |
 
 ## Gaps
+
+- Guarded live billing enforcement must prove Free 100 MB, Pro 10 GB, Team 100 GB, and invalid service-secret denial before paid launch.
 
 - No local test proves GitHub notification routing reaches an operator when backlog warnings occur.
 - Quarantined objects have no automatic destructive TTL; retention/deletion follows account/file policy until an approved quarantine policy exists.

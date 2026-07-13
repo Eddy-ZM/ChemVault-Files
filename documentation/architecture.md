@@ -5,6 +5,7 @@ ChemVault Files is the suite system of record for private source files and trust
 ## Trust boundaries
 
 - User identity and service access are verified against ChemVault User; request email/owner fields are not trusted.
+- Storage plans are resolved server-to-server from ChemVault billing; browser plan labels and quota values are not trusted.
 - Browser uploads create private metadata and quarantined R2 objects; no read/share/Lab path may bypass `scan_status=clean`.
 - Scanner, Lab handoff, artifact writeback, and lifecycle calls use four distinct machine credentials.
 - Lab receives only owner-authorized, scan-clean objects and returns derived artifacts with source provenance.
@@ -14,6 +15,7 @@ ChemVault Files is the suite system of record for private source files and trust
 - D1 enforces no native RLS, so every query must apply server-derived access policy.
 - Malware scanning is asynchronous; backlog age is a release/operations signal, not a reason to expose pending files.
 - Public links remain revocable and never override quarantine or deletion state.
+- Production billing enforcement fails closed; `shadow` is a temporary rollout mode and must be removed before paid checkout is enabled.
 
 There is no email or embedded AI. Scheduled malware scanning is documented in `cron.md`.
 

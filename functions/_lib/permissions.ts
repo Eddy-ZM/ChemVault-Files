@@ -120,6 +120,7 @@ export function resolveActorAccessForUserAuth(
   return {
     ...roleAccess,
     actorEmail: user.email,
+    actorUserId: user.id,
     permission: canManageRoles ? "write" : userFilePermissionLevel(user),
     canManageRoles,
   };

@@ -107,6 +107,22 @@ function request(email: string, overrides: Record<string, unknown> = {}): Reques
 }
 
 describe("upload visibility API", () => {
+  it("rejects an upload initialization that exceeds the server-resolved plan quota", async () => {
+    const state: UploadState = { fileId: null, fileArgs: [], roleAccess: [] };
+    const response = await initUpload({
+      request: request("scientist@chemvault.science"),
+      env: {
+        FILES_DB: new UploadD1(state),
+        PRIVATE_OWNER_EMAIL: "different-owner@chemvault.science",
+        FILE_STORAGE_FREE_QUOTA_BYTES: "6",
+      },
+    } as unknown as Parameters<typeof initUpload>[0]);
+
+    expect(response.status).toBe(402);
+    expect(await response.json()).toMatchObject({ error: { code: "STORAGE_QUOTA_EXCEEDED", plan: "free" } });
+    expect(state.fileId).toBeNull();
+  });
+
   it("stores uploads as private when visibility is omitted", async () => {
     const state: UploadState = { fileId: null, fileArgs: [], roleAccess: [] };
     const response = await initUpload({

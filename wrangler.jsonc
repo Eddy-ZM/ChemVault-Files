@@ -11,10 +11,16 @@
     "COOKIE_NAME": "chemvault_session",
     "COOKIE_DOMAIN": ".chemvault.science",
     "ENVIRONMENT": "production",
-    "FILE_STORAGE_QUOTA_BYTES": "10737418240",
+    "FILE_STORAGE_FREE_QUOTA_BYTES": "104857600",
+    "FILE_STORAGE_PRO_QUOTA_BYTES": "10737418240",
+    "FILE_STORAGE_TEAM_QUOTA_BYTES": "107374182400",
+    "FILE_STORAGE_ENTERPRISE_QUOTA_BYTES": "1099511627776",
+    "BILLING_API_ORIGIN": "https://chemvault.science",
+    "BILLING_ENFORCEMENT_MODE": "shadow",
     "ALLOWED_APP_ORIGINS": "null app://chemvault-files http://127.0.0.1:5177 http://localhost:5177"
   },
   // Configure with: wrangler pages secret put LIFECYCLE_SERVICE_SECRET --project-name chemvault-files
+  // Configure BILLING_SERVICE_SECRET in both this service and the ChemVault main site, then switch billing enforcement to "enforce".
   // Configure the same LAB_HANDOFF_SECRET in ChemVault Files and ChemVault Lab.
   "r2_buckets": [
     {

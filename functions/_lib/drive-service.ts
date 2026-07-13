@@ -20,7 +20,7 @@ export interface StorageUsage {
   byType: Array<{ type: DriveFileType; label: string; bytes: number; count: number }>;
 }
 
-const defaultQuotaBytes = 10 * 1024 * 1024 * 1024;
+const defaultQuotaBytes = 100 * 1024 * 1024;
 
 export async function listDriveItems(db: D1Database, access: ActorAccess, input: { parentId?: string | null; view?: string | null }): Promise<DriveListResult> {
   const view = normalizeDriveView(input.view);
@@ -98,7 +98,10 @@ export async function loadVisibleFile(db: D1Database, fileId: string, access: Ac
 export async function storageUsage(db: D1Database, access: ActorAccess, quotaBytes: number): Promise<StorageUsage> {
   const library = await listLibrary(db, access);
   const buckets = new Map<DriveFileType, { bytes: number; count: number }>();
-  for (const file of library.files.filter((entry) => entry.status !== "deleted" && !entry.deletedAt)) {
+  const actorEmail = access.actorEmail.trim().toLowerCase();
+  for (const file of library.files.filter((entry) =>
+    entry.status !== "deleted" && !entry.deletedAt && (entry.actorEmail || "").trim().toLowerCase() === actorEmail
+  )) {
     const type = fileTypeBucket(file);
     const current = buckets.get(type) ?? { bytes: 0, count: 0 };
     current.bytes += file.sizeBytes;

@@ -157,6 +157,7 @@ export interface FileRolePolicy {
 
 export interface ActorAccess {
   actorEmail: string;
+  actorUserId?: string;
   roleId: string;
   roleName: string;
   permission: FilePermissionLevel;
