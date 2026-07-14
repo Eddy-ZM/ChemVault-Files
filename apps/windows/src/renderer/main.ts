@@ -28,6 +28,8 @@ declare global {
 const apiBaseUrl = import.meta.env.VITE_CHEMVAULT_API_BASE_URL || import.meta.env.CHEMVAULT_API_BASE_URL || "https://file.chemvault.science";
 const desktop = window.chemvaultDesktop;
 const appRoot = document.querySelector<HTMLDivElement>("#app")!;
+let modalReturnFocus: HTMLElement | null = null;
+let modalCleanup: (() => void) | null = null;
 
 const state = {
   tokens: null as AuthTokens | null,
@@ -170,7 +172,7 @@ function shellTemplate(content: string) {
           ${content}
         </main>
       </div>
-      <div class="toasts">${state.toasts.map((toast) => `<div class="toast ${toast.kind}">${escapeHtml(toast.message)}</div>`).join("")}</div>
+      <div class="toasts" role="region" aria-label="Notifications" aria-live="polite" aria-atomic="false">${toastItemsTemplate()}</div>
     </div>
   `;
 }
@@ -456,7 +458,7 @@ async function previewSelected() {
         : text
           ? `<pre>${text}</pre>`
           : `<div class="preview-fallback">${fileIcon(file.displayName)}<h2>${label}</h2><p>${formatBytes(file.sizeBytes)}</p><button data-action="modal-download">Download</button></div>`;
-    showModal(label, body);
+    showModal(label, body, () => URL.revokeObjectURL(url));
     document.querySelector('[data-action="modal-download"]')?.addEventListener("click", () => void downloadSelected());
   });
 }
@@ -579,8 +581,20 @@ function bindDropzone() {
 
 function bindGlobalShortcuts() {
   window.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      closeModal();
+      return;
+    }
+
+    if (document.querySelector(".modal")) return;
+
     const isMod = event.ctrlKey || event.metaKey;
-    if (event.key === "Delete" || event.key === "Backspace") void deleteSelected();
+    const target = event.target;
+    const isEditable = target instanceof HTMLElement && (
+      target.isContentEditable || target.matches("input, textarea, select, [role='textbox']")
+    );
+
+    if (!isEditable && (event.key === "Delete" || event.key === "Backspace")) void deleteSelected();
     if (isMod && event.key.toLowerCase() === "f") {
       event.preventDefault();
       document.querySelector<HTMLInputElement>('[data-field="search"]')?.focus();
@@ -593,37 +607,94 @@ function bindGlobalShortcuts() {
       event.preventDefault();
       void refreshFromServer();
     }
-    if (event.key === " ") {
+    if (!isEditable && event.key === " ") {
       event.preventDefault();
       void previewSelected();
     }
-    if (event.key === "Escape") closeModal();
   });
 }
 
-function showModal(title: string, body: string) {
+function showModal(title: string, body: string, cleanup?: () => void) {
   const modal = document.createElement("div");
   modal.className = "modal";
-  modal.innerHTML = `<div class="modal-panel"><header><h2>${title}</h2><button data-close>${icon("x")}</button></header><div class="preview-body">${body}</div></div>`;
+  modal.innerHTML = `<div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="preview-modal-title" tabindex="-1"><header><h2 id="preview-modal-title">${title}</h2><button type="button" data-close aria-label="Close preview">${icon("x")}</button></header><div class="preview-body">${body}</div></div>`;
+  modalReturnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  modalCleanup = cleanup ?? null;
   modal.addEventListener("click", (event) => {
     if (event.target === modal) closeModal();
   });
+  modal.addEventListener("keydown", (event) => {
+    if (event.key !== "Tab") return;
+    const focusable = Array.from(
+      modal.querySelectorAll<HTMLElement>("button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), iframe, [tabindex]:not([tabindex='-1'])"),
+    );
+    if (focusable.length === 0) {
+      event.preventDefault();
+      modal.querySelector<HTMLElement>(".modal-panel")?.focus();
+      return;
+    }
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  });
+  document.body.classList.add("modal-open");
   document.body.append(modal);
-  document.querySelector("[data-close]")?.addEventListener("click", closeModal);
+  const closeButton = modal.querySelector<HTMLButtonElement>("[data-close]");
+  closeButton?.addEventListener("click", closeModal);
+  (closeButton ?? modal.querySelector<HTMLElement>(".modal-panel"))?.focus({ preventScroll: true });
 }
 
 function closeModal() {
-  document.querySelector(".modal")?.remove();
+  const modal = document.querySelector<HTMLElement>(".modal");
+  if (!modal || modal.dataset.closing === "true") return;
+  modal.dataset.closing = "true";
+  modal.classList.add("is-closing");
+
+  const finish = () => {
+    modal.remove();
+    document.body.classList.remove("modal-open");
+    modalCleanup?.();
+    modalCleanup = null;
+    modalReturnFocus?.focus({ preventScroll: true });
+    modalReturnFocus = null;
+  };
+
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    finish();
+    return;
+  }
+
+  modal.addEventListener("animationend", finish, { once: true });
+  window.setTimeout(() => {
+    if (modal.isConnected) finish();
+  }, 180);
 }
 
 function toast(message: string, kind: "ok" | "error" | "info") {
   const id = crypto.randomUUID();
   state.toasts.push({ id, message, kind });
-  render();
+  renderToasts();
   window.setTimeout(() => {
     state.toasts = state.toasts.filter((toast) => toast.id !== id);
-    render();
+    renderToasts();
   }, 2600);
+}
+
+function toastItemsTemplate() {
+  return state.toasts
+    .map((toast) => `<div class="toast ${toast.kind}" role="${toast.kind === "error" ? "alert" : "status"}">${escapeHtml(toast.message)}</div>`)
+    .join("");
+}
+
+function renderToasts() {
+  const container = document.querySelector<HTMLElement>(".toasts");
+  if (container) container.innerHTML = toastItemsTemplate();
 }
 
 function sortFiles(files: CVFile[]) {

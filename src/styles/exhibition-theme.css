@@ -1,0 +1,193 @@
+@font-face {
+  font-family: "CV Inter";
+  src: url("/fonts/inter-400.ttf") format("truetype");
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "CV Inter";
+  src: url("/fonts/inter-600.ttf") format("truetype");
+  font-weight: 600 800;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "CV Newsreader";
+  src: url("/fonts/newsreader-500.ttf") format("truetype");
+  font-weight: 500 700;
+  font-display: swap;
+}
+
+:root {
+  --bg: #f4f1e9;
+  --surface: #fffdf8;
+  --surface-soft: #ece8df;
+  --text: #10203a;
+  --muted: #647084;
+  --line: #d8d2c7;
+  --strong-line: #b9b2a6;
+  --blue: #155eef;
+  --blue-strong: #0f4fd6;
+  --blue-soft: #dfe9ff;
+  --shadow: 0 18px 42px rgba(7, 17, 31, 0.08);
+  --radius: 10px;
+}
+
+body,
+.files-shell,
+.files-workbench {
+  background: #f4f1e9;
+  color: #10203a;
+  font-family: "CV Inter", ui-sans-serif, system-ui, sans-serif;
+}
+
+.files-topbar {
+  min-height: 74px;
+  border-bottom-color: rgba(255, 255, 255, 0.12);
+  background: rgba(7, 17, 31, 0.97);
+  color: #f7f4ec;
+  box-shadow: none;
+}
+
+.files-topbar__subline,
+.brand-mark__product,
+.account-chip__email {
+  color: #91a1b2;
+}
+
+.brand-mark__name,
+.files-topbar .brand-mark__text {
+  color: #f7f4ec;
+}
+
+.files-search {
+  border-color: rgba(255, 255, 255, 0.17);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.files-search input,
+.files-search input::placeholder,
+.files-search__icon,
+.files-search kbd {
+  color: #aebbc9;
+}
+
+.files-search:focus-within {
+  border-color: #55d6e8;
+  box-shadow: 0 0 0 3px rgba(85, 214, 232, 0.22);
+}
+
+.files-search input:focus-visible {
+  outline: 2px solid #55d6e8;
+  outline-offset: 3px;
+}
+
+.files-topbar .button--secondary,
+.files-topbar .icon-button,
+.files-topbar .sidepanel-toggle,
+.account-chip {
+  border-color: rgba(255, 255, 255, 0.17);
+  background: rgba(255, 255, 255, 0.06);
+  color: #f7f4ec;
+  box-shadow: none;
+}
+
+.button--primary {
+  border-color: #155eef;
+  background: #155eef;
+  color: #ffffff;
+  box-shadow: none;
+}
+
+.sidebar.panel {
+  border-color: rgba(255, 255, 255, 0.12);
+  background: #07111f;
+  color: #b7c5d1;
+  box-shadow: none;
+}
+
+.sidebar :is(h2, strong, .section-heading h2) {
+  color: #f7f4ec;
+}
+
+.sidebar :is(.nav-row, .folder-row, .sidebar-action, .tag-pill, .storage-meter p) {
+  color: #b7c5d1;
+}
+
+.sidebar :is(.nav-row, .folder-row, .sidebar-action):hover,
+.sidebar .nav-row[aria-current="page"],
+.sidebar .folder-row.is-active {
+  background: rgba(255, 255, 255, 0.07);
+  color: #ffffff;
+}
+
+.sidebar .nav-row[aria-current="page"],
+.sidebar .folder-row.is-active {
+  box-shadow: inset 3px 0 #55d6e8;
+}
+
+.workspace,
+.inspector.panel,
+.workspace-command,
+.file-table,
+.detail-card,
+.share-card,
+.modal,
+.dialog {
+  border-color: #d8d2c7;
+  border-radius: 10px;
+  background: #fffdf8;
+  box-shadow: none;
+}
+
+.workspace h1,
+.workspace h2,
+.workspace h3,
+.workspace-command__summary h1,
+.share-page h1,
+.share-page h2 {
+  font-family: "CV Newsreader", Georgia, serif;
+  font-weight: 500;
+  letter-spacing: -0.018em;
+}
+
+.file-table tbody tr:hover {
+  background: #ece8df;
+}
+
+.auth-gate {
+  background: #07111f;
+}
+
+.auth-gate__panel {
+  border-color: rgba(255, 255, 255, 0.16);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.055);
+  color: #f7f4ec;
+  box-shadow: none;
+}
+
+.files-footer,
+.share-topbar {
+  border-color: rgba(255, 255, 255, 0.12);
+  background: #07111f;
+  color: #aebbc9;
+}
+
+.share-body {
+  background: #f4f1e9;
+}
+
+@media (max-width: 760px) {
+  .files-topbar {
+    min-height: 66px;
+  }
+
+  .mobile-drive-nav {
+    border-top-color: rgba(255, 255, 255, 0.12);
+    background: #07111f;
+    color: #b7c5d1;
+  }
+}

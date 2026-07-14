@@ -24,6 +24,10 @@ body {
   background: linear-gradient(135deg, #eef5ff 0%, #f9fbff 44%, #eef2f7 100%);
 }
 
+body.modal-open {
+  overflow: hidden;
+}
+
 button,
 input,
 select {
@@ -33,6 +37,15 @@ select {
 button {
   border: 0;
   cursor: pointer;
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+a:focus-visible,
+[tabindex]:focus-visible {
+  outline: 3px solid rgba(37, 99, 235, 0.38);
+  outline-offset: 2px;
 }
 
 svg {
@@ -572,6 +585,7 @@ dd {
   background: rgba(255, 255, 255, 0.94);
   box-shadow: 0 18px 48px rgba(15, 23, 42, 0.16);
   font-weight: 700;
+  animation: toast-in 180ms ease-out both;
 }
 
 .toast.ok {
@@ -594,6 +608,7 @@ dd {
   padding: 28px;
   background: rgba(15, 23, 42, 0.54);
   z-index: 30;
+  animation: modal-backdrop-in 160ms ease-out both;
 }
 
 .modal-panel {
@@ -604,6 +619,15 @@ dd {
   border-radius: 20px;
   background: white;
   overflow: hidden;
+  animation: modal-panel-in 180ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.modal.is-closing {
+  animation: modal-backdrop-out 140ms ease-in both;
+}
+
+.modal.is-closing .modal-panel {
+  animation: modal-panel-out 140ms ease-in both;
 }
 
 .modal-panel header {
@@ -620,6 +644,46 @@ dd {
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+@keyframes modal-backdrop-in {
+  from { opacity: 0; }
+}
+
+@keyframes modal-backdrop-out {
+  to { opacity: 0; }
+}
+
+@keyframes modal-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.985);
+  }
+}
+
+@keyframes modal-panel-out {
+  to {
+    opacity: 0;
+    transform: translateY(6px) scale(0.99);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 .preview-body {
