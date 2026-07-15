@@ -49,6 +49,10 @@ describe("collapsible side panel layout", () => {
     expect(stylesSource).toContain("grid-template-rows: 60px minmax(0, 1fr) 34px");
     expect(stylesSource).toContain(".files-footer");
     expect(stylesSource).toContain("font-size: 11px");
+    expect(stylesSource).toContain("@media (max-width: 980px)");
+    expect(stylesSource).toContain("top: 127px");
+    expect(stylesSource).toContain("top: 117px");
+    expect(stylesSource).toContain("overscroll-behavior: contain");
   });
 
   it("persists side panel state and reopens the inspector on file selection", () => {
@@ -58,6 +62,8 @@ describe("collapsible side panel layout", () => {
     expect(clientSource).toContain("function updateSidePanels");
     expect(clientSource).toContain("function toggleSidebar");
     expect(clientSource).toContain("function toggleInspector");
+    expect(clientSource).toContain('previousLayout !== "floating"');
+    expect(clientSource).toContain("sidebarCollapsed = true");
     expect(clientSource).toContain('nextInspectorPanelCollapsed(inspectorCollapsed, "select-file")');
     expect(clientSource).toContain("function showToast");
     expect(clientSource).toContain("footerAccountLabel");

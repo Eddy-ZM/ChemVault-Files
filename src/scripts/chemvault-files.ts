@@ -1199,6 +1199,11 @@ function updateSidePanels(): void {
   const inspectorToggle = document.querySelector<HTMLButtonElement>("[data-cv-inspector-toggle]");
   const scrim = document.querySelector<HTMLButtonElement>("[data-cv-sidepanel-scrim]");
   const floating = isFloatingSidePanelLayout();
+  const previousLayout = shell?.dataset.cvSidepanelLayout;
+
+  if (floating && previousLayout !== "floating" && !sidebarCollapsed) {
+    sidebarCollapsed = true;
+  }
 
   shell?.setAttribute("data-cv-sidebar-collapsed", sidebarCollapsed ? "true" : "false");
   shell?.setAttribute("data-cv-inspector-collapsed", inspectorCollapsed ? "true" : "false");
