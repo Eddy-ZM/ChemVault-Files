@@ -180,14 +180,111 @@ body,
   background: #f4f1e9;
 }
 
+.files-shell :where(button, .button, .icon-button, .ghost-icon, .row-more, .star-button, .sidepanel-toggle, .files-footer__item, .mobile-drive-nav a) {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+.files-topbar :where(a, button),
+.sidebar :where(.nav-row, .folder-row, .sidebar-action),
+.share-topbar :where(a, button),
+.files-footer a,
+.share-list__actions :where(a, button) {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+.skip-link,
+.files-shell input[type="checkbox"],
+.workspace-command button,
+.file-panel button {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+.files-shell :where(select, input[type="search"], input[type="text"], input[type="url"], input[type="number"]) {
+  min-height: 44px;
+}
+
+.toolbar-select select,
+.share-list__actions select,
+.role-permission-row select {
+  min-height: 44px;
+}
+
 @media (max-width: 760px) {
   .files-topbar {
     min-height: 66px;
   }
 
+  .files-shell {
+    padding-bottom: calc(92px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .workspace {
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .workspace-command,
+  .file-panel,
+  .file-table {
+    min-width: 0;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .panel-toolbar,
+  .file-panel__header {
+    align-items: stretch;
+  }
+
+  .panel-toolbar__actions,
+  .file-tools,
+  .table-footer,
+  .pagination {
+    width: 100%;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    padding-bottom: 2px;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .panel-toolbar__actions::-webkit-scrollbar,
+  .file-tools::-webkit-scrollbar,
+  .table-footer::-webkit-scrollbar,
+  .pagination::-webkit-scrollbar {
+    display: none;
+  }
+
+  .panel-toolbar__actions > *,
+  .file-tools > *,
+  .pagination > * {
+    flex: 0 0 auto;
+  }
+
   .mobile-drive-nav {
+    bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+    min-height: 64px;
     border-top-color: rgba(255, 255, 255, 0.12);
     background: #07111f;
     color: #b7c5d1;
   }
+}
+
+.file-table tr,
+.file-table [role="row"],
+.workspace-table tr,
+.workspace-table [role="row"] {
+  min-height: 46px !important;
+}
+
+.file-table td,
+.file-table th,
+.workspace-table td,
+.workspace-table th {
+  padding-block: 12px !important;
 }
