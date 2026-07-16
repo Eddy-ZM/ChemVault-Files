@@ -1042,6 +1042,14 @@ async function loadRemoteState(): Promise<void> {
   setShellAuthState("checking");
   setAuthGateMessage("loading");
 
+  if (!shouldUseRemoteApi()) {
+    configurationMissing = true;
+    authStatus = "unauthenticated";
+    currentLoginUrl = userLoginUrl(window.location.href);
+    previewMode = true;
+    setAuthGateMessage("loading");
+    renderHealth();
+  } else {
   try {
     const health = await fetchJson<HealthResponse>(authAwareApiUrl("/api/health"));
     configurationMissing = health.status !== "ready";
@@ -1065,6 +1073,7 @@ async function loadRemoteState(): Promise<void> {
     previewMode = true;
     setAuthGateMessage("loading");
     renderHealth();
+  }
   }
 
   if (!canReadCurrentAccess()) {
@@ -1101,6 +1110,11 @@ async function loadRemoteState(): Promise<void> {
   renderAll();
   if (sidebarView === "trash") void loadTrashItems();
   setShellAuthState("ready");
+}
+
+function shouldUseRemoteApi(): boolean {
+  if ((window as typeof window & { CHEMVAULT_FILES_ENABLE_API?: boolean }).CHEMVAULT_FILES_ENABLE_API === true) return true;
+  return !/^(localhost|127\.0\.0\.1)$/i.test(window.location.hostname);
 }
 
 function applyPreviewActorEmail(source: LibraryResponse): LibraryResponse {
