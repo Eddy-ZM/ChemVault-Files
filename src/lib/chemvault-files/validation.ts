@@ -3,12 +3,21 @@ import type { FileInitPayload } from "./types";
 const MAX_NAME_LENGTH = 160;
 const MAX_TAG_LENGTH = 40;
 const MAX_ROLE_IDS = 20;
-export const MAX_UPLOAD_FILE_SIZE_BYTES = 100 * 1024 * 1024;
+export const MAX_UPLOAD_FILE_SIZE_BYTES = 2 * 1024 * 1024 * 1024;
+export const MAX_UPLOAD_FILE_SIZE_LABEL = "2 GB";
+export const DIRECT_UPLOAD_MAX_BYTES = 90 * 1024 * 1024;
+export const MULTIPART_UPLOAD_PART_SIZE_BYTES = 32 * 1024 * 1024;
 
 export const ALLOWED_UPLOAD_EXTENSIONS = [
+  "7z",
   "csv",
+  "dat",
+  "dmg",
+  "doc",
   "docx",
   "dx",
+  "exe",
+  "gz",
   "h5",
   "hdf5",
   "jdx",
@@ -16,22 +25,41 @@ export const ALLOWED_UPLOAD_EXTENSIONS = [
   "jpg",
   "json",
   "md",
+  "msi",
   "pdf",
+  "pkg",
   "png",
+  "rar",
   "pptx",
+  "tar",
+  "tgz",
   "txt",
   "xlsx",
   "xml",
+  "zip",
 ] as const;
 
 export const ALLOWED_UPLOAD_MIME_TYPES = [
+  "application/gzip",
   "application/json",
+  "application/msword",
   "application/pdf",
+  "application/vnd.apple.installer+xml",
+  "application/vnd.microsoft.portable-executable",
   "application/vnd.openxmlformats-officedocument.presentationml.presentation",
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/x-7z-compressed",
+  "application/x-apple-diskimage",
+  "application/x-gzip",
   "application/x-hdf5",
   "application/x-jcamp-dx",
+  "application/x-msdownload",
+  "application/x-msi",
+  "application/x-rar-compressed",
+  "application/x-tar",
+  "application/x-zip-compressed",
+  "application/zip",
   "chemical/x-jcamp-dx",
   "image/jpeg",
   "image/png",
@@ -46,16 +74,16 @@ export const BLOCKED_UPLOAD_EXTENSIONS = [
   "bat",
   "cmd",
   "cjs",
-  "dmg",
-  "exe",
   "html",
   "jar",
   "js",
   "mjs",
   "php",
+  "ps1",
   "py",
   "sh",
-  "zip",
+  "vbs",
+  "wsf",
 ] as const;
 
 export function normalizeSlug(value: string): string {
@@ -108,7 +136,7 @@ export function assertUploadFileAllowed(input: { name: string; size: number; mim
     throw new Error("File size must be greater than zero");
   }
   if (input.size > MAX_UPLOAD_FILE_SIZE_BYTES) {
-    throw new Error("File is larger than the 100 MB upload limit");
+    throw new Error(`File is larger than the ${MAX_UPLOAD_FILE_SIZE_LABEL} upload limit`);
   }
   if (!isAllowedUploadType(input.name, input.mimeType)) {
     throw new Error("File type is not allowed for upload");

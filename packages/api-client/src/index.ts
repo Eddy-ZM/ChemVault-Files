@@ -29,6 +29,29 @@ interface ApiPayload<T = unknown> {
   error?: ApiErrorPayload;
 }
 
+interface InitUploadResponse {
+  file: CVFile;
+  upload: {
+    mode: "direct" | "presigned" | "multipart";
+    method: string;
+    url: string;
+    partSizeBytes?: number;
+  };
+  session: { id: string };
+}
+
+interface MultipartCreateResponse {
+  uploadId: string;
+  partSizeBytes?: number;
+}
+
+interface MultipartUploadedPart {
+  partNumber: number;
+  etag: string;
+}
+
+const defaultMultipartPartSizeBytes = 32 * 1024 * 1024;
+
 export class ChemVaultApiError extends Error {
   constructor(
     message: string,
@@ -109,7 +132,7 @@ export class ChemVaultFilesClient {
   }
 
   async upload(input: UploadInput): Promise<CVFile> {
-    const init = await this.request<{ file: CVFile; upload: { method: string; url: string }; session: { id: string } }>("/api/files/init", {
+    const init = await this.request<InitUploadResponse>("/api/files/init", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -124,11 +147,15 @@ export class ChemVaultFilesClient {
       }),
     });
 
-    await this.raw(init.upload.url, {
-      method: "PUT",
-      headers: { "content-type": input.mimeType || "application/octet-stream" },
-      body: input.file,
-    });
+    if (init.upload.mode === "multipart") {
+      await this.uploadMultipart(init.upload.url, input.file, input.mimeType, init.upload.partSizeBytes);
+    } else {
+      await this.raw(init.upload.url, {
+        method: "PUT",
+        headers: { "content-type": input.mimeType || "application/octet-stream" },
+        body: input.file,
+      });
+    }
 
     await this.request<{ status: string; fileId: string }>("/api/files/complete", {
       method: "POST",
@@ -136,6 +163,49 @@ export class ChemVaultFilesClient {
       body: JSON.stringify({ fileId: init.file.id, sessionId: init.session.id }),
     });
     return { ...init.file, status: "ready" };
+  }
+
+  private async uploadMultipart(url: string, file: Blob, mimeType: string | null, configuredPartSize?: number): Promise<void> {
+    const create = await this.request<MultipartCreateResponse>(url, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ action: "create", contentType: mimeType }),
+    });
+    const partSize = this.multipartPartSize(create.partSizeBytes ?? configuredPartSize);
+    const parts: MultipartUploadedPart[] = [];
+
+    try {
+      for (let offset = 0, partNumber = 1; offset < file.size; offset += partSize, partNumber += 1) {
+        const chunk = file.slice(offset, Math.min(offset + partSize, file.size));
+        const partUrl = this.url(url);
+        partUrl.searchParams.set("uploadId", create.uploadId);
+        partUrl.searchParams.set("partNumber", String(partNumber));
+        const response = await this.raw(partUrl, {
+          method: "PUT",
+          headers: { "content-type": mimeType || "application/octet-stream" },
+          body: chunk,
+        });
+        parts.push((await response.json()) as MultipartUploadedPart);
+      }
+
+      await this.request(url, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action: "complete", uploadId: create.uploadId, parts }),
+      });
+    } catch (error) {
+      await this.request(url, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action: "abort", uploadId: create.uploadId }),
+      }).catch(() => null);
+      throw error;
+    }
+  }
+
+  private multipartPartSize(value: number | undefined): number {
+    if (!Number.isFinite(value) || !value) return defaultMultipartPartSizeBytes;
+    return Math.max(5 * 1024 * 1024, Math.min(Math.floor(value), 90 * 1024 * 1024));
   }
 
   async renameFile(fileId: string, displayName: string): Promise<void> {

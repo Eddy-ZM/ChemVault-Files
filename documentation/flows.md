@@ -2,7 +2,7 @@
 
 | Flow | Actor/precondition | Protected steps and side effects | Deny/failure behavior |
 | --- | --- | --- | --- |
-| Upload/quarantine | Signed-in user with write access and verified billing plan | Server resolves plan, computes owner-only usage, enforces 100 MB/10 GB/100 GB/custom quota at init and PUT, creates private row, issues bounded upload, marks completion `pending` | Missing production billing authority, over-quota, invalid size/type/scope denied; object stays unreadable until clean |
+| Upload/quarantine | Signed-in user with write access and verified billing plan | Server resolves plan, computes owner-only usage, enforces the 2 GB single-file cap plus plan quota at init and upload, creates private row, issues direct or multipart upload, marks completion `pending` | Missing production billing authority, over-quota, invalid size/type/scope denied; object stays unreadable until clean |
 | Storage usage | Signed-in user | Return only actor-owned active bytes plus server-resolved plan/quota | Shared/visible files do not consume the viewer's quota; browser quota claims are ignored |
 | Malware scan | Scheduled scanner with callback secret | Lists oldest pending/error rows, downloads quarantined bytes, scans, posts clean/rejected/error | Unauthorized callback denied; stale definitions fail the run; errors remain quarantined for retry |
 | Preview/download/share | Viewer with effective role or valid share | Server loads non-deleted file, resolves policy, requires clean scan, streams private/no-store bytes | Pending/rejected/error/deleted files denied even to owners/public links |

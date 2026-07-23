@@ -83,6 +83,51 @@ describe("ChemVaultFilesClient", () => {
     expect(paths).toEqual(["/api/files/init", "/api/files/upload?fileId=file_1&sessionId=session_1", "/api/files/complete"]);
   });
 
+  it("uploads large files through multipart parts before completion", async () => {
+    const requests: string[] = [];
+    const client = new ChemVaultFilesClient({
+      baseUrl: "https://file.chemvault.science",
+      getAccessToken: () => "token",
+      fetchImpl: async (input, init) => {
+        const url = new URL(String(input));
+        requests.push(`${init?.method || "GET"} ${url.pathname}${url.search}`);
+        if (url.pathname === "/api/files/init") {
+          return json({
+            file: { id: "file_2", projectId: "project_1", folderId: null, displayName: "installer.exe", originalName: "installer.exe", mimeType: "application/x-msdownload", sizeBytes: 6 * 1024 * 1024, status: "pending", checksum: null, actorEmail: null, downloadCount: 0, visibility: "private", roleIds: [], createdAt: "", updatedAt: "", deletedAt: null, tags: [] },
+            session: { id: "session_2" },
+            upload: { mode: "multipart", method: "POST", url: "/api/files/multipart?fileId=file_2&sessionId=session_2", partSizeBytes: 5 * 1024 * 1024 },
+          });
+        }
+        if (url.pathname === "/api/files/multipart" && init?.method === "POST") {
+          const body = JSON.parse(String(init.body));
+          return json(body.action === "create" ? { uploadId: "upload_1", partSizeBytes: 5 * 1024 * 1024 } : { status: "uploaded", fileId: "file_2" });
+        }
+        if (url.pathname === "/api/files/multipart" && init?.method === "PUT") {
+          return json({ partNumber: Number(url.searchParams.get("partNumber")), etag: `etag_${url.searchParams.get("partNumber")}` });
+        }
+        return json({ status: "ready", fileId: "file_2" });
+      },
+    });
+
+    const file = await client.upload({
+      file: new Blob([new Uint8Array(6 * 1024 * 1024)]),
+      name: "installer.exe",
+      size: 6 * 1024 * 1024,
+      mimeType: "application/x-msdownload",
+      projectId: "project_1",
+    });
+
+    expect(file.status).toBe("ready");
+    expect(requests).toEqual([
+      "POST /api/files/init",
+      "POST /api/files/multipart?fileId=file_2&sessionId=session_2",
+      "PUT /api/files/multipart?fileId=file_2&sessionId=session_2&uploadId=upload_1&partNumber=1",
+      "PUT /api/files/multipart?fileId=file_2&sessionId=session_2&uploadId=upload_1&partNumber=2",
+      "POST /api/files/multipart?fileId=file_2&sessionId=session_2",
+      "POST /api/files/complete",
+    ]);
+  });
+
   it("normalizes API errors", async () => {
     const client = new ChemVaultFilesClient({
       baseUrl: "https://file.chemvault.science",

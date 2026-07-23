@@ -47,14 +47,23 @@ describe("ChemVault Files validation", () => {
   });
 
   it("rejects blocked or oversized uploads before storage", () => {
-    expect(() => assertFileInitPayload({ name: "archive.zip", size: 10, mimeType: "application/zip", projectId: "p" })).toThrow(
-      "File type is not allowed for upload"
-    );
     expect(() => assertFileInitPayload({ name: "script.js", size: 10, mimeType: "text/javascript", projectId: "p" })).toThrow(
       "File type is not allowed for upload"
     );
     expect(() => assertFileInitPayload({ name: "large.pdf", size: MAX_UPLOAD_FILE_SIZE_BYTES + 1, mimeType: "application/pdf", projectId: "p" })).toThrow(
-      "File is larger than the 100 MB upload limit"
+      "File is larger than the 2 GB upload limit"
+    );
+  });
+
+  it("allows research archives and installer packages as stored files", () => {
+    expect(assertFileInitPayload({ name: "ChemDraw/cd26.0.0.dmg", size: 122_200_000, mimeType: "application/x-apple-diskimage", projectId: "p" }).name).toBe(
+      "ChemDraw_cd26.0.0.dmg"
+    );
+    expect(assertFileInitPayload({ name: "ChemDraw 26.0 Product User Guide.zip", size: 53_000_000, mimeType: "application/zip", projectId: "p" }).mimeType).toBe(
+      "application/zip"
+    );
+    expect(assertFileInitPayload({ name: "ChemDraw_Applications_26.0.0.exe", size: 812_100_000, mimeType: "application/x-msdownload", projectId: "p" }).mimeType).toBe(
+      "application/x-msdownload"
     );
   });
 });

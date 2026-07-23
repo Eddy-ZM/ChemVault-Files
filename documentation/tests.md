@@ -21,7 +21,7 @@
 
 ## Gaps
 
-- Guarded live billing enforcement must prove Free 100 MB, Pro 10 GB, Team 100 GB, and invalid service-secret denial before paid launch.
+- Guarded live billing enforcement must prove Free/Pro/Team plan quota behavior, the 2 GB single-file cap, and invalid service-secret denial before paid launch.
 
 - No local test proves GitHub notification routing reaches an operator when backlog warnings occur.
 - Quarantined objects have no automatic destructive TTL; retention/deletion follows account/file policy until an approved quarantine policy exists.

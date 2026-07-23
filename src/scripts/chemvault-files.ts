@@ -39,6 +39,7 @@ import {
   type WorkspaceView,
 } from "../lib/chemvault-files/motion";
 import {
+  MULTIPART_UPLOAD_PART_SIZE_BYTES,
   assertUploadFileAllowed,
 } from "../lib/chemvault-files/validation";
 import type {
@@ -78,7 +79,18 @@ interface InitUploadResponse {
     mode: "direct" | "presigned" | "multipart";
     method: string;
     url: string;
+    partSizeBytes?: number;
   };
+}
+
+interface MultipartCreateResponse {
+  uploadId: string;
+  partSizeBytes?: number;
+}
+
+interface MultipartUploadedPart {
+  partNumber: number;
+  etag: string;
 }
 
 interface ActivityResponse {
@@ -2975,10 +2987,15 @@ async function uploadBrowserFile(
       }),
     });
 
-    await uploadFileBytes(init.upload.url, browserFile, (loadedBytes) => {
+    const progressHandler = (loadedBytes: number) => {
       uploadQueue = reduceUploadQueue(uploadQueue, { type: "progress", id: target.queueId, loadedBytes });
       renderQueue();
-    });
+    };
+    if (init.upload.mode === "multipart") {
+      await uploadFileMultipart(init.upload.url, browserFile, init.upload.partSizeBytes, progressHandler);
+    } else {
+      await uploadFileBytes(init.upload.url, browserFile, progressHandler);
+    }
 
     const completed = await fetchJson<{ status: string; fileId: string }>("/api/files/complete", {
       method: "POST",
@@ -3077,12 +3094,105 @@ function uploadFileBytes(url: string, fileToUpload: File, onProgress: (loadedByt
       if (request.status >= 200 && request.status < 300) {
         resolve();
       } else {
-        reject(new Error(`Upload failed with ${request.status}`));
+        reject(new Error(readUploadXhrError(request) || `Upload failed with ${request.status}`));
       }
     });
     request.addEventListener("error", () => reject(new Error("Upload failed")));
     request.send(fileToUpload);
   });
+}
+
+async function uploadFileMultipart(
+  url: string,
+  fileToUpload: File,
+  configuredPartSize: number | undefined,
+  onProgress: (loadedBytes: number) => void
+): Promise<void> {
+  const create = await fetchJson<MultipartCreateResponse>(url, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ action: "create", contentType: fileToUpload.type || null }),
+  });
+  const partSize = normalizeMultipartPartSize(create.partSizeBytes ?? configuredPartSize);
+  const parts: MultipartUploadedPart[] = [];
+  let uploadedBytes = 0;
+
+  try {
+    for (let offset = 0, partNumber = 1; offset < fileToUpload.size; offset += partSize, partNumber += 1) {
+      const chunk = fileToUpload.slice(offset, Math.min(offset + partSize, fileToUpload.size));
+      const part = await uploadMultipartPart(url, create.uploadId, partNumber, chunk, (partLoadedBytes) => {
+        onProgress(Math.min(fileToUpload.size, uploadedBytes + partLoadedBytes));
+      });
+      parts.push(part);
+      uploadedBytes += chunk.size;
+      onProgress(uploadedBytes);
+    }
+
+    await fetchJson<{ status: string; fileId: string }>(url, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ action: "complete", uploadId: create.uploadId, parts }),
+    });
+  } catch (error) {
+    await fetchJson(url, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ action: "abort", uploadId: create.uploadId }),
+    }).catch(() => null);
+    throw error;
+  }
+}
+
+function uploadMultipartPart(
+  url: string,
+  uploadId: string,
+  partNumber: number,
+  chunk: Blob,
+  onProgress: (loadedBytes: number) => void
+): Promise<MultipartUploadedPart> {
+  return new Promise((resolve, reject) => {
+    const partUrl = new URL(url, window.location.origin);
+    partUrl.searchParams.set("uploadId", uploadId);
+    partUrl.searchParams.set("partNumber", String(partNumber));
+    const request = new XMLHttpRequest();
+    request.open("PUT", `${partUrl.pathname}${partUrl.search}`);
+    request.setRequestHeader("content-type", chunk.type || "application/octet-stream");
+    request.upload.addEventListener("progress", (event) => {
+      if (event.lengthComputable) onProgress(event.loaded);
+    });
+    request.addEventListener("load", () => {
+      if (request.status >= 200 && request.status < 300) {
+        const payload = parseUploadXhrJson(request) as Partial<MultipartUploadedPart> | null;
+        if (payload?.etag && payload.partNumber) {
+          resolve({ partNumber: payload.partNumber, etag: payload.etag });
+        } else {
+          reject(new Error("Upload part response was invalid"));
+        }
+      } else {
+        reject(new Error(readUploadXhrError(request) || `Upload part failed with ${request.status}`));
+      }
+    });
+    request.addEventListener("error", () => reject(new Error("Upload part failed")));
+    request.send(chunk);
+  });
+}
+
+function normalizeMultipartPartSize(value: number | undefined): number {
+  if (!Number.isFinite(value) || !value) return MULTIPART_UPLOAD_PART_SIZE_BYTES;
+  return Math.max(5 * 1024 * 1024, Math.min(Math.floor(value), 90 * 1024 * 1024));
+}
+
+function parseUploadXhrJson(request: XMLHttpRequest): unknown {
+  try {
+    return request.responseText ? JSON.parse(request.responseText) : null;
+  } catch {
+    return null;
+  }
+}
+
+function readUploadXhrError(request: XMLHttpRequest): string | null {
+  const payload = parseUploadXhrJson(request);
+  return readErrorMessage(payload);
 }
 
 async function reloadLibrary(): Promise<void> {

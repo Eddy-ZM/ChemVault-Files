@@ -5,7 +5,13 @@ import { canWriteFiles, listRolePolicies, permissionDeniedJson, resolveActorAcce
 import { HttpError, okJson, parseJsonBody, routeError } from "../../_lib/http";
 import { checkInMemoryRateLimit, rateLimitClientId } from "../../_lib/rate-limit";
 import { ensureDriveAppSchema, ensureFileAccessSchema } from "../../_lib/schema";
-import { normalizeRoleIds, normalizeSlug, normalizeTags } from "../../../src/lib/chemvault-files/validation";
+import {
+  DIRECT_UPLOAD_MAX_BYTES,
+  MULTIPART_UPLOAD_PART_SIZE_BYTES,
+  normalizeRoleIds,
+  normalizeSlug,
+  normalizeTags,
+} from "../../../src/lib/chemvault-files/validation";
 import type { ActorAccess, FileRolePolicy } from "../../../src/lib/chemvault-files/types";
 import { resolveBillingEntitlements, storageQuotaBytesForPlan } from "../../_lib/billing-entitlements";
 import { storageUsage } from "../../_lib/drive-service";
@@ -107,14 +113,20 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       await db.prepare("INSERT OR IGNORE INTO file_tags (file_id, tag_id) VALUES (?, ?)").bind(draft.file.id, tagId).run();
     }
 
+    const uploadMode = draft.file.sizeBytes > DIRECT_UPLOAD_MAX_BYTES ? "multipart" : "direct";
+
     return okJson(
       {
         file: draft.file,
         session: draft.session,
         upload: {
-          mode: "direct",
-          method: "PUT",
-          url: `/api/files/upload?fileId=${draft.file.id}&sessionId=${draft.session.id}`,
+          mode: uploadMode,
+          method: uploadMode === "multipart" ? "POST" : "PUT",
+          url:
+            uploadMode === "multipart"
+              ? `/api/files/multipart?fileId=${draft.file.id}&sessionId=${draft.session.id}`
+              : `/api/files/upload?fileId=${draft.file.id}&sessionId=${draft.session.id}`,
+          partSizeBytes: uploadMode === "multipart" ? MULTIPART_UPLOAD_PART_SIZE_BYTES : undefined,
         },
       },
       { status: 201 }

@@ -4,6 +4,7 @@ import { canWriteFiles, permissionDeniedJson, resolveActorAccess } from "../../_
 import { HttpError, okJson, routeError } from "../../_lib/http";
 import { checkInMemoryRateLimit, rateLimitClientId } from "../../_lib/rate-limit";
 import {
+  DIRECT_UPLOAD_MAX_BYTES,
   assertUploadFileAllowed,
   normalizeUploadMimeType,
 } from "../../../src/lib/chemvault-files/validation";
@@ -53,6 +54,9 @@ export const onRequestPut: PagesFunction<Env> = async ({ request, env }) => {
     }
     const uploadContentType = normalizeUploadMimeType(request.headers.get("content-type")) || row.mime_type;
     assertUploadFileAllowed({ name: row.original_name, size: row.size_bytes, mimeType: uploadContentType });
+    if (row.size_bytes > DIRECT_UPLOAD_MAX_BYTES) {
+      throw new HttpError("Large files must use multipart upload.", 400, "MULTIPART_UPLOAD_REQUIRED");
+    }
 
     await env.FILES_BUCKET.put(row.r2_key, request.body, {
       httpMetadata: {

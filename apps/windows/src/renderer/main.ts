@@ -757,6 +757,13 @@ function guessMimeType(name: string) {
   if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return "image/jpeg";
   if (lower.endsWith(".txt") || lower.endsWith(".md")) return "text/plain";
   if (lower.endsWith(".json")) return "application/json";
+  if (lower.endsWith(".zip")) return "application/zip";
+  if (lower.endsWith(".7z")) return "application/x-7z-compressed";
+  if (lower.endsWith(".tar")) return "application/x-tar";
+  if (lower.endsWith(".gz") || lower.endsWith(".tgz")) return "application/gzip";
+  if (lower.endsWith(".dmg")) return "application/x-apple-diskimage";
+  if (lower.endsWith(".msi")) return "application/x-msi";
+  if (lower.endsWith(".exe")) return "application/x-msdownload";
   return "application/octet-stream";
 }
 

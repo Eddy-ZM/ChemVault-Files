@@ -97,14 +97,7 @@ actor APIClient {
         let resourceValues = try fileURL.resourceValues(forKeys: [.fileSizeKey, .contentTypeKey])
         let data = try Data(contentsOf: fileURL)
         let mimeType = resourceValues.contentType?.preferredMIMEType ?? "application/octet-stream"
-        struct InitResponse: Codable {
-            struct Session: Codable { let id: String }
-            struct Upload: Codable { let url: String; let method: String }
-            let file: CVFileItem
-            let session: Session
-            let upload: Upload
-        }
-        let initResponse: InitResponse = try await request("/api/files/init", method: "POST", body: [
+        let initResponse: FileInitResponse = try await request("/api/files/init", method: "POST", body: [
             "name": fileURL.lastPathComponent,
             "size": resourceValues.fileSize ?? data.count,
             "mimeType": mimeType,
@@ -115,10 +108,14 @@ actor APIClient {
             "roleIds": []
         ])
 
-        var uploadRequest = try await authorizedRequest(path: initResponse.upload.url, method: "PUT")
-        uploadRequest.setValue(mimeType, forHTTPHeaderField: "content-type")
-        let (_, uploadResponse) = try await session.upload(for: uploadRequest, from: data)
-        try validate(uploadResponse, data: Data())
+        if initResponse.upload.mode == "multipart" {
+            try await uploadMultipart(upload: initResponse.upload, data: data, mimeType: mimeType)
+        } else {
+            var uploadRequest = try await authorizedRequest(path: initResponse.upload.url, method: "PUT")
+            uploadRequest.setValue(mimeType, forHTTPHeaderField: "content-type")
+            let (_, uploadResponse) = try await session.upload(for: uploadRequest, from: data)
+            try validate(uploadResponse, data: Data())
+        }
 
         let _: EmptyResponse = try await request("/api/files/complete", method: "POST", body: [
             "fileId": initResponse.file.id,
@@ -170,7 +167,9 @@ actor APIClient {
 
     private func authorizedRequest(path: String, method: String, queryItems: [URLQueryItem] = []) async throws -> URLRequest {
         var components = URLComponents(url: URL(string: path, relativeTo: baseURL)!, resolvingAgainstBaseURL: true)!
-        if !queryItems.isEmpty { components.queryItems = queryItems }
+        if !queryItems.isEmpty {
+            components.queryItems = (components.queryItems ?? []) + queryItems
+        }
         var request = URLRequest(url: components.url!)
         request.httpMethod = method
         if let token = await accessTokenProvider?(), !token.isEmpty {
@@ -178,6 +177,67 @@ actor APIClient {
         }
         request.setValue("application/json", forHTTPHeaderField: "accept")
         return request
+    }
+
+    private func uploadMultipart(upload: FileInitResponse.Upload, data: Data, mimeType: String) async throws {
+        let create: MultipartCreateResponse = try await request(upload.url, method: "POST", body: [
+            "action": "create",
+            "contentType": mimeType
+        ])
+        let partSize = normalizedMultipartPartSize(create.partSizeBytes ?? upload.partSizeBytes)
+        var parts: [MultipartUploadedPart] = []
+
+        do {
+            var offset = 0
+            var partNumber = 1
+            while offset < data.count {
+                let upperBound = min(offset + partSize, data.count)
+                let chunk = data.subdata(in: offset..<upperBound)
+                let part = try await uploadMultipartPart(
+                    path: upload.url,
+                    uploadId: create.uploadId,
+                    partNumber: partNumber,
+                    data: chunk,
+                    mimeType: mimeType
+                )
+                parts.append(part)
+                offset = upperBound
+                partNumber += 1
+            }
+
+            let _: MultipartCompleteResponse = try await request(upload.url, method: "POST", body: [
+                "action": "complete",
+                "uploadId": create.uploadId,
+                "parts": parts.map { ["partNumber": $0.partNumber, "etag": $0.etag] }
+            ])
+        } catch {
+            do {
+                let _: MultipartAbortResponse = try await request(upload.url, method: "POST", body: [
+                    "action": "abort",
+                    "uploadId": create.uploadId
+                ])
+            } catch {
+                // The original upload error is more useful to the caller than a best-effort abort failure.
+            }
+            throw error
+        }
+    }
+
+    private func uploadMultipartPart(path: String, uploadId: String, partNumber: Int, data: Data, mimeType: String) async throws -> MultipartUploadedPart {
+        var uploadRequest = try await authorizedRequest(path: path, method: "PUT", queryItems: [
+            URLQueryItem(name: "uploadId", value: uploadId),
+            URLQueryItem(name: "partNumber", value: String(partNumber))
+        ])
+        uploadRequest.setValue(mimeType, forHTTPHeaderField: "content-type")
+        let (responseData, response) = try await session.upload(for: uploadRequest, from: data)
+        try validate(response, data: responseData)
+        return try JSONDecoder().decode(MultipartUploadedPart.self, from: responseData)
+    }
+
+    private func normalizedMultipartPartSize(_ value: Int?) -> Int {
+        let fallback = 32 * 1024 * 1024
+        guard let value, value > 0 else { return fallback }
+        return max(5 * 1024 * 1024, min(value, 90 * 1024 * 1024))
     }
 
     private func validate(_ response: URLResponse, data: Data) throws {
@@ -192,6 +252,41 @@ actor APIClient {
 }
 
 struct EmptyResponse: Codable {}
+
+private struct FileInitResponse: Codable {
+    struct Session: Codable { let id: String }
+    struct Upload: Codable {
+        let mode: String
+        let url: String
+        let method: String
+        let partSizeBytes: Int?
+    }
+    let file: CVFileItem
+    let session: Session
+    let upload: Upload
+}
+
+private struct MultipartCreateResponse: Codable {
+    let uploadId: String
+    let partSizeBytes: Int?
+}
+
+private struct MultipartUploadedPart: Codable {
+    let partNumber: Int
+    let etag: String
+}
+
+private struct MultipartCompleteResponse: Codable {
+    let status: String
+    let fileId: String
+    let sessionId: String?
+}
+
+private struct MultipartAbortResponse: Codable {
+    let status: String
+    let fileId: String
+    let sessionId: String?
+}
 
 private struct ServerErrorEnvelope: Codable {
     let error: CVAPIError

@@ -139,6 +139,23 @@ describe("upload visibility API", () => {
     expect(state.roleAccess).toEqual([]);
   });
 
+  it("returns multipart upload instructions for large files", async () => {
+    const state: UploadState = { fileId: null, fileArgs: [], roleAccess: [] };
+    const response = await initUpload({
+      request: request("owner@chemvault.science", { name: "ChemDraw_Applications_26.0.0.exe", size: 812_100_000, mimeType: "application/x-msdownload" }),
+      env: {
+        FILES_DB: new UploadD1(state),
+        PRIVATE_OWNER_EMAIL: "owner@chemvault.science",
+      },
+    } as unknown as Parameters<typeof initUpload>[0]);
+
+    expect(response.status).toBe(201);
+    const payload = (await response.json()) as { upload: { mode: string; method: string; url: string; partSizeBytes?: number } };
+    expect(payload.upload).toMatchObject({ mode: "multipart", method: "POST" });
+    expect(payload.upload.url).toContain("/api/files/multipart");
+    expect(payload.upload.partSizeBytes).toBeGreaterThan(5 * 1024 * 1024);
+  });
+
   it("stores explicit private uploads as private", async () => {
     const state: UploadState = { fileId: null, fileArgs: [], roleAccess: [] };
     const response = await initUpload({
