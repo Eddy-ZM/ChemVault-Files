@@ -399,7 +399,7 @@ export function filterFiles(files: FileRecord[], filters: FileFilters): FileReco
     if (filters.folderId && file.folderId !== filters.folderId) return false;
     if (filters.tagSlug && !file.tags.some((tag) => tag.slug === filters.tagSlug)) return false;
     if (filters.quickFilter === "ready" && file.status !== "ready") return false;
-    if (filters.quickFilter === "failed" && file.status !== "failed") return false;
+    if (filters.quickFilter === "failed" && !fileNeedsReview(file)) return false;
     if (filters.quickFilter === "large" && file.sizeBytes < 1024 ** 3) return false;
     if (filters.quickFilter === "shared" && !isSharedFile(file)) return false;
     if (filters.quickFilter === "starred" && !file.isStarred) return false;
@@ -416,6 +416,10 @@ export function filterFiles(files: FileRecord[], filters: FileFilters): FileReco
       .toLowerCase();
     return searchable.includes(search);
   });
+}
+
+export function fileNeedsReview(file: FileRecord): boolean {
+  return file.status === "failed" || file.scanStatus === "pending" || file.scanStatus === "error" || file.scanStatus === "rejected";
 }
 
 function isSharedFile(file: FileRecord): boolean {
@@ -436,8 +440,9 @@ export function summarizeFiles(files: FileRecord[]): FileSummary {
   return files.reduce<FileSummary>(
     (summary, file) => {
       summary.totalBytes += file.sizeBytes;
-      if (file.status === "ready") summary.readyCount += 1;
-      if (file.status === "failed") summary.failedCount += 1;
+      const needsReview = fileNeedsReview(file);
+      if (file.status === "ready" && !needsReview) summary.readyCount += 1;
+      if (needsReview) summary.failedCount += 1;
       if (file.status === "uploading" || file.status === "pending") summary.uploadingCount += 1;
       if (file.sizeBytes >= 1024 ** 3) summary.largeFileCount += 1;
       if (!summary.largestFile || file.sizeBytes > summary.largestFile.sizeBytes) summary.largestFile = file;

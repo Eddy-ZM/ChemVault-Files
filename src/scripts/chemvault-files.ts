@@ -46,6 +46,7 @@ import type {
   ActorAccess,
   FileActivityRecord,
   FileRecord,
+  FileScanStatus,
   FilePermissionLevel,
   FileRolePolicy,
   FileVisibility,
@@ -1506,8 +1507,8 @@ function renderUploadAccessControls(): void {
   container.innerHTML = `
     <header>
       <div>
-        <strong>File access</strong>
-        <span>${currentActorAccess.canManageRoles ? "Files are private by default. Admins can publish files or choose any file role." : "Files are private by default. You can keep uploads private or limit them to your current role."}</span>
+        <strong>Access and review</strong>
+        <span>${currentActorAccess.canManageRoles ? "Uploads are accepted, then reviewed for content and application code before preview or download. Admins can publish files or choose any file role." : "Uploads are accepted, then reviewed for content and application code before preview or download. You can keep uploads private or limit them to your current role."}</span>
       </div>
     </header>
     <div class="upload-access-modes">
@@ -1585,7 +1586,7 @@ function renderInsights(): void {
   renderStorageMeter(summary.totalBytes);
   if (!container) return;
 
-  const reviewLabel = summary.failedCount === 1 ? "failed upload" : "failed uploads";
+  const reviewLabel = summary.failedCount === 1 ? "item under review" : "items under review";
   const latestLabel = summary.latestFile ? summary.latestFile.displayName : "No file activity";
   const largestLabel = summary.largestFile ? summary.largestFile.displayName : "No stored objects";
 
@@ -1651,7 +1652,7 @@ function renderFlowBoard(): void {
     lanes.innerHTML = [
       flowLane("Intake", String(activeFiles.length), "Files in vault", (activeFiles.length / total) * 100, "blue"),
       flowLane("Indexed", String(summary.readyCount), "Ready R2 objects", (summary.readyCount / total) * 100, "green"),
-      flowLane("Needs review", String(summary.failedCount), "Failed or blocked", (summary.failedCount / total) * 100, "amber"),
+      flowLane("Needs review", String(summary.failedCount), "Pending review or blocked", (summary.failedCount / total) * 100, "amber"),
       flowLane("Released", String(releasedCount), "Access policy set", (releasedCount / total) * 100, "teal"),
     ].join("");
   }
@@ -1723,7 +1724,7 @@ function renderInsightsBoard(): void {
       ${readinessCard("Access", canReadCurrentAccess() ? "Readable" : "No read", canReadCurrentAccess() ? "green" : "amber")}
       ${readinessCard("Write policy", canWriteCurrentAccess() ? "Writable" : "Read only", canWriteCurrentAccess() ? "blue" : "amber")}
       ${readinessCard("Index", readyState, configurationMissing ? "amber" : "green")}
-      ${readinessCard("Review", `${summary.failedCount} flagged`, summary.failedCount > 0 ? "amber" : "teal")}
+      ${readinessCard("Review", `${summary.failedCount} pending`, summary.failedCount > 0 ? "amber" : "teal")}
     </section>
   `;
 }
@@ -1940,7 +1941,7 @@ function renderQueue(): void {
       const statusText = isFailed
         ? item.message || "Failed"
         : isComplete
-          ? "Completed"
+          ? item.message || "Completed"
           : isPending
             ? "Pending"
             : isQueued
@@ -2997,7 +2998,7 @@ async function uploadBrowserFile(
       await uploadFileBytes(init.upload.url, browserFile, progressHandler);
     }
 
-    const completed = await fetchJson<{ status: string; fileId: string }>("/api/files/complete", {
+    const completed = await fetchJson<{ status: string; fileId: string; scanStatus?: FileScanStatus }>("/api/files/complete", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ fileId: init.file.id, sessionId: init.session.id }),
@@ -3008,13 +3009,18 @@ async function uploadBrowserFile(
       ...init.file,
       id: completed.fileId || init.file.id,
       status: completed.status === "ready" ? "ready" : init.file.status,
+      scanStatus: completed.scanStatus ?? init.file.scanStatus,
       updatedAt: completedAt,
     };
     if (completedFile.status === "ready") {
       completedUploadFiles.set(completedFile.id, completedFile);
       library = mergeCompletedUploadFiles(library, completedUploadFiles.values());
     }
-    uploadQueue = reduceUploadQueue(uploadQueue, { type: "complete", id: target.queueId });
+    uploadQueue = reduceUploadQueue(uploadQueue, {
+      type: "complete",
+      id: target.queueId,
+      message: uploadCompletionMessage(completed.scanStatus),
+    });
     selectedFileId = completedFile.id;
     revealInspectorForSelection();
     await reloadLibrary();
@@ -3022,6 +3028,13 @@ async function uploadBrowserFile(
     uploadQueue = reduceUploadQueue(uploadQueue, { type: "fail", id: target.queueId, message: errorMessage(error) });
     renderQueue();
   }
+}
+
+function uploadCompletionMessage(scanStatus?: FileScanStatus): string {
+  if (scanStatus === "clean") return "Review complete";
+  if (scanStatus === "rejected") return "Rejected by review";
+  if (scanStatus === "error") return "Review retry queued";
+  return "Under review";
 }
 
 async function ensureUploadFolderPath(projectId: string, folderParts: string[]): Promise<string | null> {

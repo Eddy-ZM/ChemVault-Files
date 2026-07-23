@@ -70,6 +70,9 @@ struct CVFileItem: Codable, Equatable, Identifiable {
     let mimeType: String?
     let sizeBytes: Int64
     let status: String
+    let scanStatus: String?
+    let scanDetail: String?
+    let scannedAt: String?
     let checksum: String?
     let actorEmail: String?
     let downloadCount: Int
@@ -102,6 +105,20 @@ struct CVFileItem: Codable, Equatable, Identifiable {
         if lowerName.hasSuffix(".json") || lowerName.hasSuffix(".xml") || lowerName.hasSuffix(".md") || lowerName.hasSuffix(".txt") { return "Text" }
         if lowerName.hasSuffix(".zip") { return "Archive" }
         return "File"
+    }
+
+    var reviewStatusLabel: String {
+        switch scanStatus ?? "clean" {
+        case "pending": return "Under review"
+        case "error": return "Review retry queued"
+        case "rejected": return "Rejected by review"
+        case "clean": return "Cleared"
+        default: return "Cleared"
+        }
+    }
+
+    var isUnderReview: Bool {
+        scanStatus == "pending" || scanStatus == "error" || scanStatus == "rejected"
     }
 }
 

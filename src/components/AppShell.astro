@@ -256,14 +256,14 @@ import Inspector from "./Inspector.astro";
         </button>
       </header>
       <h2 id="upload-title" data-cv-upload-title>Upload Queue</h2>
-      <p>Uploads are private by default. Choose public or role-based access only when the file should be shared.</p>
+      <p>Uploads are allowed by default, then held for content and application code review before preview or download.</p>
 
       <div class="upload-picker-grid upload-picker-grid--single" aria-label="Upload source">
         <div class="upload-choice upload-choice--unified">
           <input class="sr-only" type="file" multiple data-cv-file-input />
           <input class="sr-only" type="file" multiple data-cv-folder-input />
           <span>Choose files or folder</span>
-          <small>Allowed: research files, archives, and app installers. Max 2 GB.</small>
+          <small>Allowed: research files, archives, app installers, and code packages. Max 2 GB.</small>
           <div class="upload-choice__actions">
             <button type="button" data-cv-file-picker>Files</button>
             <button type="button" data-cv-folder-picker>Folder</button>
@@ -284,13 +284,13 @@ import Inspector from "./Inspector.astro";
         </span>
         <span>
           <strong>Drop files or folders to upload</strong>
-          <small>New uploads remain private unless you explicitly change access.</small>
+          <small>New uploads remain private and enter review before release.</small>
         </span>
         <span class="upload-dropzone__action">Drop here</span>
       </label>
 
       <ul class="upload-list" aria-label="Current uploads" data-cv-upload-list>
-        <li class="upload-row upload-row--empty">Ready for direct R2 upload. Choose files or a folder to start.</li>
+        <li class="upload-row upload-row--empty">Ready for secure upload and review. Choose files or a folder to start.</li>
       </ul>
     </div>
   </section>

@@ -122,7 +122,7 @@ function context(state: PreviewState) {
 }
 
 describe("file preview quarantine", () => {
-  it("does not use preview as a shortcut around the safety scan", async () => {
+  it("does not use preview as a shortcut around content and application code review", async () => {
     const state = pendingCsvState();
     const response = await previewFile(context(state));
 

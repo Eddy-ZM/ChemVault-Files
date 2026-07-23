@@ -20,7 +20,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env, params })
     if (!canViewFile(access, file)) return permissionDeniedJson(access, "read");
     if (!isPreviewableFile(file)) return errorJson("File type is not previewable", 415, "PREVIEW_UNSUPPORTED");
     if (file.status !== "ready" || file.scanStatus !== "clean") {
-      return errorJson("File is quarantined until its safety scan completes", 423, "FILE_QUARANTINED");
+      return errorJson("File is under content and application code review until it is cleared", 423, "FILE_UNDER_REVIEW");
     }
 
     const object = await env.FILES_BUCKET.get(file.r2Key);

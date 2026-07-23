@@ -65,6 +65,18 @@ const csvFile: FileRecord = {
   tags: [{ id: "tag_kinetics", name: "Kinetics", slug: "kinetics", color: null, createdAt: "2026-06-11T00:00:00.000Z" }],
 };
 
+const reviewFile: FileRecord = {
+  ...file,
+  id: "file_review",
+  displayName: "ChemDraw_Applications_26.0.0.exe",
+  originalName: "ChemDraw_Applications_26.0.0.exe",
+  mimeType: "application/x-msdownload",
+  sizeBytes: 851548160,
+  scanStatus: "pending",
+  updatedAt: "2026-06-13T00:00:00.000Z",
+  tags: [],
+};
+
 describe("client state", () => {
   it("formats bytes for file rows", () => {
     expect(formatBytes(13214592)).toBe("12.6 MB");
@@ -83,7 +95,10 @@ describe("client state", () => {
   });
 
   it("filters by quick file status", () => {
-    expect(filterFiles([file, failedFile, csvFile], { search: "", tagSlug: null, projectId: null, folderId: null, quickFilter: "failed" })).toEqual([failedFile]);
+    expect(filterFiles([file, failedFile, csvFile, reviewFile], { search: "", tagSlug: null, projectId: null, folderId: null, quickFilter: "failed" })).toEqual([
+      failedFile,
+      reviewFile,
+    ]);
     expect(filterFiles([file, failedFile, csvFile], { search: "", tagSlug: null, projectId: null, folderId: null, quickFilter: "large" })).toEqual([failedFile]);
   });
 
@@ -110,13 +125,13 @@ describe("client state", () => {
   });
 
   it("summarizes library storage and health", () => {
-    expect(summarizeFiles([file, failedFile, csvFile])).toMatchObject({
-      totalBytes: 3948077133,
+    expect(summarizeFiles([file, failedFile, csvFile, reviewFile])).toMatchObject({
+      totalBytes: 4799625293,
       readyCount: 2,
-      failedCount: 1,
+      failedCount: 2,
       largeFileCount: 1,
       largestFile: failedFile,
-      latestFile: failedFile,
+      latestFile: reviewFile,
     });
   });
 
@@ -196,6 +211,9 @@ describe("client state", () => {
     const queue = reduceUploadQueue([], { type: "add", id: "local_1", name: "raw.zip", sizeBytes: 100 });
     const progressed = reduceUploadQueue(queue, { type: "progress", id: "local_1", loadedBytes: 60 });
     expect(progressed[0]).toMatchObject({ progress: 60, status: "uploading" });
+
+    const complete = reduceUploadQueue(progressed, { type: "complete", id: "local_1", message: "Under review" });
+    expect(complete[0]).toMatchObject({ progress: 100, status: "complete", message: "Under review" });
   });
 
   it("stages every selected upload as pending before each file starts", () => {

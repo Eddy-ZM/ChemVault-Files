@@ -28,6 +28,7 @@ struct FileDetailView: View {
                         DetailRow("Created", file.createdAt)
                         DetailRow("Owner", file.actorEmail ?? "ChemVault")
                         DetailRow("Access", file.visibility)
+                        DetailRow("Review", file.reviewStatusLabel)
                     }
                     HStack {
                         Button("Download") { Task { await download(file) } }

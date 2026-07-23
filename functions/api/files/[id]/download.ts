@@ -17,7 +17,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ request, env, params })
     if (!row) throw new Error("File was not found");
     const file = { ...mapFile(row as Record<string, unknown>), roleIds: await listFileRoleIds(db, fileId) };
     if (!canViewFile(access, file)) return permissionDeniedJson(access, "read");
-    if (file.scanStatus !== "clean") return Response.json({ error: { code: "FILE_QUARANTINED", message: "File is quarantined until its safety scan completes." } }, { status: 423 });
+    if (file.scanStatus !== "clean") return Response.json({ error: { code: "FILE_UNDER_REVIEW", message: "File is under content and application code review until it is cleared." } }, { status: 423 });
     const object = await env.FILES_BUCKET.get(file.r2Key);
     if (!object?.body) throw new Error("Stored object was not found");
 

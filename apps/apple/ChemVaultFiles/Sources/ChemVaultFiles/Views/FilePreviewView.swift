@@ -15,7 +15,19 @@ struct FilePreviewView: View {
 
     var body: some View {
         Group {
-            if let data, file.typeLabel == "Image", let image = platformImage(data: data) {
+            if file.isUnderReview {
+                VStack(spacing: 12) {
+                    Image(systemName: "checkmark.shield")
+                        .font(.system(size: 48))
+                        .foregroundStyle(.blue)
+                    Text(file.reviewStatusLabel)
+                        .font(.headline)
+                    Text("Preview and download unlock after content and application code review.")
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                }
+                .padding()
+            } else if let data, file.typeLabel == "Image", let image = platformImage(data: data) {
                 PlatformImageView(image: image)
                     .scaledToFit()
             } else if let data, file.typeLabel == "PDF" {

@@ -436,8 +436,8 @@ async function uploadDesktopFiles(files: DesktopFile[]) {
       complete += 1;
     }
     state.uploadProgress = null;
-    toast(files.length === 1 ? "File uploaded" : `${files.length} files uploaded`, "ok");
-    await desktop.notify({ title: "ChemVault Files", body: "Upload complete" });
+    toast(files.length === 1 ? "File uploaded for review" : `${files.length} files uploaded for review`, "ok");
+    await desktop.notify({ title: "ChemVault Files", body: "Upload complete. Review is in progress." });
     await refreshFromServer();
   });
 }
